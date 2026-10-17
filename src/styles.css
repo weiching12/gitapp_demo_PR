@@ -3165,6 +3165,12 @@ dialog.institution-dialog {
   .sector-ranking .sector-rank,
   .sector-marker { grid-row: 1 / span 2; align-self: center; }
   .sector-identity { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  .sector-identity p {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    line-height: 1.45;
+  }
   .sector-change { grid-column: 4; grid-row: 1; align-self: end; }
   .sector-ranking .sector-total { grid-column: 4; grid-row: 2; align-self: start; }
 }

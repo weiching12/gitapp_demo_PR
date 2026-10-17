@@ -56,7 +56,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("all favorites show compact metrics with institutional details available separately", async ({ page }) => {
-  await expect(page.getByRole("heading", { name: "市場總覽." })).toBeVisible();
+  await expect(page.locator("#page-title")).toContainText("市場觀察清單");
+  await expect(page.locator("#stocks-heading")).toHaveCount(0);
   await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(5);
   await expect(page.locator("#stock-rows tr")).toHaveCount(14);
@@ -316,7 +317,7 @@ test("technical suggestions explain each stock on the selected historical date",
 test("desktop overview screenshot and keyboard search shortcut", async ({ page }, testInfo) => {
   await page.keyboard.press("/");
   await expect(page.getByRole("searchbox")).toBeFocused();
-  await page.getByRole("heading", { name: "市場總覽." }).click();
+  await page.locator("#page-title").click();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForFunction(() => window.scrollY === 0);
   await page.screenshot({ path: testInfo.outputPath("watchlist-desktop.png"), fullPage: true });
@@ -724,6 +725,7 @@ test("primary navigation keeps market, favorites and sectors as separate pages",
   await expect(page.locator("#watchlist")).toBeHidden();
   await openPage(page, "favorites");
   await expect(cardFor(page, "2454")).toBeVisible();
+  await expect(page.locator("#page-title")).toContainText("自選總覽");
   await openPage(page, "sectors");
   await expect(page.locator("#sector-grid .sector-card")).toHaveCount(6);
   await expect(page.locator("#page-title")).toContainText("法人買株");
@@ -837,6 +839,13 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
     }));
     expect(sectorControls.every(({ width: controlWidth, height }) => controlWidth >= 44 && height >= 44)).toBe(true);
     expect(new Set(sectorControls.map(({ top }) => top)).size).toBe(1);
+    if (width <= 700) {
+      const noteStyles = await page.locator(".sector-identity p").evaluateAll((notes) => notes.map((note) => {
+        const style = getComputedStyle(note);
+        return { overflow: style.overflow, textOverflow: style.textOverflow, whiteSpace: style.whiteSpace };
+      }));
+      expect(noteStyles.every((style) => style.overflow === "visible" && style.textOverflow === "clip" && style.whiteSpace === "normal")).toBe(true);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth), `Page overflow at ${width}px`).toBeLessThanOrEqual(width);
   }
 });
