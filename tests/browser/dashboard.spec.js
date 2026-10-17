@@ -659,6 +659,74 @@ test("sector page aggregates institutional flows and sorts industries", async ({
   expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(names);
 });
 
+test("sector details show period totals and each constituent stock price and net lots", async ({ page }) => {
+  const { stocks, info } = await demoProvider.load();
+  const sectorName = [...new Set(stocks.map((stock) => stock.sector))]
+    .find((name) => stocks.filter((stock) => stock.sector === name).length > 1);
+  const members = stocks.filter((stock) => stock.sector === sectorName);
+  const memberNet = (stock, institution, days) => stock.history
+    .filter((bar) => bar.date <= info.asOf).slice(-days)
+    .reduce((total, bar) => {
+      const row = bar.institutions.find((item) => item.name === institution);
+      return total + row.buy - row.sell;
+    }, 0);
+  const sectorNet = (institution, days) => members
+    .reduce((total, stock) => total + memberNet(stock, institution, days), 0);
+  const expectedTotal = (days) => institutionalNames
+    .reduce((total, institution) => total + sectorNet(institution, days), 0);
+
+  await openPage(page, "sectors");
+  const card = page.locator(`#sector-grid [data-sector-details="${sectorName}"]`);
+  await expect(card).toHaveAttribute("aria-haspopup", "dialog");
+  await card.click();
+  const dialog = page.locator("#sector-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAccessibleName(sectorName);
+  await expect(dialog.locator('[data-sector-summary="total"]')).toHaveText(amountText(expectedTotal(1)));
+  for (const institution of institutionalNames)
+    await expect(dialog.locator(`[data-sector-summary="${institution}"]`))
+      .toHaveText(amountText(sectorNet(institution, 1)));
+  await expect(dialog.locator("[data-sector-stock]")).toHaveCount(members.length);
+  for (const stock of members) {
+    const row = dialog.locator(`[data-sector-stock="${stock.symbol}"]`);
+    const latest = stock.history.filter((bar) => bar.date <= info.asOf).at(-1);
+    await expect(row).toContainText(stock.name);
+    await expect(row.locator("td:nth-child(2)")).toContainText(formatted(latest.close, 2));
+    await expect(row.locator("td:last-child strong"))
+      .toHaveText(amountText(memberNet(stock, "外資", 1) + memberNet(stock, "投信", 1) + memberNet(stock, "自營商", 1)));
+  }
+
+  await dialog.locator('[data-sector-window="5"]').click();
+  await expect(dialog.locator('[data-sector-window="5"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(dialog.locator("#sector-dialog-meta")).toContainText("近 5 日");
+  await expect(dialog.locator('[data-sector-summary="total"]')).toHaveText(amountText(expectedTotal(5)));
+  await dialog.locator("#close-sector-dialog").click();
+  await expect(dialog).not.toBeVisible();
+  const refreshedCard = page.locator(`#sector-grid [data-sector-details="${sectorName}"]`);
+  await expect(refreshedCard).toBeFocused();
+  await refreshedCard.press("Enter");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+});
+
+test("sector details open as a full-width bottom sheet on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openPage(page, "sectors");
+  await page.locator("#sector-grid [data-sector-details]").first().click();
+  const dialog = page.locator("#sector-dialog");
+  await expect(dialog).toBeVisible();
+  const layout = await dialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.x, width: rect.width, bottom: rect.bottom, viewport: innerHeight };
+  });
+  expect(layout.x).toBe(0);
+  expect(layout.width).toBe(390);
+  expect(layout.bottom).toBeGreaterThanOrEqual(layout.viewport - 1);
+  await expect(dialog.locator(".sector-stock-scroll")).toBeVisible();
+  await expect(dialog.locator(".sector-summary-grid .sector-summary-metric")).toHaveCount(4);
+});
+
 test("both overview modes follow all favorites and retain the zero-favorite selection path", async ({ page }) => {
   const { stocks } = await demoProvider.load();
   await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })), stocks.map((stock) => stock.symbol));
