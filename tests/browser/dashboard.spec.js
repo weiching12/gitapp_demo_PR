@@ -205,3 +205,54 @@ test("mobile can scroll to suggestions and open the rules with keyboard dismissa
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
 });
+
+test("metric cards keep all numbers and labels within their bounds across responsive widths", async ({ page }, testInfo) => {
+  const inspectCards = () => page.locator("#metrics").evaluate((grid) => {
+    const clipped = [];
+    const cards = [...grid.children];
+    for (const [index, card] of cards.entries()) {
+      const bounds = card.getBoundingClientRect();
+      const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (!node.textContent.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const rect of range.getClientRects()) {
+          if (rect.left < bounds.left || rect.right > bounds.right || rect.top < bounds.top || rect.bottom > bounds.bottom)
+            clipped.push({ index, text: node.textContent.trim() });
+        }
+      }
+      for (const element of card.querySelectorAll(".metric-label,.metric-value,.metric-description,.metric-number"))
+        if (element.scrollWidth > element.clientWidth + 1)
+          clipped.push({ index, element: element.className });
+    }
+    return {
+      clipped,
+      columnCount: new Set(cards.map((card) => Math.round(card.getBoundingClientRect().left))).size,
+      rowHeights: cards.map((card) => Math.round(card.getBoundingClientRect().height)),
+    };
+  });
+
+  for (const width of [320, 360, 390, 520, 521, 768, 1000, 1001, 1024, 1250, 1251, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const result = await inspectCards();
+    expect(result.clipped, `Clipped metric content at ${width}px`).toEqual([]);
+    expect(result.columnCount).toBe(width <= 1000 ? 2 : 4);
+    expect(result.rowHeights[0]).toBe(result.rowHeights[1]);
+  }
+
+  // Check a four-digit stock price and the longest allowed KD settings.
+  await page.locator('[data-select="2454"]').click();
+  await page.getByRole("button", { name: "指標設定", exact: true }).click();
+  await page.getByLabel("RSV 回溯週期").fill("60");
+  await page.getByLabel("K 平滑係數").fill("20");
+  await page.getByLabel("D 平滑係數").fill("20");
+  await page.getByRole("button", { name: "儲存並重新計算" }).click();
+  for (const width of [320, 390, 521, 1001, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect((await inspectCards()).clipped, `Clipped custom KD content at ${width}px`).toEqual([]);
+  }
+  await page.setViewportSize({ width: 320, height: 1000 });
+  await page.locator("#metrics").screenshot({ path: testInfo.outputPath("metrics-320.png") });
+});

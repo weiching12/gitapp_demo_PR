@@ -493,6 +493,9 @@ h1 {
   margin-bottom: 21px;
 }
 .metric-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -502,13 +505,17 @@ h1 {
 }
 .metric-label {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
+  line-height: 1.5;
   font-size: 11px;
   color: #697c96;
   margin-bottom: 16px;
 }
 .metric-label > span {
+  flex-shrink: 0;
   font-size: 9px;
   color: #8494aa;
   font-weight: 400;
@@ -521,7 +528,10 @@ h1 {
 }
 .metric-value {
   display: flex;
+  flex: 1;
+  flex-wrap: wrap;
   align-items: center;
+  align-content: flex-start;
   gap: 10px;
   font-size: 29px;
   font-weight: 550;
@@ -529,6 +539,14 @@ h1 {
   letter-spacing: -0.7px;
   line-height: 1.2;
   white-space: nowrap;
+}
+.metric-number {
+  flex-shrink: 0;
+}
+.metric-value .change-chip,
+.metric-value .indicator-tag,
+.metric-value small {
+  flex-shrink: 0;
 }
 .metric-value small {
   font-size: 11px;
@@ -561,11 +579,15 @@ h1 {
 }
 .metric-description {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
   font-size: 9px;
   color: #8191a8;
   margin-top: 15px;
+  line-height: 1.7;
+}
+.metric-detail {
   white-space: nowrap;
 }
 .metric-separator {
@@ -1686,16 +1708,6 @@ dialog h2 {
   .analysis-grid {
     grid-template-columns: minmax(0, 1.8fr) minmax(255px, 1fr);
   }
-  .metric-value {
-    font-size: 24px;
-  }
-  .metric-card:nth-child(1) .metric-value {
-    flex-wrap: wrap;
-    row-gap: 5px;
-  }
-  .metric-card:nth-child(1) .metric-value .change-chip {
-    margin: 0;
-  }
   .metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2105,9 +2117,6 @@ dialog h2 {
   }
   .position-arrow {
     font-size: 22px;
-  }
-  .metric-card:nth-child(1) .metric-value {
-    flex-wrap: nowrap;
   }
   .panel {
     border-radius: 6px;
