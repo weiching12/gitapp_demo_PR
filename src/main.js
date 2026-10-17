@@ -68,6 +68,7 @@ const state = {
   sort: null,
   sortDirection: -1,
   favorites: [],
+  institutionSymbol: null,
   settings: { ...DEFAULT_SETTINGS },
 };
 let dataset, snapshots, visibleStocks;
@@ -146,7 +147,7 @@ function shell() {
           )}</select><span id="date-hint">${isDemo ? "預設顯示前一交易日的模擬資料" : "最近一個價量與法人資料均完整的交易日"}</span></div></section>
         <div class="demo-notice">${icon("info")}<span>${isDemo ? "目前為前端展示，行情與法人數據皆為模擬資料。" : `FinMind 每日資料 · 資料截至 ${esc(dataset.info.asOf)}。晚上分批更新，所有標的採共同完整交易日；非即時報價。`}</span><button data-dialog="source">了解資料來源 ${icon("chevron")}</button></div>
         <section id="watchlist" aria-labelledby="watchlist-heading">
-          <div class="watchlist-heading"><div><div class="eyebrow">MY WATCHLIST</div><h2 id="watchlist-heading" tabindex="-1">我的自選總覽 <span id="watchlist-count" role="status"></span></h2><p>所有自選，一次掌握價量、KD 與法人動向。</p></div><button class="outline-button" id="manage-favorites">${icon("star")} 管理自選</button></div>
+          <div class="watchlist-heading"><div><div class="eyebrow">MY WATCHLIST</div><h2 id="watchlist-heading" tabindex="-1">我的自選總覽 <span id="watchlist-count" role="status"></span></h2><p>一次掌握價量與技術訊號，點選卡片查看法人明細。</p></div><button class="outline-button" id="manage-favorites">${icon("star")} 管理自選</button></div>
           <div id="watchlist-grid" class="watchlist-grid"></div>
           <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>在下方市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div>
         </section>
@@ -173,6 +174,7 @@ function shell() {
       </main>
     </div>
     <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div></dialog>
+    <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向" autofocus>${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
     <div id="toast" role="status" class="toast"></div>`;
 }
 
@@ -182,6 +184,7 @@ function refreshData() {
   );
   renderWatchlist();
   renderTable();
+  if (document.querySelector("#institution-dialog").open) renderInstitutionDialog();
 }
 
 function renderWatchlist() {
@@ -190,12 +193,11 @@ function renderWatchlist() {
     .filter((stock) => stock?.latest);
   document.querySelector("#watchlist-count").textContent = `${favorites.length} 檔`;
   document.querySelector("#watchlist-empty").hidden = favorites.length > 0;
+  if (state.institutionSymbol && !favorites.some((stock) => stock.symbol === state.institutionSymbol))
+    document.querySelector("#institution-dialog").close();
   document.querySelector("#watchlist-grid").innerHTML = favorites.map((stock) => {
-    const { latest: bar, signal, institutionalSummary } = stock;
+    const { latest: bar, signal } = stock;
     const kStatus = bar.k === null ? "資料不足" : bar.k > 80 ? "高檔區間" : bar.k < 20 ? "低檔區間" : "中性區間";
-    const buy = bar.institutionalNet === null ? null : bar.institutions.reduce((sum, item) => sum + item.buy, 0);
-    const sell = bar.institutionalNet === null ? null : bar.institutions.reduce((sum, item) => sum + item.sell, 0);
-    const max = Math.max(...bar.institutions.flatMap((item) => [item.buy, item.sell]), 1);
     return `<article class="watch-card" data-watch-symbol="${stock.symbol}" aria-labelledby="watch-title-${stock.symbol}">
       <header class="watch-card-heading"><div><span class="watch-symbol">${stock.symbol} <span>${esc(stock.market)} · ${esc(stock.sector)}</span></span><h3 id="watch-title-${stock.symbol}">${esc(stock.name)}</h3></div><button class="icon-button favorite-button is-favorite" data-favorite="${stock.symbol}" aria-label="移除${esc(stock.name)}自選" aria-pressed="true">${icon("star")}</button></header>
       <div class="metrics" aria-label="${esc(stock.name)}關鍵指標">
@@ -205,9 +207,21 @@ function renderWatchlist() {
         <div class="metric-card quarter-card"><div class="metric-label">股價與季線 <span>MA60</span></div><div class="metric-value ${direction(bar.deviation)}"><span class="metric-number">${percent(bar.deviation)}</span></div><div class="metric-description"><span>${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><span class="metric-detail">季線 ${number(bar.ma60, 2)}</span></div></div>
       </div>
       <div class="watch-signal"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><span class="signal-reason">${esc(signal.reason)}</span></div>
-      <section class="watch-flow" aria-label="${esc(stock.name)}三大法人動向"><div class="watch-flow-heading"><h4>三大法人動向</h4><span>單位：張</span></div>
-        <div class="watch-flow-total"><div><span>合計買賣超</span><strong class="${direction(buy - sell)}">${bar.institutionalNet === null ? "—" : signed(bar.institutionalNet / 1000, 0)}<small> 張</small></strong></div><div class="watch-flow-amounts"><span>買進 ${buy === null ? "—" : number(buy / 1000)}</span><span>賣出 ${sell === null ? "—" : number(sell / 1000)}</span></div></div>
-        <div class="watch-total-history" aria-label="三大法人累計買賣超">${institutionalHistory(institutionalSummary.total)}</div><p class="watch-history-note">累計含資料日，以交易日計算</p>
+
+      <footer class="watch-card-footer"><span>${bar.date.replaceAll("-", ".")} · ${isDemo ? "模擬資料" : "FinMind"}</span><button class="institution-trigger" data-institution-details="${stock.symbol}" aria-label="查看${esc(stock.name)}三大法人動向" aria-haspopup="dialog" aria-controls="institution-dialog">${icon("chart")} 查看三大法人 ${icon("chevron")}</button></footer>
+    </article>`;
+  }).join("");
+}
+
+
+function institutionalDetails(stock) {
+  const { latest: bar, institutionalSummary } = stock;
+  const buy = bar.institutionalNet === null ? null : bar.institutions.reduce((sum, item) => sum + item.buy, 0);
+  const sell = bar.institutionalNet === null ? null : bar.institutions.reduce((sum, item) => sum + item.sell, 0);
+  const max = Math.max(...bar.institutions.flatMap((item) => [item.buy, item.sell]), 1);
+  return `<section class="watch-flow" data-institution-symbol="${stock.symbol}" aria-label="${esc(stock.name)}三大法人動向"><div class="watch-flow-heading"><h3>買賣超與累計</h3><span>單位：張</span></div>
+        <div class="institution-summary"><div class="watch-flow-total"><div><span>合計買賣超</span><strong class="${direction(buy - sell)}">${bar.institutionalNet === null ? "—" : signed(bar.institutionalNet / 1000, 0)}<small> 張</small></strong></div><div class="watch-flow-amounts"><span>買進 ${buy === null ? "—" : number(buy / 1000)}</span><span>賣出 ${sell === null ? "—" : number(sell / 1000)}</span></div></div>
+        <div class="watch-total-history" aria-label="三大法人累計買賣超">${institutionalHistory(institutionalSummary.total)}</div></div><p class="watch-history-note">累計含資料日，以交易日計算</p>
         <div class="watch-flow-legend"><span><i class="buy-key"></i>買進</span><span><i class="sell-key"></i>賣出</span><span>右側為買賣超</span></div>
         <div class="watch-institutions">${bar.institutions.map((item) => {
           const stats = institutionalSummary.institutions[item.name];
@@ -215,12 +229,26 @@ function renderWatchlist() {
             ? `<span class="watch-streak ${stats.streak.direction}" data-streak>${institutionalStreak(stats.streak)}</span>` : "";
           return `<div class="watch-institution" data-institution="${esc(item.name)}"><div class="watch-institution-heading"><span class="watch-institution-label"><span>${esc(item.name)}</span>${streak}</span><strong class="${direction(item.buy - item.sell)}">${signed((item.buy - item.sell) / 1000, 0)}</strong></div><div class="watch-flow-bar-row"><span class="watch-flow-bar buy" style="width:${(item.buy / max) * 100}%"></span><span>${number(item.buy / 1000)}</span></div><div class="watch-flow-bar-row"><span class="watch-flow-bar sell" style="width:${(item.sell / max) * 100}%"></span><span>${number(item.sell / 1000)}</span></div>${institutionalHistory(stats)}</div>`;
         }).join("")}</div>
-      </section>
-      <footer class="watch-card-footer"><span>${bar.date.replaceAll("-", ".")} · ${isDemo ? "模擬資料" : "FinMind"}</span><span>1 張 = 1,000 股</span></footer>
-    </article>`;
-  }).join("");
+      </section>`;
 }
 
+function renderInstitutionDialog() {
+  const stock = snapshots.find((item) => item.symbol === state.institutionSymbol);
+  if (!stock?.latest) return;
+  document.querySelector("#institution-heading").textContent = `${stock.name} 三大法人動向`;
+  document.querySelector("#institution-meta").textContent =
+    `${stock.symbol} · ${stock.market} · ${stock.latest.date} · ${isDemo ? "模擬資料" : "FinMind"}`;
+  document.querySelector("#institution-content").innerHTML = institutionalDetails(stock);
+}
+
+function openInstitutionDialog(symbol) {
+  if (!state.favorites.includes(symbol)) return;
+  state.institutionSymbol = symbol;
+  renderInstitutionDialog();
+  const dialog = document.querySelector("#institution-dialog");
+  if (!dialog.open) dialog.showModal();
+  dialog.scrollTop = 0;
+}
 
 function renderTable() {
   visibleStocks = filterStocks(snapshots, state);
@@ -320,6 +348,9 @@ function bindEvents() {
     const button = event.target.closest("button");
     if (!button) return;
     if (button.dataset.dialog) openDialog(button.dataset.dialog);
+    if (button.dataset.institutionDetails) openInstitutionDialog(button.dataset.institutionDetails);
+    if (button.id === "close-institution-dialog")
+      document.querySelector("#institution-dialog").close();
     if (button.id === "close-dialog")
       document.querySelector("#info-dialog").close();
     if (button.dataset.favorite) {
@@ -404,7 +435,7 @@ function bindEvents() {
     document.querySelector("#info-dialog").close();
     toast("指標已重新計算，設定已儲存");
   });
-  document.querySelector("#info-dialog").addEventListener("click", (event) => {
+  document.querySelectorAll("dialog").forEach((dialog) => dialog.addEventListener("click", (event) => {
     if (event.target !== event.currentTarget) return;
     const rect = event.currentTarget.getBoundingClientRect();
     if (
@@ -414,6 +445,12 @@ function bindEvents() {
       event.clientY > rect.bottom
     )
       event.currentTarget.close();
+  }));
+  document.querySelector("#institution-dialog").addEventListener("close", () => {
+    const symbol = state.institutionSymbol;
+    state.institutionSymbol = null;
+    const trigger = document.querySelector(`[data-institution-details="${symbol}"]`);
+    (trigger ?? document.querySelector("#manage-favorites")).focus({ preventScroll: true });
   });
 }
 

@@ -3,6 +3,18 @@ import { demoProvider } from "../../src/data.js";
 import { getSnapshot } from "../../src/indicators.js";
 
 const cardFor = (page, symbol) => page.locator(`[data-watch-symbol="${symbol}"]`);
+const detailsButtonFor = (page, symbol) => cardFor(page, symbol).locator(`[data-institution-details="${symbol}"]`);
+async function openInstitutionDetails(page, symbol) {
+  await detailsButtonFor(page, symbol).click();
+  const dialog = page.locator("#institution-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator("[data-institution-symbol]")).toHaveAttribute("data-institution-symbol", symbol);
+  return dialog;
+}
+async function closeInstitutionDetails(page) {
+  await page.locator("#close-institution-dialog").click();
+  await expect(page.locator("#institution-dialog")).not.toBeVisible();
+}
 const formatted = (value, digits = 0) => value.toLocaleString("en-US", {
   minimumFractionDigits: digits,
   maximumFractionDigits: digits,
@@ -13,12 +25,17 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("all favorites show computed metrics and institutional flows above the market table", async ({ page }) => {
+test("all favorites show compact metrics with institutional details available separately", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "台股研究室." })).toBeVisible();
   await expect(page.locator(".watch-card")).toHaveCount(5);
   await expect(page.locator("#stock-rows tr")).toHaveCount(14);
   await expect(page.locator("#price-chart, #export-csv, #selected-title")).toHaveCount(0);
   await expect(cardFor(page, "2454")).toHaveCount(0);
+  await expect(page.locator(".watch-card .watch-flow")).toHaveCount(0);
+  await expect(page.locator("#institution-dialog")).not.toBeVisible();
+  await expect(page.locator("[data-institution-details]")).toHaveCount(5);
+  const cardHeights = await page.locator(".watch-card").evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().height));
+  expect(Math.max(...cardHeights)).toBeLessThanOrEqual(500);
   const { stocks, info } = await demoProvider.load();
   async function checkAllFavorites(date) {
     for (const symbol of ["2330", "2317", "0050", "3026", "6488"]) {
@@ -31,13 +48,15 @@ test("all favorites show computed metrics and institutional flows above the mark
       await expect(metrics.nth(3)).toContainText(formatted(bar.deviation, 2));
       await expect(card).toContainText(`D 值 ${formatted(bar.d, 2)}`);
       await expect(card).toContainText(`季線 ${formatted(bar.ma60, 2)}`);
-      await expect(card.locator(".watch-flow-total strong")).toHaveText(`${signed(bar.institutionalNet / 1000)} 張`);
+      const dialog = await openInstitutionDetails(page, symbol);
+      await expect(dialog.locator(".watch-flow-total strong")).toHaveText(`${signed(bar.institutionalNet / 1000)} 張`);
       for (const item of bar.institutions) {
-        const row = card.locator(`[data-institution="${item.name}"]`);
+        const row = dialog.locator(`[data-institution="${item.name}"]`);
         await expect(row.locator("strong")).toHaveText(signed((item.buy - item.sell) / 1000));
         await expect(row.locator(".watch-flow-bar-row").nth(0)).toContainText(formatted(item.buy / 1000));
         await expect(row.locator(".watch-flow-bar-row").nth(1)).toContainText(formatted(item.sell / 1000));
       }
+      await closeInstitutionDetails(page);
       await expect(card.locator(".watch-card-footer")).toContainText(date.replaceAll("-", "."));
     }
   }
@@ -48,6 +67,58 @@ test("all favorites show computed metrics and institutional flows above the mark
     document.querySelector("#watchlist").getBoundingClientRect().bottom <=
     document.querySelector(".stocks-panel").getBoundingClientRect().top,
   )).toBe(true);
+});
+
+test("institutional details identify the selected stock and support keyboard, Escape and backdrop dismissal", async ({ page }) => {
+  const firstButton = detailsButtonFor(page, "2330");
+  await expect(firstButton).toHaveAccessibleName("查看台積電三大法人動向");
+  await firstButton.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.locator("#institution-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute("aria-labelledby", "institution-heading");
+  await expect(dialog).toHaveAccessibleName(/台積電.*三大法人動向/);
+  await expect(dialog.locator("[data-institution-symbol]")).toHaveAttribute("data-institution-symbol", "2330");
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(firstButton).toBeFocused();
+
+  const secondButton = detailsButtonFor(page, "6488");
+  await expect(secondButton).toHaveAccessibleName("查看環球晶三大法人動向");
+  await secondButton.focus();
+  await page.keyboard.press("Space");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAccessibleName(/環球晶.*三大法人動向/);
+  await expect(dialog.locator("[data-institution-symbol]")).toHaveAttribute("data-institution-symbol", "6488");
+  await page.mouse.click(2, 2);
+  await expect(dialog).not.toBeVisible();
+  await expect(secondButton).toBeFocused();
+  await openInstitutionDetails(page, "2317");
+  await expect(dialog).toHaveAccessibleName(/鴻海.*三大法人動向/);
+  await expect(page.locator("#close-institution-dialog")).toHaveAccessibleName("關閉法人動向");
+  await closeInstitutionDetails(page);
+  await expect(detailsButtonFor(page, "2317")).toBeFocused();
+});
+
+test("open institutional details stay current after a date change and close if their favorite is removed", async ({ page }) => {
+  const dialog = await openInstitutionDetails(page, "2330");
+  const { stocks } = await demoProvider.load();
+  const date = "2026-09-08";
+  // Updating the data state while a modal is open must refresh its existing content.
+  await page.locator("#trade-date").evaluate((select, value) => {
+    select.value = value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  }, date);
+  const { latest } = getSnapshot(stocks.find((stock) => stock.symbol === "2330"), date);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".watch-flow-total strong")).toHaveText(`${signed(latest.institutionalNet / 1000)} 張`);
+  await page.keyboard.press("Escape");
+  await expect(detailsButtonFor(page, "2330")).toBeFocused();
+  await openInstitutionDetails(page, "2330");
+  await cardFor(page, "2330").locator('[data-favorite="2330"]').evaluate((button) => button.click());
+  await expect(dialog).not.toBeVisible();
+  await expect(cardFor(page, "2330")).toHaveCount(0);
+  await expect(page.locator(".watch-card")).toHaveCount(4);
 });
 
 test("table filters and sorting keep the full favorites overview unchanged", async ({ page }) => {
@@ -208,6 +279,30 @@ test("favorite metrics remain unclipped across narrow screens, tablets and deskt
   }
   await page.setViewportSize({ width: 320, height: 1000 });
   await cardFor(page, "2454").screenshot({ path: testInfo.outputPath("favorite-320.png") });
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    const dialog = await openInstitutionDetails(page, "2454");
+    const report = await dialog.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const clipped = [];
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        if (!walker.currentNode.textContent.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(walker.currentNode);
+        for (const rect of range.getClientRects())
+          if (rect.left < bounds.left || rect.right > bounds.right)
+            clipped.push(walker.currentNode.textContent.trim());
+      }
+      return { clipped, left: bounds.left, right: bounds.right, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth };
+    });
+    expect(report.clipped, `Clipped institutional details at ${width}px`).toEqual([]);
+    expect(report.left).toBeGreaterThanOrEqual(0);
+    expect(report.right).toBeLessThanOrEqual(width);
+    expect(report.scrollWidth).toBeLessThanOrEqual(report.clientWidth);
+    await page.screenshot({ path: testInfo.outputPath(`institutional-${width}.png`), fullPage: true });
+    await closeInstitutionDetails(page);
+  }
 });
 
 test("institutional 5/20-session totals and foreign/trust streaks update with the selected date", async ({ page }) => {
@@ -216,7 +311,7 @@ test("institutional 5/20-session totals and foreign/trust streaks update with th
     await page.locator("#trade-date").selectOption(date);
     for (const symbol of ["2330", "2317", "0050", "3026", "6488"]) {
       const history = stocks.find((stock) => stock.symbol === symbol).history.filter((bar) => bar.date <= date);
-      const card = cardFor(page, symbol);
+      const dialog = await openInstitutionDetails(page, symbol);
       for (const days of [5, 20]) {
         let total = 0;
         for (const name of ["外資", "投信", "自營商"]) {
@@ -225,10 +320,10 @@ test("institutional 5/20-session totals and foreign/trust streaks update with th
             return net + item.buy - item.sell;
           }, 0);
           total += sum;
-          await expect(card.locator(`[data-institution="${name}"] [data-window="${days}"] b`))
+          await expect(dialog.locator(`[data-institution="${name}"] [data-window="${days}"] b`))
             .toHaveText(`${signed(sum / 1000)} 張`);
         }
-        await expect(card.locator(`.watch-total-history [data-window="${days}"] b`))
+        await expect(dialog.locator(`.watch-total-history [data-window="${days}"] b`))
           .toHaveText(`${signed(total / 1000)} 張`);
       }
       for (const name of ["外資", "投信"]) {
@@ -243,9 +338,10 @@ test("institutional 5/20-session totals and foreign/trust streaks update with th
           days++;
         }
         const label = side === 0 ? "當日持平" : `${days === nets.length ? "至少" : ""}連${side > 0 ? "買" : "賣"}${days}日`;
-        await expect(card.locator(`[data-institution="${name}"] [data-streak]`)).toHaveText(label);
+        await expect(dialog.locator(`[data-institution="${name}"] [data-streak]`)).toHaveText(label);
       }
-      await expect(card.locator('[data-institution="自營商"] [data-streak]')).toHaveCount(0);
+      await expect(dialog.locator('[data-institution="自營商"] [data-streak]')).toHaveCount(0);
+      await closeInstitutionDetails(page);
     }
   }
 });

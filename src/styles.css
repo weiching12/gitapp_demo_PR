@@ -2350,7 +2350,7 @@ dialog h2 {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 17px;
+  margin-bottom: 12px;
 }
 .watch-card-heading h3 {
   margin: 6px 0 0;
@@ -2376,14 +2376,14 @@ dialog h2 {
   margin-bottom: 12px;
 }
 .watch-card .metric-card {
-  padding: 12px 10px;
+  padding: 10px;
   border-radius: 6px;
   background: #f8fafc;
   border-color: #e9eef5;
 }
 .watch-card .metric-label {
   font-size: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 7px;
 }
 .watch-card .metric-label > span {
   font-size: 8px;
@@ -2416,7 +2416,7 @@ dialog h2 {
   align-items: flex-start;
   gap: 8px;
   min-height: 49px;
-  padding: 2px 0 14px;
+  padding: 2px 0 8px;
 }
 .watch-signal .signal-badge {
   flex-shrink: 0;
@@ -2438,7 +2438,7 @@ dialog h2 {
   justify-content: space-between;
   gap: 10px;
 }
-.watch-flow-heading h4 {
+.watch-flow-heading h3 {
   margin: 0;
   font-size: 12px;
   font-weight: 600;
@@ -2602,12 +2602,204 @@ dialog h2 {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 14px;
+  align-items: center;
+  gap: 9px;
+  margin-top: auto;
   padding-top: 12px;
   border-top: 1px solid var(--border);
   color: #64748b;
   font-size: 8px;
+}
+.institution-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #dce6f6;
+  border-radius: 6px;
+  background: #f2f6ff;
+  color: #315c9b;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.institution-trigger:hover {
+  background: #e8f0ff;
+  border-color: #b7caeb;
+}
+.institution-trigger .icon {
+  width: 14px;
+  height: 14px;
+}
+.institution-trigger .icon:last-child {
+  width: 12px;
+  height: 12px;
+}
+dialog.institution-dialog {
+  width: min(880px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: min(88dvh, 900px);
+  padding: 0;
+  border-radius: 14px;
+  overscroll-behavior: contain;
+}
+.institution-dialog-top {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 26px 19px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+.institution-dialog-top > div {
+  min-width: 0;
+}
+.institution-dialog-top h2 {
+  margin: 9px 0 7px;
+  font-size: 22px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.institution-dialog-top .icon-button {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+#institution-meta {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.institution-dialog-body {
+  padding: 20px 26px 24px;
+}
+.institution-dialog .watch-flow {
+  padding: 0;
+  border: 0;
+}
+.institution-dialog .watch-flow-heading {
+  margin-bottom: 12px;
+}
+.institution-dialog .watch-flow-heading h3 {
+  font-size: 13px;
+}
+.institution-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.institution-summary > * {
+  min-width: 0;
+}
+.institution-dialog .watch-flow-total {
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 16px;
+}
+.institution-dialog .watch-flow-total strong {
+  font-size: 30px;
+  overflow-wrap: anywhere;
+}
+.institution-dialog .watch-flow-total > div:first-child > span,
+.institution-dialog .watch-flow-amounts {
+  font-size: 11px;
+}
+.institution-dialog .watch-total-history .watch-history {
+  height: 100%;
+  margin: 0;
+  padding: 16px;
+  align-content: center;
+}
+.institution-dialog .watch-cumulative > span {
+  font-size: 10px;
+}
+.institution-dialog .watch-cumulative > b {
+  font-size: 12px;
+}
+.institution-dialog .watch-history-note {
+  font-size: 10px;
+  line-height: 1.8;
+}
+.institution-dialog .watch-flow-legend {
+  margin-top: 18px;
+  font-size: 10px;
+}
+.institution-dialog .watch-institutions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.institution-dialog .watch-institution {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.institution-dialog .watch-institution-heading {
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.institution-dialog .watch-institution-label {
+  gap: 5px;
+}
+.institution-dialog .watch-flow-bar-row {
+  min-height: 18px;
+}
+.institution-dialog .watch-flow-bar {
+  height: 5px;
+}
+.institution-dialog .watch-flow-bar-row > span:last-child {
+  font-size: 10px;
+}
+.institution-dialog-footer {
+  padding: 13px 26px;
+  border-top: 1px solid var(--border);
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 10px;
+}
+@media (max-width: 740px) {
+  .institution-dialog .watch-institutions {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 520px) {
+  dialog.institution-dialog {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 12px;
+  }
+  .institution-dialog-top {
+    gap: 10px;
+    padding: 18px 16px 14px;
+  }
+  .institution-dialog-top h2 {
+    font-size: 19px;
+  }
+  .institution-dialog-top .eyebrow {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .institution-dialog-body {
+    padding: 16px;
+  }
+  .institution-summary {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .institution-dialog-footer {
+    padding: 13px 16px;
+  }
 }
 .watchlist-empty {
   padding: 42px 20px;

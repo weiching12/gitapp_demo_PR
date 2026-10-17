@@ -7,6 +7,8 @@ test("real API mode shows 14 stocks including both requested favorites and corre
   await page.goto("/");
   await expect(page.locator("#stock-rows tr")).toHaveCount(14);
   await expect(page.locator(".watch-card")).toHaveCount(5);
+  await expect(page.locator(".watch-card .watch-flow")).toHaveCount(0);
+  await expect(page.locator("#institution-dialog")).not.toBeVisible();
   await expect(page.locator(".demo-badge")).toHaveText("FinMind 日資料");
   await expect(page.locator("body")).not.toContainText("模擬資料");
   const date = await page.locator("#trade-date").inputValue();
@@ -21,8 +23,15 @@ test("real API mode shows 14 stocks including both requested favorites and corre
     await expect(card.locator(".metric-number").nth(0)).toHaveText(snapshot.latest.close.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     const sum = payload.stock.history.filter((bar) => bar.date <= date).slice(-20)
       .reduce((net, bar) => net + bar.institutions.reduce((n, item) => n + item.buy - item.sell, 0), 0);
-    const text = await card.locator('.watch-total-history [data-window="20"] b').innerText();
+    await card.locator(`[data-institution-details="${symbol}"]`).click();
+    const dialog = page.locator("#institution-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator("[data-institution-symbol]")).toHaveAttribute("data-institution-symbol", symbol);
+    const text = await dialog.locator('.watch-total-history [data-window="20"] b').innerText();
     expect(Number(text.replaceAll(",", "").replace("張", "").trim())).toBeCloseTo(sum / 1000, 2);
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await expect(card.locator(`[data-institution-details="${symbol}"]`)).toBeFocused();
   }
   await page.getByRole("button", { name: "資料說明", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("未還原價格");
@@ -54,6 +63,28 @@ test("real data stays within desktop and phone widths", async ({ page }, testInf
     });
     expect(report.clipped, `Clipping at ${width}px`).toEqual([]);
     expect(report.width).toBeLessThanOrEqual(width);
+    await page.locator('[data-institution-details="6488"]').click();
+    const dialog = page.locator("#institution-dialog");
+    await expect(dialog).toBeVisible();
+    const dialogReport = await dialog.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const clipped = [];
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        if (!walker.currentNode.textContent.trim()) continue;
+        const range = document.createRange(); range.selectNodeContents(walker.currentNode);
+        for (const rect of range.getClientRects()) if (rect.left < bounds.left || rect.right > bounds.right)
+          clipped.push(walker.currentNode.textContent.trim());
+      }
+      return { clipped, left: bounds.left, right: bounds.right, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth };
+    });
+    expect(dialogReport.clipped, `Dialog clipping at ${width}px`).toEqual([]);
+    expect(dialogReport.left).toBeGreaterThanOrEqual(0);
+    expect(dialogReport.right).toBeLessThanOrEqual(width);
+    expect(dialogReport.scrollWidth).toBeLessThanOrEqual(dialogReport.clientWidth);
+    await page.screenshot({ path: testInfo.outputPath(`real-institutional-${width}.png`), fullPage: true });
+    await page.locator("#close-institution-dialog").click();
+    await expect(dialog).not.toBeVisible();
   }
   await page.screenshot({ path: testInfo.outputPath("real-desktop.png"), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
