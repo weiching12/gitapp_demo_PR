@@ -1,5 +1,7 @@
 # Cloudflare 與 FinMind
 
+已部署網址：[株研台股研究室](https://stock-insight-tw.stock-insight-tw.workers.dev/)。
+
 前端用 Workers Static Assets，後端用 Worker 與 KV。公開 `/api/stocks/代碼` 與 `/api/market` 只讀快取；瀏覽器不直接呼叫 FinMind。自選仍存在各瀏覽器，不會跨裝置同步。
 
 ## 資料與額度
@@ -42,9 +44,17 @@ npm.cmd run deploy
 
 部署後驗證首頁、`/api/market`、各檔 `/api/stocks/2330`、交易日與手機排版；Cron 設定生效可能需 15 分鐘，實際自動執行結果由 Workers Logs 確認。
 
-## 可選 FinMind Token
+## FinMind Token 與安全輸入
 
-複製 `.dev.vars.example` 成 `.dev.vars`，只在本機設定 `FINMIND_TOKEN`，供本機 seed 與 Wrangler dev 使用。生產環境需另執行以下命令，在互動輸入框貼入 Token：
+本機匿名 API 可取得初始資料，但本次實測 Cloudflare 共用出口的匿名 API 回覆 HTTP 402（額度已滿），因此正式雲端排程需設定免費會員 Token，再驗證連線結果。
+
+Windows 可執行安全輸入工具；輸入會隱藏，先向 FinMind 驗證，再設定 Cloudflare Secret 與 Git 忽略的本機 `.dev.vars`：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/set-finmind-token.ps1
+```
+
+工具不會印出 Token；`.wrangler/token-setup-status.json` 只記錄成功／失敗狀態與時間。也可複製 `.dev.vars.example` 成 `.dev.vars`，僅在本機設定 `FINMIND_TOKEN`，供本機 seed 與 Wrangler dev 使用。生產環境需另執行以下命令，在互動輸入框貼入 Token：
 
 ```powershell
 npx.cmd wrangler secret put FINMIND_TOKEN

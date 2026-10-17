@@ -2,6 +2,8 @@
 
 繁體中文的股票分析前端，使用原生 JavaScript、CSS、SVG 與 Vite。支援本機示範模式，以及 Cloudflare Workers Static Assets + Workers KV 的正式資料模式。部署與資料來源設定見 [docs/cloudflare.md](docs/cloudflare.md)。
 
+正式網站：[株研台股研究室](https://stock-insight-tw.stock-insight-tw.workers.dev/)。Cloudflare 與 GitHub 已部署同版程式；首次上線已驗證真實資料與手機版面。
+
 ## 目前資料狀態
 
 `npm run dev` 與一般建置保留明確標示的示範模式：14 檔上市、上櫃股票／ETF（含禾伸堂 3026、環球晶 6488），各有 180 個模擬交易日，固定截止 **2026-10-16**。
