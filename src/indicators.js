@@ -62,7 +62,59 @@ export function getSnapshot(stock, asOf, settings) {
     stock.history.filter((bar) => bar.date <= asOf),
     settings,
   );
-  return { ...stock, history, latest: history.at(-1) ?? null };
+  return {
+    ...stock,
+    history,
+    latest: history.at(-1) ?? null,
+    signal: getTechnicalSignal(history),
+  };
+}
+
+/** Evaluate only the last two completed sessions in the selected snapshot. */
+export function getTechnicalSignal(history) {
+  const current = history.at(-1);
+  const previous = history.at(-2);
+  const signal = (code, tone, label, reason) => ({ code, tone, label, reason });
+  const validKd = (row) =>
+    row && [row.k, row.d].every((n) => Number.isFinite(n) && n >= 0 && n <= 100);
+  if (!validKd(current) || !validKd(previous))
+    return signal("insufficient", "neutral", "資料不足", "需連續兩個交易日的有效 K、D 值");
+
+  const crossesUp =
+    previous.k <= previous.d && current.k > current.d && current.k > previous.k;
+  const crossesDown =
+    previous.k >= previous.d && current.k < current.d && current.k < previous.k;
+  const lowZone = (row) => row.k < 20 && row.d < 20;
+  const highZone = (row) => row.k > 80 && row.d > 80;
+  const trendConfirmed =
+    Number.isFinite(current.close) &&
+    current.close > 0 &&
+    Number.isFinite(current.ma20) &&
+    current.ma20 > 0 &&
+    Number.isFinite(previous.ma20) &&
+    previous.ma20 > 0 &&
+    current.close >= current.ma20 &&
+    current.ma20 >= previous.ma20;
+
+  if (crossesUp && (lowZone(previous) || lowZone(current)))
+    return trendConfirmed
+      ? signal("buy-watch", "positive", "留意買點", "低檔黃金交叉；收盤站上走平或上彎 MA20")
+      : signal("rebound-watch", "caution", "反彈觀察", "低檔黃金交叉；MA20 趨勢尚未確認");
+  if (crossesDown && (highZone(previous) || highZone(current)))
+    return signal("sell-watch", "negative", "留意賣點", "高檔死亡交叉；留意動能轉弱");
+  if (crossesDown)
+    return signal("weakening", "negative", "動能轉弱", "K 下穿 D；等待止跌與趨勢確認");
+  if (crossesUp)
+    return signal("strengthening", "positive", "動能轉強", "K 上穿 D；尚非低檔買點條件");
+  if (current.k < 20)
+    return signal("oversold-watch", "caution", "低檔觀察", "K 低於 20；當日未出現低檔黃金交叉");
+  if (current.k > 80)
+    return signal("overbought-watch", "caution", "高檔觀察", "K 高於 80；高檔可能持續鈍化");
+  if (current.k > current.d && trendConfirmed)
+    return signal("bullish-watch", "positive", "偏多觀察", "K 高於 D；收盤站上走平或上彎 MA20");
+  if (current.k < current.d)
+    return signal("bearish-watch", "negative", "偏弱觀察", "K 低於 D；暫待動能改善");
+  return signal("neutral", "neutral", "中性觀望", "KD 與趨勢尚未形成明確條件");
 }
 
 export function filterStocks(

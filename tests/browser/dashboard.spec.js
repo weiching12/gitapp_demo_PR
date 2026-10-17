@@ -123,13 +123,15 @@ test("CSV export contains filtered rows, demo label and institutional buy and se
   expect(content).toContain("外資買進_張");
   expect(content).toContain("外資賣出_張");
   expect(content).toContain("法人合計買賣超_張");
+  expect(content).toContain('"KD技術建議","技術判讀原因","MA20"');
+  expect(content).toContain('"動能轉弱","K 下穿 D；等待止跌與趨勢確認"');
   expect(content).toContain('"模擬資料","2026-10-16","2330","台積電"');
   expect(content.split("\r\n")).toHaveLength(2);
 });
 
 test("mobile stays within viewport and supports chart, dialogs and table scrolling", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator("#metrics")).toBeVisible();
   expect(
@@ -146,19 +148,60 @@ test("mobile stays within viewport and supports chart, dialogs and table scrolli
   await expect(page.getByLabel("RSV 回溯週期")).toBeVisible();
   await page.keyboard.press("Escape");
   await page.screenshot({
-    path: "/tmp/stock-insight-mobile.png",
+    path: testInfo.outputPath("stock-insight-mobile.png"),
     fullPage: true,
   });
 });
 
-test("desktop screenshot and keyboard shortcut", async ({ page }) => {
+test("desktop screenshot and keyboard shortcut", async ({ page }, testInfo) => {
   await page.keyboard.press("/");
   await expect(page.getByRole("searchbox")).toBeFocused();
   await page.getByRole("heading", { name: "台股研究室." }).click();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForFunction(() => window.scrollY === 0);
   await page.screenshot({
-    path: "/tmp/stock-insight-desktop.png",
+    path: testInfo.outputPath("stock-insight-desktop.png"),
     fullPage: true,
   });
+});
+
+test("technical suggestions explain each stock and recalculate with date and KD settings", async ({ page }) => {
+  await expect(page.getByRole("columnheader", { name: "KD 技術建議" })).toBeVisible();
+  await expect(page.locator("#stock-rows .signal-badge")).toHaveCount(12);
+  await expect(page.locator('[data-symbol="2317"] .signal-badge')).toHaveText("留意賣點");
+  await expect(page.locator('[data-symbol="2382"] .signal-badge')).toHaveText("低檔觀察");
+  await expect(page.locator('[data-symbol="2330"] .kd-detail')).toContainText("D ");
+  await page.locator("#trade-date").selectOption("2026-09-08");
+  await expect(page.locator('[data-symbol="2603"] .signal-badge')).toHaveText("反彈觀察");
+  await expect(page.locator('[data-symbol="2603"] .signal-reason')).toContainText("MA20 趨勢尚未確認");
+
+  await page.getByRole("button", { name: "指標設定", exact: true }).click();
+  await page.getByLabel("RSV 回溯週期").fill("14");
+  await page.getByRole("button", { name: "儲存並重新計算" }).click();
+  const { stocks } = await demoProvider.load();
+  const date = await page.locator("#trade-date").inputValue();
+  for (const stock of stocks) {
+    const { signal } = getSnapshot(stock, date, { period: 14, kSmooth: 3, dSmooth: 3 });
+    const row = page.locator(`[data-symbol="${stock.symbol}"]`);
+    await expect(row.locator(".signal-badge")).toHaveAttribute("data-signal", signal.code);
+    await expect(row.locator(".signal-badge")).toHaveText(signal.label);
+    await expect(row.locator(".signal-reason")).toHaveText(signal.reason);
+  }
+  await page.reload();
+  await page.getByRole("button", { name: "判讀規則" }).click();
+  await expect(page.getByRole("dialog")).toContainText("KD (14, 3, 3)");
+});
+
+test("mobile can scroll to suggestions and open the rules with keyboard dismissal", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const signal = page.locator('[data-symbol="2317"] .signal-badge');
+  await signal.scrollIntoViewIfNeeded();
+  await expect(signal).toBeInViewport();
+  await expect(signal).toHaveText("留意賣點");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "判讀規則" }).click();
+  await expect(page.getByRole("dialog")).toContainText("低檔黃金交叉");
+  await expect(page.getByRole("dialog")).toContainText("MA20 ≥ 前日 MA20");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
 });
