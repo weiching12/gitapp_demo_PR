@@ -67,6 +67,60 @@ export function getSnapshot(stock, asOf, settings) {
     history,
     latest: history.at(-1) ?? null,
     signal: getTechnicalSignal(history),
+    institutionalSummary: getInstitutionalSummary(history),
+  };
+}
+
+/** Totals stay in shares; rolling windows include the selected session. */
+export function getInstitutionalSummary(history) {
+  const names = ["外資", "投信", "自營商"];
+  const series = Object.fromEntries(names.map((name) => [name, []]));
+  const totals = [];
+  for (const bar of history) {
+    const daily = names.map((name) => {
+      const entries = Array.isArray(bar.institutions)
+        ? bar.institutions.filter((item) => item?.name === name)
+        : [];
+      const item = entries[0];
+      const net = entries.length === 1 &&
+        [item.buy, item.sell].every((n) => Number.isFinite(n) && n >= 0)
+        ? item.buy - item.sell : null;
+      series[name].push(net);
+      return net;
+    });
+    totals.push(daily.every(Number.isFinite)
+      ? daily.reduce((sum, value) => sum + value, 0) : null);
+  }
+
+  const summarize = (values) => {
+    const rolling = (days) => {
+      const window = values.slice(-days);
+      return window.length === days && window.every(Number.isFinite)
+        ? window.reduce((sum, value) => sum + value, 0) : null;
+    };
+    const latest = values.at(-1);
+    let streak = { direction: "unknown", days: null, atLeast: false };
+    if (Number.isFinite(latest)) {
+      if (latest === 0) streak = { direction: "neutral", days: 0, atLeast: false };
+      else {
+        const sign = Math.sign(latest);
+        let days = 0;
+        while (days < values.length && Number.isFinite(values[values.length - 1 - days]) &&
+          Math.sign(values[values.length - 1 - days]) === sign) days++;
+        streak = {
+          direction: sign > 0 ? "buy" : "sell",
+          days,
+          // The series start or a missing session may hide an earlier streak.
+          atLeast: days === values.length || !Number.isFinite(values[values.length - 1 - days]),
+        };
+      }
+    }
+    return { net5: rolling(5), net20: rolling(20), streak };
+  };
+  const total = summarize(totals);
+  return {
+    total: { net5: total.net5, net20: total.net20 },
+    institutions: Object.fromEntries(names.map((name) => [name, summarize(series[name])])),
   };
 }
 

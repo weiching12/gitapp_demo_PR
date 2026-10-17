@@ -4,6 +4,7 @@ import {
   analyzeHistory,
   getSnapshot,
   getTechnicalSignal,
+  getInstitutionalSummary,
   filterStocks,
   toCsv,
 } from "../src/indicators.js";
@@ -164,6 +165,77 @@ test("CSV preserves UTF-8 BOM, quotes commas and newlines, neutralizes formulas"
 });
 
 const kdBar = (k, d, extra = {}) => ({ k, d, close: 105, ma20: 100, ...extra });
+
+const institutionBar = (nets, date = "2026-10-01") => ({
+  ...bar(50, date),
+  institutions: ["外資", "投信", "自營商"].map((name, index) => ({
+    name,
+    buy: 10000 + Math.max(nets[index], 0),
+    sell: 10000 + Math.max(-nets[index], 0),
+  })),
+});
+
+test("institutional rolling sums include exactly the latest 5 and 20 sessions in shares", () => {
+  const history = Array.from({ length: 21 }, (_, i) =>
+    institutionBar([(i + 1) * 1000, -(i + 1) * 2000, 500]),
+  );
+  const result = getInstitutionalSummary(history);
+  assert.equal(result.institutions.外資.net5, 95000);
+  assert.equal(result.institutions.外資.net20, 230000);
+  assert.equal(result.institutions.投信.net5, -190000);
+  assert.equal(result.institutions.自營商.net20, 10000);
+  assert.deepEqual(result.total, { net5: -92500, net20: -220000 });
+  assert.equal(getInstitutionalSummary(history.slice(0, 19)).total.net20, null);
+  assert.equal(getInstitutionalSummary(history.slice(0, 4)).institutions.外資.net5, null);
+  assert.equal(getInstitutionalSummary(history.slice(0, 20)).institutions.外資.net20, 210000);
+});
+
+test("institutional streaks stop at direction changes or zero net sessions", () => {
+  const history = [[100, 0, 0], [-100, 100, 0], [0, -100, 0], [200, -200, 0], [300, -300, 0]]
+    .map((nets) => institutionBar(nets));
+  const result = getInstitutionalSummary(history);
+  assert.deepEqual(result.institutions.外資.streak, { direction: "buy", days: 2, atLeast: false });
+  assert.deepEqual(result.institutions.投信.streak, { direction: "sell", days: 3, atLeast: false });
+  assert.deepEqual(result.institutions.自營商.streak, { direction: "neutral", days: 0, atLeast: false });
+  assert.equal(result.institutions.外資.net5, 500);
+});
+
+test("short or missing institution histories are not silently counted as zero", () => {
+  const history = Array.from({ length: 5 }, () => institutionBar([100, -200, 300]));
+  history[2].institutions = history[2].institutions.filter((item) => item.name !== "投信");
+  const result = getInstitutionalSummary(history);
+  assert.equal(result.institutions.外資.net5, 500);
+  assert.equal(result.institutions.投信.net5, null);
+  assert.equal(result.total.net5, null);
+  assert.deepEqual(result.institutions.投信.streak, { direction: "sell", days: 2, atLeast: true });
+  assert.deepEqual(result.institutions.外資.streak, { direction: "buy", days: 5, atLeast: true });
+  history[4].institutions = [];
+  assert.deepEqual(getInstitutionalSummary(history).institutions.外資.streak,
+    { direction: "unknown", days: null, atLeast: false });
+  assert.deepEqual(getInstitutionalSummary([]).total, { net5: null, net20: null });
+  for (const invalid of [NaN, Infinity, -1, null]) {
+    const rows = Array.from({ length: 5 }, () => institutionBar([100, 200, 300]));
+    rows[0].institutions[0].buy = invalid;
+    assert.equal(getInstitutionalSummary(rows).institutions.外資.net5, null);
+  }
+  const duplicate = Array.from({ length: 5 }, () => institutionBar([100, 200, 300]));
+  duplicate[0].institutions.push({ ...duplicate[0].institutions[0] });
+  assert.equal(getInstitutionalSummary(duplicate).total.net5, null);
+});
+
+test("historical institutional windows and streaks count trading sessions without future data", () => {
+  const dates = ["2026-10-09", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-19"];
+  const nets = [-1000, 500, 500, -900, 1000, 1000, 1000];
+  const stock = { history: dates.map((date, i) => institutionBar([nets[i], 0, 0], date)) };
+  const before = getSnapshot(stock, "2026-10-16").institutionalSummary.institutions.外資;
+  assert.equal(before.net5, 2100);
+  assert.deepEqual(before.streak, { direction: "buy", days: 2, atLeast: false });
+  const after = getSnapshot(stock, "2026-10-19").institutionalSummary.institutions.外資;
+  assert.equal(after.net5, 2600);
+  assert.equal(after.streak.days, 3);
+  assert.deepEqual(before, getSnapshot({ history: stock.history.slice(0, -1) }, "2026-10-16")
+    .institutionalSummary.institutions.外資);
+});
 
 test("low and high K readings alone never become buy or sell suggestions", () => {
   assert.equal(getTechnicalSignal([kdBar(12, 18), kdBar(10, 16)]).code, "oversold-watch");

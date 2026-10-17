@@ -176,7 +176,7 @@ test("favorite metrics remain unclipped across narrow screens, tablets and deskt
     await page.setViewportSize({ width, height: 1000 });
     const report = await page.locator("#watchlist-grid").evaluate((grid) => {
       const clipped = [];
-      for (const card of grid.querySelectorAll(".metric-card")) {
+      for (const card of grid.querySelectorAll(".watch-card, .metric-card")) {
         const bounds = card.getBoundingClientRect();
         const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
         while (walker.nextNode()) {
@@ -195,4 +195,44 @@ test("favorite metrics remain unclipped across narrow screens, tablets and deskt
   }
   await page.setViewportSize({ width: 320, height: 1000 });
   await cardFor(page, "2454").screenshot({ path: testInfo.outputPath("favorite-320.png") });
+});
+
+test("institutional 5/20-session totals and foreign/trust streaks update with the selected date", async ({ page }) => {
+  const { stocks, info } = await demoProvider.load();
+  for (const date of [info.asOf, "2026-09-08"]) {
+    await page.locator("#trade-date").selectOption(date);
+    for (const symbol of ["2330", "2317", "0050"]) {
+      const history = stocks.find((stock) => stock.symbol === symbol).history.filter((bar) => bar.date <= date);
+      const card = cardFor(page, symbol);
+      for (const days of [5, 20]) {
+        let total = 0;
+        for (const name of ["外資", "投信", "自營商"]) {
+          const sum = history.slice(-days).reduce((net, bar) => {
+            const item = bar.institutions.find((row) => row.name === name);
+            return net + item.buy - item.sell;
+          }, 0);
+          total += sum;
+          await expect(card.locator(`[data-institution="${name}"] [data-window="${days}"] b`))
+            .toHaveText(`${signed(sum / 1000)} 張`);
+        }
+        await expect(card.locator(`.watch-total-history [data-window="${days}"] b`))
+          .toHaveText(`${signed(total / 1000)} 張`);
+      }
+      for (const name of ["外資", "投信"]) {
+        const nets = history.map((bar) => {
+          const item = bar.institutions.find((row) => row.name === name);
+          return item.buy - item.sell;
+        });
+        const side = Math.sign(nets.at(-1));
+        let days = 0;
+        for (const value of nets.toReversed()) {
+          if (!side || Math.sign(value) !== side) break;
+          days++;
+        }
+        const label = side === 0 ? "當日持平" : `${days === nets.length ? "至少" : ""}連${side > 0 ? "買" : "賣"}${days}日`;
+        await expect(card.locator(`[data-institution="${name}"] [data-streak]`)).toHaveText(label);
+      }
+      await expect(card.locator('[data-institution="自營商"] [data-streak]')).toHaveCount(0);
+    }
+  }
 });

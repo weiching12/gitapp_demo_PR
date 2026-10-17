@@ -49,6 +49,18 @@ const direction = (value) =>
   value > 0 ? "up" : value < 0 ? "down" : "neutral";
 const percent = (value) =>
   value === null || value === undefined ? "—" : `${signed(value)}%`;
+const institutionalAmount = (value) => value === null
+  ? "資料不足"
+  : `${signed(value / 1000, Number.isInteger(value / 1000) ? 0 : 2)} 張`;
+const institutionalStreak = ({ direction, days, atLeast }) => {
+  if (direction === "unknown") return "資料不足";
+  if (direction === "neutral") return "當日持平";
+  return `${atLeast ? "至少" : ""}連${direction === "buy" ? "買" : "賣"}${days}日`;
+};
+const institutionalHistory = (stats) =>
+  `<div class="watch-history">${[5, 20].map((days) =>
+    `<span class="watch-cumulative" data-window="${days}"><span>近 ${days} 日累計</span><b class="${direction(stats[`net${days}`])}">${institutionalAmount(stats[`net${days}`])}</b></span>`,
+  ).join("")}</div>`;
 const state = {
   date: "",
   view: "all",
@@ -177,7 +189,7 @@ function renderWatchlist() {
   document.querySelector("#watchlist-count").textContent = `${favorites.length} 檔`;
   document.querySelector("#watchlist-empty").hidden = favorites.length > 0;
   document.querySelector("#watchlist-grid").innerHTML = favorites.map((stock) => {
-    const { latest: bar, signal } = stock;
+    const { latest: bar, signal, institutionalSummary } = stock;
     const kStatus = bar.k === null ? "資料不足" : bar.k > 80 ? "高檔區間" : bar.k < 20 ? "低檔區間" : "中性區間";
     const buy = bar.institutions.reduce((sum, item) => sum + item.buy, 0);
     const sell = bar.institutions.reduce((sum, item) => sum + item.sell, 0);
@@ -193,8 +205,14 @@ function renderWatchlist() {
       <div class="watch-signal"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><span class="signal-reason">${esc(signal.reason)}</span></div>
       <section class="watch-flow" aria-label="${esc(stock.name)}三大法人動向"><div class="watch-flow-heading"><h4>三大法人動向</h4><span>單位：張</span></div>
         <div class="watch-flow-total"><div><span>合計買賣超</span><strong class="${direction(buy - sell)}">${signed((buy - sell) / 1000, 0)}<small> 張</small></strong></div><div class="watch-flow-amounts"><span>買進 ${number(buy / 1000)}</span><span>賣出 ${number(sell / 1000)}</span></div></div>
+        <div class="watch-total-history" aria-label="三大法人累計買賣超">${institutionalHistory(institutionalSummary.total)}</div><p class="watch-history-note">累計含資料日，以交易日計算</p>
         <div class="watch-flow-legend"><span><i class="buy-key"></i>買進</span><span><i class="sell-key"></i>賣出</span><span>右側為買賣超</span></div>
-        <div class="watch-institutions">${bar.institutions.map((item) => `<div class="watch-institution" data-institution="${esc(item.name)}"><div class="watch-institution-heading"><span>${esc(item.name)}</span><strong class="${direction(item.buy - item.sell)}">${signed((item.buy - item.sell) / 1000, 0)}</strong></div><div class="watch-flow-bar-row"><span class="watch-flow-bar buy" style="width:${(item.buy / max) * 100}%"></span><span>${number(item.buy / 1000)}</span></div><div class="watch-flow-bar-row"><span class="watch-flow-bar sell" style="width:${(item.sell / max) * 100}%"></span><span>${number(item.sell / 1000)}</span></div></div>`).join("")}</div>
+        <div class="watch-institutions">${bar.institutions.map((item) => {
+          const stats = institutionalSummary.institutions[item.name];
+          const streak = ["外資", "投信"].includes(item.name)
+            ? `<span class="watch-streak ${stats.streak.direction}" data-streak>${institutionalStreak(stats.streak)}</span>` : "";
+          return `<div class="watch-institution" data-institution="${esc(item.name)}"><div class="watch-institution-heading"><span class="watch-institution-label"><span>${esc(item.name)}</span>${streak}</span><strong class="${direction(item.buy - item.sell)}">${signed((item.buy - item.sell) / 1000, 0)}</strong></div><div class="watch-flow-bar-row"><span class="watch-flow-bar buy" style="width:${(item.buy / max) * 100}%"></span><span>${number(item.buy / 1000)}</span></div><div class="watch-flow-bar-row"><span class="watch-flow-bar sell" style="width:${(item.sell / max) * 100}%"></span><span>${number(item.sell / 1000)}</span></div>${institutionalHistory(stats)}</div>`;
+        }).join("")}</div>
       </section>
       <footer class="watch-card-footer"><span>${bar.date.replaceAll("-", ".")} · 模擬資料</span><span>1 張 = 1,000 股</span></footer>
     </article>`;
@@ -277,7 +295,7 @@ function openDialog(type) {
   } else if (type === "source") {
     content.innerHTML = `<h2 id="dialog-heading">資料透明，觀察才有依據。</h2><p class="dialog-intro">這是可操作的前端示範版，目前沒有連接交易所或即時行情服務。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>12 檔台灣上市股票與 ETF 範例</dd></div><div><dt>示範資料截止日</dt><dd>${dataset.info.asOf}（固定資料，不會自動更新）</dd></div><div><dt>買賣量定義</dt><dd>外資、投信、自營商買進與賣出股數；畫面換算成張</dd></div><div><dt>指標計算方式</dt><dd>由模擬 OHLC 歷史資料在瀏覽器計算，並非硬填指標數值</dd></div><div><dt>下一階段</dt><dd>確認正式行情與三大法人資料來源，接上 API，再設定 Cloudflare 部署。</dd></div></dl><p class="helper-text">正式資料需涵蓋交易日曆、除權息還原與法人分類定義。此版資料未經還原，不能用於實際交易。</p>`;
   } else {
-    content.innerHTML = `<h2 id="dialog-heading">讀懂價格背後的訊號</h2><p class="dialog-intro">指標提供觀察角度。搭配價量與籌碼，建立更完整的判斷。</p><article class="guide-item"><span>01</span><div><h3>季線 MA60</h3><p>最近 60 個交易日收盤價的簡單移動平均，包含選定資料日。股價高於季線時，位置顯示為正值。</p><code>乖離率 = (收盤價 ÷ MA60 − 1) × 100%</code></div></article><article class="guide-item"><span>02</span><div><h3>KD 隨機指標</h3><p>預設以 9 日最高、最低與當日收盤價計算 RSV，再以平滑係數 3 遞推 K、D。K、D 初始值為 50；不足 9 日不顯示。最高與最低相同時 RSV 採 50。</p><code>RSV = (收盤 − 最低) ÷ (最高 − 最低) × 100<br>K = 前日 K × 2/3 + RSV × 1/3<br>D = 前日 D × 2/3 + 當日 K × 1/3</code><p>K &gt; 80 為高檔區，K &lt; 20 為低檔區，不能單獨視為買賣訊號。你可以在指標設定調整參數。</p></div></article><article class="guide-item"><span>03</span><div><h3>三大法人買賣超</h3><p>外資、投信及自營商的買進股數減去賣出股數。正值為買超，負值為賣超。1 張 = 1,000 股；法人買賣量與全市場成交量的統計範圍不同。</p></div></article><article class="guide-item"><span>04</span><div><h3>前一交易日</h3><p>第一版預設資料日為 ${dataset.info.asOf}。日期選單可回看 30 個模擬交易日，所有指標僅使用選定日及之前的資料。</p></div></article><article class="guide-item"><span>05</span><div><h3>KD 技術建議</h3>${technicalSignalGuide()}</div></article>`;
+    content.innerHTML = `<h2 id="dialog-heading">讀懂價格背後的訊號</h2><p class="dialog-intro">指標提供觀察角度。搭配價量與籌碼，建立更完整的判斷。</p><article class="guide-item"><span>01</span><div><h3>季線 MA60</h3><p>最近 60 個交易日收盤價的簡單移動平均，包含選定資料日。股價高於季線時，位置顯示為正值。</p><code>乖離率 = (收盤價 ÷ MA60 − 1) × 100%</code></div></article><article class="guide-item"><span>02</span><div><h3>KD 隨機指標</h3><p>預設以 9 日最高、最低與當日收盤價計算 RSV，再以平滑係數 3 遞推 K、D。K、D 初始值為 50；不足 9 日不顯示。最高與最低相同時 RSV 採 50。</p><code>RSV = (收盤 − 最低) ÷ (最高 − 最低) × 100<br>K = 前日 K × 2/3 + RSV × 1/3<br>D = 前日 D × 2/3 + 當日 K × 1/3</code><p>K &gt; 80 為高檔區，K &lt; 20 為低檔區，不能單獨視為買賣訊號。你可以在指標設定調整參數。</p></div></article><article class="guide-item"><span>03</span><div><h3>三大法人買賣超</h3><p>外資、投信及自營商的買進股數減去賣出股數。正值為買超，負值為賣超。1 張 = 1,000 股；法人買賣量與全市場成交量的統計範圍不同。近 5／20 日累計包含資料日，依實際交易日加總後換算為張；資料不足不補零。外資、投信的連買／連賣日數從資料日回溯，遇反向、持平或缺漏即中止；若回溯到資料起點或缺漏，顯示「至少」。</p></div></article><article class="guide-item"><span>04</span><div><h3>前一交易日</h3><p>第一版預設資料日為 ${dataset.info.asOf}。日期選單可回看 30 個模擬交易日，所有指標僅使用選定日及之前的資料。</p></div></article><article class="guide-item"><span>05</span><div><h3>KD 技術建議</h3>${technicalSignalGuide()}</div></article>`;
   }
   document.querySelector("#info-dialog").showModal();
 }
