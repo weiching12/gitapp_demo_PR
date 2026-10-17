@@ -21,7 +21,7 @@ export function combineSnapshots(snapshots) {
   const asOf = dates.findLast((date) => completeDates.every((set) => set.has(date)));
   if (!asOf) throw new Error("No common complete trading date");
   return { stocks, dates: dates.filter((date) => date <= asOf), info: {
-    mode: "finmind", label: "FinMind 日資料", asOf,
+    mode: "finmind", label: "每日收盤資料", asOf,
     updatedAt: snapshots.map((item) => item.updatedAt).sort()[0],
     note: "資料來源：FinMind。股價為未還原日資料，非即時報價；外資不含外資自營商，自營商合計自行買賣與避險。所有標的共用最近一個價量與法人均完整的交易日。",
   } };

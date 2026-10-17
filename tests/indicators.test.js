@@ -6,7 +6,6 @@ import {
   getTechnicalSignal,
   getInstitutionalSummary,
   filterStocks,
-  toCsv,
 } from "../src/indicators.js";
 import { demoProvider } from "../src/data.js";
 
@@ -155,17 +154,6 @@ test("demo provider data is consistent across all OHLC and volume records", asyn
     assert.ok(latest.k >= 0 && latest.k <= 100);
     assert.ok(latest.d >= 0 && latest.d <= 100);
   }
-});
-
-test("CSV preserves UTF-8 BOM, quotes commas and newlines, neutralizes formulas", () => {
-  const csv = toCsv([
-    ["代碼", "名稱"],
-    ["0050", '名稱,"測試"\n下一行'],
-    ["=SUM(1,2)", -2.5],
-  ]);
-  assert.ok(csv.startsWith("\uFEFF"));
-  assert.ok(csv.includes('"0050","名稱,""測試""\n下一行"'));
-  assert.ok(csv.includes('"\'=SUM(1,2)","-2.5"'));
 });
 
 const kdBar = (k, d, extra = {}) => ({ k, d, close: 105, ma20: 100, ...extra });

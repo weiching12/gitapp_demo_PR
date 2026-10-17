@@ -10,10 +10,15 @@ test("real API mode shows 14 stocks including both requested favorites and corre
   await expect(page.locator(".watch-card .watch-flow")).toHaveCount(0);
   await expect(page.locator("#institution-dialog")).not.toBeVisible();
   await expect(page.locator("#watchlist-grid [data-institution-details]")).toHaveCount(0);
-  await expect(page.locator(".demo-badge")).toHaveText("FinMind 日資料");
+  await expect(page.locator(".demo-badge")).toHaveText("每日收盤資料");
+  await expect(page.locator("main")).not.toContainText("FinMind");
+  await expect(page.locator(".watch-card-footer")).toHaveCount(0);
+  await expect(page.locator(".page-footer > span:nth-child(2)")).toHaveText("技術提示僅供研究參考。");
   await expect(page.locator("body")).not.toContainText("模擬資料");
   await expect(page.locator("main .demo-notice, .topbar [data-dialog=source]")).toHaveCount(0);
   await expect(page.locator('.sidebar .nav-item[data-dialog="source"]')).toHaveAccessibleName("資料說明");
+  await expect(page.locator('[data-sort-heading="changePercent"]')).toContainText("較前交易日");
+  await expect(page.locator('[data-sort-heading="volume"]')).toHaveCount(0);
   const date = await page.locator("#trade-date").inputValue();
   for (const symbol of ["3026", "6488"]) {
     await page.locator('[data-overview="price"]').click();
@@ -25,6 +30,9 @@ test("real API mode shows 14 stocks including both requested favorites and corre
     await expect(card).toContainText(symbol === "3026" ? "禾伸堂" : "環球晶");
     await expect(card.locator(".watch-symbol")).toContainText(symbol === "3026" ? "上市" : "上櫃");
     await expect(card.locator(".metric-number").nth(0)).toHaveText(snapshot.latest.close.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    const marketRow = page.locator(`#stock-rows tr[data-symbol="${symbol}"]`);
+    await expect(marketRow.locator(".stock-close")).toHaveText(snapshot.latest.close.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    await expect(marketRow.locator(".price-cell .stock-volume")).toHaveText(`量 ${(snapshot.latest.volume / 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} 張`);
     const sum = payload.stock.history.filter((bar) => bar.date <= date).slice(-20)
       .reduce((net, bar) => net + bar.institutions.reduce((n, item) => n + item.buy - item.sell, 0), 0);
     await page.locator('[data-overview="institutions"]').click();
@@ -32,6 +40,7 @@ test("real API mode shows 14 stocks including both requested favorites and corre
     await details.click();
     const dialog = page.locator("#institution-dialog");
     await expect(dialog).toBeVisible();
+    await expect(dialog).not.toContainText("FinMind");
     await expect(dialog.locator("[data-institution-symbol]")).toHaveAttribute("data-institution-symbol", symbol);
     const text = await dialog.locator('.watch-total-history [data-window="20"] b').innerText();
     expect(Math.abs(Number(text.replaceAll(",", "").replace("張", "").trim()) - sum / 1000)).toBeLessThanOrEqual(0.005001);
@@ -40,6 +49,7 @@ test("real API mode shows 14 stocks including both requested favorites and corre
     await expect(details).toBeFocused();
   }
   await page.getByRole("button", { name: "資料說明", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("FinMind");
   await expect(page.getByRole("dialog")).toContainText("未還原價格");
   await expect(page.getByRole("dialog")).toContainText("21:00–21:52");
   await page.keyboard.press("Escape");

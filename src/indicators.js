@@ -54,7 +54,6 @@ export function analyzeHistory(history, settings = DEFAULT_SETTINGS) {
     };
   });
 }
-
 export function getInstitutionalNet(institutions) {
   const values = ["外資", "投信", "自營商"].map((name) => {
     const rows = institutions?.filter((item) => item.name === name) ?? [];
@@ -201,23 +200,4 @@ export function filterStocks(
       return false;
     return true;
   });
-}
-
-/** Escape every cell and neutralize spreadsheet formula prefixes. */
-export function toCsv(rows) {
-  return (
-    "\uFEFF" +
-    rows
-      .map((row) =>
-        row
-          .map((value) => {
-            let cell = String(value ?? "");
-            if (/^[=+@\-\t\r]/.test(cell) && !/^-?\d+(\.\d+)?$/.test(cell))
-              cell = "'" + cell;
-            return '"' + cell.replaceAll('"', '""') + '"';
-          })
-          .join(","),
-      )
-      .join("\r\n")
-  );
 }

@@ -59,6 +59,8 @@ test("all favorites show compact metrics with institutional details available se
   await expect(page.locator(".watch-card .watch-flow")).toHaveCount(0);
   await expect(page.locator("#institution-dialog")).not.toBeVisible();
   await expect(page.locator("#watchlist-grid [data-institution-details]")).toHaveCount(0);
+  await expect(page.locator(".watch-card-footer")).toHaveCount(0);
+  await expect(page.locator(".page-footer > span:nth-child(2)")).toHaveText("技術提示僅供研究參考。");
   const cardHeights = await page.locator(".watch-card").evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().height));
   expect(Math.max(...cardHeights)).toBeLessThanOrEqual(500);
   const { stocks, info } = await demoProvider.load();
@@ -83,7 +85,6 @@ test("all favorites show compact metrics with institutional details available se
       }
       await closeInstitutionDetails(page);
       await page.locator('[data-overview="price"]').click();
-      await expect(card.locator(".watch-card-footer")).toContainText(date.replaceAll("-", "."));
     }
   }
   await checkAllFavorites(info.asOf);
@@ -164,6 +165,46 @@ test("table filters and sorting keep the full favorites overview unchanged", asy
     expect(Number(await row.locator(".k-cell").innerText())).toBeLessThan(20);
   await expect(page.locator(".watch-card")).toHaveCount(5);
   await expect(cardFor(page, "2317")).toBeVisible();
+});
+
+test("mobile table keeps prices and daily changes visible with volume beneath each close", async ({ page }) => {
+  const { stocks, info } = await demoProvider.load();
+  await expect(page.locator('[data-sort-heading="changePercent"]')).toContainText("較前交易日");
+  await expect(page.locator('[data-sort-heading="volume"]')).toHaveCount(0);
+  // Monday also compares with the previous trading session, rather than Sunday or five sessions ago.
+  for (const date of [info.asOf, "2026-09-07"]) {
+    await page.locator("#trade-date").selectOption(date);
+    for (const stock of stocks) {
+      const history = stock.history.filter((bar) => bar.date <= date);
+      const current = history.at(-1), previous = history.at(-2);
+      const change = (current.close / previous.close - 1) * 100;
+      const row = page.locator(`#stock-rows tr[data-symbol="${stock.symbol}"]`);
+      await expect(row.locator(".stock-close")).toHaveText(formatted(current.close, 2));
+      await expect(row.locator(".price-cell .stock-volume")).toHaveText(`量 ${formatted(current.volume / 1000)} 張`);
+      await expect(row.locator(".change-cell .change-chip")).toHaveText(`${change > 0 ? "+" : ""}${formatted(change, 2)}%`);
+    }
+  }
+  for (const width of [320, 360, 390, 520, 700]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.locator(".table-scroll").evaluate((element) => { element.scrollLeft = 0; });
+    const issues = await page.locator(".table-scroll").evaluate((element) => {
+      const rightEdge = element.getBoundingClientRect().right;
+      const errors = [];
+      for (const row of element.querySelectorAll("tbody tr")) {
+        const cells = [...row.children];
+        if (cells[1].getBoundingClientRect().right - cells[0].getBoundingClientRect().left > 132.1)
+          errors.push("pinned columns consume too much space");
+        for (const text of row.querySelectorAll(".stock-close, .stock-volume, .change-cell .change-chip")) {
+          const range = document.createRange(); range.selectNodeContents(text);
+          for (const rect of range.getClientRects()) if (rect.right > rightEdge + 1) errors.push("price, volume or daily change is outside the viewport");
+        }
+        const name = row.querySelector(".stock-name");
+        if (name.scrollWidth > name.clientWidth + 1) errors.push("stock name does not wrap within its column");
+      }
+      return errors;
+    });
+    expect(issues, `Mobile market table at ${width}px`).toEqual([]);
+  }
 });
 
 test("stars update every favorite card immediately and persist after reload", async ({ page }) => {
