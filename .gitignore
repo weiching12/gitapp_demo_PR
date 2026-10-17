@@ -20,4 +20,14 @@
 .history
 .ionide
 
+# Frontend build and local files
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/
+.DS_Store
+
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode
