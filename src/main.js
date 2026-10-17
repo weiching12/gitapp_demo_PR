@@ -5,7 +5,6 @@ import {
   getSnapshot,
   filterStocks,
 } from "./indicators.js";
-import { sparkline } from "./charts.js";
 
 const icons = {
   chart: '<path d="M4 19V9m8 10V4m8 15v-7"/>',
@@ -165,7 +164,7 @@ function shell() {
             )
             .join(
               "",
-            )}<th scope="col">近月走勢</th></tr></thead><tbody id="stock-rows"></tbody></table></div><div id="table-empty" class="empty-state" hidden>${icon("search")}<h3>沒有符合條件的股票</h3><p>試試其他關鍵字，或清除篩選條件。</p><button class="outline-button" id="reset-filters">清除篩選</button></div><div class="table-footer"><span id="table-summary"></span><span>點選星號，即時更新上方自選 ${icon("star")}</span></div>
+            )}</tr></thead><tbody id="stock-rows"></tbody></table></div><div id="table-empty" class="empty-state" hidden>${icon("search")}<h3>沒有符合條件的股票</h3><p>試試其他關鍵字，或清除篩選條件。</p><button class="outline-button" id="reset-filters">清除篩選</button></div><div class="table-footer"><span id="table-summary"></span><span>點選星號，即時更新上方自選 ${icon("star")}</span></div>
         </section>
         <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK INSIGHT</span></span><span>示範資料僅供功能展示，不作為投資依據。</span><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
       </main>
@@ -234,7 +233,7 @@ function renderTable() {
     .map((stock) => {
       const { latest: bar, signal } = stock;
       const favorite = state.favorites.includes(stock.symbol);
-      return `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell">${number(bar.close, 2)}</td><td><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td>${number(bar.volume / 1000)}</td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}">${signed(bar.institutionalNet / 1000, 0)}</td><td>${sparkline(stock.history)}</td></tr>`;
+      return `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell">${number(bar.close, 2)}</td><td><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td>${number(bar.volume / 1000)}</td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}">${signed(bar.institutionalNet / 1000, 0)}</td></tr>`;
     })
     .join("");
   document.querySelector("#table-empty").hidden = visibleStocks.length !== 0;

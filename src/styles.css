@@ -1005,7 +1005,7 @@ h1 {
 table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 1110px;
+  min-width: 1010px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1238,12 +1238,6 @@ tbody th {
 .signal-source {
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-.sparkline {
-  width: 76px;
-  height: 30px;
-  vertical-align: middle;
-  opacity: 0.8;
 }
 .table-footer {
   padding: 14px 21px;
