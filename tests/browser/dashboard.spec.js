@@ -4,7 +4,12 @@ import { getSnapshot } from "../../src/indicators.js";
 
 const cardFor = (page, symbol) => page.locator(`[data-watch-symbol="${symbol}"]`);
 const detailsButtonFor = (page, symbol) => page.locator(`#institution-overview [data-institution-details="${symbol}"]`);
+const openPage = async (page, name) => {
+  await page.locator(`[data-page="${name}"]`).click();
+  await expect(page.locator(`[data-page-panel="${name}"]`)).toBeVisible();
+};
 async function openInstitutionDetails(page, symbol) {
+  await openPage(page, "favorites");
   await page.locator('[data-overview="institutions"]').click();
   await detailsButtonFor(page, symbol).click();
   const dialog = page.locator("#institution-dialog");
@@ -51,7 +56,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("all favorites show compact metrics with institutional details available separately", async ({ page }) => {
-  await expect(page.getByRole("heading", { name: "台股研究室." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "市場總覽." })).toBeVisible();
+  await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(5);
   await expect(page.locator("#stock-rows tr")).toHaveCount(14);
   await expect(page.locator("#price-chart, #export-csv, #selected-title")).toHaveCount(0);
@@ -90,13 +96,12 @@ test("all favorites show compact metrics with institutional details available se
   await checkAllFavorites(info.asOf);
   await page.locator("#trade-date").selectOption({ index: 8 });
   await checkAllFavorites(await page.locator("#trade-date").inputValue());
-  expect(await page.evaluate(() =>
-    document.querySelector("#watchlist").getBoundingClientRect().bottom <=
-    document.querySelector(".stocks-panel").getBoundingClientRect().top,
-  )).toBe(true);
+  await expect(page.locator(".stocks-panel")).toBeHidden();
+  await expect(page.locator("#watchlist")).toBeVisible();
 });
 
 test("institutional details identify the selected stock and support keyboard, Escape and backdrop dismissal", async ({ page }) => {
+  await openPage(page, "favorites");
   await page.locator('[data-overview="institutions"]').click();
   const firstButton = detailsButtonFor(page, "2330");
   await expect(firstButton).toHaveAccessibleName("查看台積電三大法人動向");
@@ -164,6 +169,7 @@ test("table filters and sorting keep the full favorites overview unchanged", asy
   for (const row of await page.locator("#stock-rows tr").all())
     expect(Number(await row.locator(".k-cell").innerText())).toBeLessThan(20);
   await expect(page.locator(".watch-card")).toHaveCount(5);
+  await openPage(page, "favorites");
   await expect(cardFor(page, "2317")).toBeVisible();
 });
 
@@ -220,16 +226,18 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
 test("stars update every favorite card immediately and persist after reload", async ({ page }) => {
   await page.locator('#stock-rows [data-favorite="2454"]').click();
   await expect(page.locator(".watch-card")).toHaveCount(6);
+  await openPage(page, "favorites");
   await expect(cardFor(page, "2454")).toContainText("1,360.00");
   await page.reload();
+  await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(6);
   await expect(page.locator("#favorite-count")).toHaveText("6");
-  await page.locator('[data-view="favorites"]').click();
-  await expect(page.locator("#stock-rows tr")).toHaveCount(6);
   await cardFor(page, "2454").getByRole("button", { name: "移除聯發科自選" }).click();
   await expect(cardFor(page, "2454")).toHaveCount(0);
+  await openPage(page, "market");
+  await page.locator('[data-view="favorites"]').click();
   await expect(page.locator("#stock-rows tr")).toHaveCount(5);
-  await expect(page.locator("#manage-favorites")).toBeFocused();
+  await expect(page.locator('[data-view="favorites"]')).toBeFocused();
   await page.reload();
   await expect(cardFor(page, "2454")).toHaveCount(0);
 });
@@ -237,30 +245,33 @@ test("stars update every favorite card immediately and persist after reload", as
 test("new requested favorites migrate once and stay removed after the user removes them", async ({ page }) => {
   await page.evaluate(() => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites: ["2330"] })));
   await page.reload();
+  await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(3);
   await expect(cardFor(page, "3026")).toBeVisible();
   await expect(cardFor(page, "6488")).toBeVisible();
   await cardFor(page, "3026").locator("[data-favorite]").click();
   await cardFor(page, "6488").locator("[data-favorite]").click();
   await page.reload();
+  await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(1);
   await expect(cardFor(page, "2330")).toBeVisible();
 });
 
 test("empty favorites persist and offer a working path back to stock selection", async ({ page }) => {
+  await openPage(page, "favorites");
   for (const symbol of ["2330", "2317", "0050", "3026", "6488"])
     await cardFor(page, symbol).locator("[data-favorite]").click();
   await expect(page.locator(".watch-card")).toHaveCount(0);
   await expect(page.locator("#watchlist-empty")).toBeVisible();
   await page.reload();
+  await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(0);
   await expect(page.locator("#watchlist-count")).toHaveText("0 檔");
-  await page.locator('[data-view="favorites"]').click();
-  await expect(page.locator("#table-empty")).toBeVisible();
   await page.getByRole("button", { name: "前往選擇股票" }).click();
   await expect(page.getByRole("searchbox")).toBeFocused();
   await expect(page.locator("#stock-rows tr")).toHaveCount(14);
   await page.locator('#stock-rows [data-favorite="00878"]').click();
+  await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(1);
   await expect(cardFor(page, "00878")).toBeVisible();
   await expect(page.locator("#watchlist-empty")).not.toBeVisible();
@@ -298,13 +309,14 @@ test("technical suggestions explain each stock on the selected historical date",
   await expect(page.locator('[data-symbol="2603"] .signal-badge')).toHaveText("反彈觀察");
   await expect(page.locator('[data-symbol="2603"] .signal-reason')).toContainText("MA20 趨勢尚未確認");
   await page.locator('#stock-rows [data-favorite="2603"]').click();
+  await openPage(page, "favorites");
   await expect(cardFor(page, "2603").locator(".signal-badge")).toHaveText("反彈觀察");
 });
 
 test("desktop overview screenshot and keyboard search shortcut", async ({ page }, testInfo) => {
   await page.keyboard.press("/");
   await expect(page.getByRole("searchbox")).toBeFocused();
-  await page.getByRole("heading", { name: "台股研究室." }).click();
+  await page.getByRole("heading", { name: "市場總覽." }).click();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForFunction(() => window.scrollY === 0);
   await page.screenshot({ path: testInfo.outputPath("watchlist-desktop.png"), fullPage: true });
@@ -312,6 +324,7 @@ test("desktop overview screenshot and keyboard search shortcut", async ({ page }
 
 test("mobile cards swipe above the table and support scrolling and dialogs", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(5);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.getByRole("button", { name: "管理自選" }).click();
@@ -334,6 +347,7 @@ test("phone carousel supports swipe, buttons and quick selection with many favor
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.reload();
+  await openPage(page, "favorites");
   const grid = page.locator("#watchlist-grid");
   const status = page.locator("#watchlist-carousel-status");
   await expect(page.locator(".watch-card")).toHaveCount(14);
@@ -388,6 +402,7 @@ test("favorite metrics remain unclipped across narrow screens, tablets and deskt
   await page.getByLabel("K 平滑係數").fill("20");
   await page.getByLabel("D 平滑係數").fill("20");
   await page.getByRole("button", { name: "儲存並重新計算" }).click();
+  await openPage(page, "favorites");
   for (const width of [320, 360, 390, 520, 521, 768, 1000, 1001, 1024, 1250, 1251, 1440, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
     const report = await page.locator("#watchlist-grid").evaluate((grid) => {
@@ -491,6 +506,7 @@ test("source information lives in the sidebar and opens one accessible explanati
 });
 
 test("watchlist tabs support keyboard selection and restore focus to the exact overview details button", async ({ page }) => {
+  await openPage(page, "favorites");
   const tabs = page.getByRole("tablist", { name: "自選總覽視角" });
   const price = tabs.getByRole("tab", { name: "價量總覽", exact: true });
   const institutions = tabs.getByRole("tab", { name: "法人總覽", exact: true });
@@ -533,6 +549,7 @@ test("watchlist tabs support keyboard selection and restore focus to the exact o
 
 test("institutional overview compares every favorite using independent day, 5 and 20-session sums and streaks", async ({ page }) => {
   const { stocks, info } = await demoProvider.load();
+  await openPage(page, "favorites");
   await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
   await expect(page.locator("#institution-overview-rows article")).toHaveCount(5);
   const noteLayout = await page.locator(".institution-overview-note").evaluate((note) => ({
@@ -543,7 +560,7 @@ test("institutional overview compares every favorite using independent day, 5 an
   const windows = page.getByRole("group", { name: "法人累計區間" });
   for (const date of [info.asOf, "2026-09-08"]) {
     await page.locator("#trade-date").selectOption(date);
-    await expect(page.locator("#institution-overview-date")).toContainText(date);
+    await expect(page.locator("#institution-overview-date")).toHaveCount(0);
     for (const [key, count, label] of [["day", 1, "當日"], ["5", 5, "近 5 日"], ["20", 20, "近 20 日"]]) {
       await windows.getByRole("button", { name: label, exact: true }).click();
       await expect(windows.locator(`[data-institution-window="${key}"]`)).toHaveAttribute("aria-pressed", "true");
@@ -570,33 +587,72 @@ test("institutional overview compares every favorite using independent day, 5 an
       }
     }
   }
+  await openPage(page, "market");
   await page.getByRole("searchbox").fill("0050");
   await expect(page.locator("#stock-rows tr")).toHaveCount(1);
   await expect(page.locator("#institution-overview-rows article")).toHaveCount(5);
   await page.locator("#sector-filter").selectOption("半導體");
   await expect(page.locator("#table-empty")).toBeVisible();
+  await openPage(page, "favorites");
   await expect(overviewFor(page, "2330")).toBeVisible();
   await expect(overviewFor(page, "0050")).toBeVisible();
+});
+
+test("sector page aggregates institutional flows and sorts industries", async ({ page }) => {
+  const { stocks, info } = await demoProvider.load();
+  await openPage(page, "sectors");
+  const windows = page.getByRole("group", { name: "產業法人累計區間" });
+  const expected = (days) => {
+    const totals = new Map();
+    for (const stock of stocks) {
+      const history = stock.history.filter((bar) => bar.date <= info.asOf).slice(-days);
+      const total = history.reduce((sum, bar) => sum + bar.institutions.reduce((net, item) => net + item.buy - item.sell, 0), 0);
+      totals.set(stock.sector, (totals.get(stock.sector) ?? 0) + total);
+    }
+    return [...totals].sort((a, b) => b[1] - a[1]);
+  };
+  for (const [key, days, label] of [["day", 1, "當日"], ["5", 5, "近 5 日"], ["20", 20, "近 20 日"]]) {
+    await windows.getByRole("button", { name: label, exact: true }).click();
+    const ranked = expected(days);
+    const cards = page.locator("#sector-grid .sector-card");
+    await expect(cards).toHaveCount(ranked.length);
+    for (let index = 0; index < ranked.length; index++) {
+      await expect(cards.nth(index)).toHaveAttribute("data-sector-name", ranked[index][0]);
+      await expect(cards.nth(index).locator(".sector-total strong")).toHaveText(amountText(ranked[index][1]));
+    }
+  }
+  await page.locator("#sector-sort").selectOption("net-asc");
+  const ascending = expected(20).toReversed().map(([name]) => name);
+  expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(ascending);
+  await page.locator("#sector-sort").selectOption("name-asc");
+  const names = [...new Set(stocks.map((stock) => stock.sector))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(names);
 });
 
 test("both overview modes follow all favorites and retain the zero-favorite selection path", async ({ page }) => {
   const { stocks } = await demoProvider.load();
   await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })), stocks.map((stock) => stock.symbol));
   await page.reload();
+  await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(14);
   await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
   await expect(page.locator("#institution-overview-rows article")).toHaveCount(14);
   for (const stock of stocks) await expect(overviewFor(page, stock.symbol)).toBeVisible();
+  await openPage(page, "market");
   await page.getByRole("searchbox").fill("2454");
   await page.locator('#stock-rows [data-favorite="2454"]').click();
+  await openPage(page, "favorites");
   await expect(page.locator("#institution-overview-rows article")).toHaveCount(13);
   await expect(overviewFor(page, "2454")).toHaveCount(0);
+  await openPage(page, "market");
   await page.locator('#stock-rows [data-favorite="2454"]').click();
+  await openPage(page, "favorites");
   await expect(overviewFor(page, "2454")).toBeVisible();
   await page.getByRole("tab", { name: "價量總覽", exact: true }).click();
   await expect(cardFor(page, "2454")).toBeVisible();
   await page.evaluate(() => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites: [], catalogVersion: 2 })));
   await page.reload();
+  await openPage(page, "favorites");
   await expect(page.locator("#watchlist-empty")).toBeVisible();
   await expect(page.locator(".watch-card")).toHaveCount(0);
   await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
@@ -605,11 +661,12 @@ test("both overview modes follow all favorites and retain the zero-favorite sele
   await page.getByRole("button", { name: "前往選擇股票", exact: true }).click();
   await expect(page.getByRole("searchbox")).toBeFocused();
   await page.locator('#stock-rows [data-favorite="00878"]').click();
+  await openPage(page, "favorites");
   await expect(overviewFor(page, "00878")).toBeVisible();
   await expect(page.locator("#watchlist-empty")).toBeHidden();
 });
 
-test("phone additions open the matching card while removals keep the table position", async ({ page }) => {
+test("favorite changes stay on the market page and preserve the table position", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const width of [320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 720 });
@@ -626,17 +683,9 @@ test("phone additions open the matching card while removals keep the table posit
     await star.click();
     await expect(page.locator(".watch-card")).toHaveCount(6);
     await settleLayout(page);
-    if (width <= 700) {
-      await expect(cardFor(page, "2454")).toBeFocused();
-      await expect(page.locator("#watchlist-carousel-status")).toContainText("第 6／6 檔");
-      const card = await cardFor(page, "2454").boundingBox();
-      const nav = await page.locator(".sidebar").boundingBox();
-      expect(card.y, `Added card hidden by navigation at ${width}px`).toBeGreaterThanOrEqual(nav.y + nav.height);
-      expect(card.y, `Added card too low at ${width}px`).toBeLessThan(150);
-    } else {
-      await expect(star).toBeFocused();
-      expect(Math.abs((await row.boundingBox()).y - before.top), `Added row moved at ${width}px`).toBeLessThanOrEqual(2);
-    }
+    await expect(page.locator('[data-page="market"]')).toHaveAttribute("aria-current", "page");
+    await expect(star).toBeFocused();
+    expect(Math.abs((await row.boundingBox()).y - before.top), `Added row moved at ${width}px`).toBeLessThanOrEqual(2);
     expect(await table.evaluate((element) => element.scrollLeft)).toBe(before.left);
 
     await page.locator('[data-view="favorites"]').click();
@@ -666,20 +715,24 @@ test("phone additions open the matching card while removals keep the table posit
   }
 });
 
-test("adding a phone favorite from the institutional view opens its price card", async ({ page }) => {
+test("primary navigation keeps market, favorites and sectors as separate pages", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
+  await expect(page.locator(".stocks-panel")).toBeVisible();
   await page.locator('#stock-rows [data-favorite="2454"]').click();
-  await expect(page.getByRole("tab", { name: "價量總覽", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(cardFor(page, "2454")).toBeFocused();
-  await expect(cardFor(page, "2454")).toBeInViewport();
+  await expect(page.locator(".stocks-panel")).toBeVisible();
+  await expect(page.locator("#watchlist")).toBeHidden();
+  await openPage(page, "favorites");
+  await expect(cardFor(page, "2454")).toBeVisible();
+  await openPage(page, "sectors");
+  await expect(page.locator("#sector-grid .sector-card")).toHaveCount(6);
+  await expect(page.getByRole("heading", { name: "產業法人." })).toBeVisible();
 });
 
 test("phone and tablet controls remain touch-sized with readable sticky navigation and pinned stock columns", async ({ page }, testInfo) => {
   for (const width of [320, 390, 768, 1024]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.getByRole("tab", { name: "價量總覽", exact: true }).click();
+    await openPage(page, "market");
     const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #manage-favorites, #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite]').evaluateAll((controls) => controls.flatMap((element) => {
       const rect = element.getBoundingClientRect();
       return rect.width && rect.height && (rect.width < 44 || rect.height < 44)
@@ -690,7 +743,8 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
     // The implicit label's padding is part of the search field's touch target.
     await page.locator(".search-box").click({ position: { x: 2, y: 2 } });
     await expect(page.getByRole("searchbox")).toBeFocused();
-    for (const item of await page.locator('.sidebar nav .nav-item > span:first-of-type').all()) await expect(item).toBeVisible();
+    for (const item of await page.locator('.sidebar nav [data-page] > span:first-of-type').all())
+      if (width <= 360) await expect(item).toBeHidden(); else await expect(item).toBeVisible();
     await page.getByRole("searchbox").scrollIntoViewIfNeeded();
     expect(await page.locator(".sidebar").evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
     expect((await page.locator(".sidebar").boundingBox()).y).toBeGreaterThanOrEqual(-1);
@@ -707,6 +761,7 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
       expect(Math.abs(pinning.moved[1])).toBeLessThanOrEqual(1);
       expect(Math.abs(pinning.moved[2] + pinning.scroll)).toBeLessThanOrEqual(1);
     }
+    await openPage(page, "favorites");
     await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
     const overviewReport = await page.locator("#institution-overview").evaluate((element) => {
       const clipped = [];
@@ -755,6 +810,7 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
   }
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
+    await openPage(page, "favorites");
     await page.locator('[data-overview="price"]').click();
     const sizes = await page.locator(".panel-subtitle, .watchlist-heading p, .metric-label, .metric-description").evaluateAll((elements) =>
       elements.filter((element) => element.getClientRects().length).map((element) => parseFloat(getComputedStyle(element).fontSize)));
@@ -772,6 +828,8 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
     await page.locator('#institution-overview [data-institution-details="6488"]').click();
     await expectLegible("#institution-dialog");
     await closeInstitutionDetails(page);
+    await openPage(page, "sectors");
+    await expectLegible("#sector-page");
     expect(await page.evaluate(() => document.documentElement.scrollWidth), `Page overflow at ${width}px`).toBeLessThanOrEqual(width);
   }
 });
@@ -780,6 +838,7 @@ test("phone institutional rows align values and keep interval switching availabl
   const { stocks } = await demoProvider.load();
   await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })), stocks.map((stock) => stock.symbol));
   await page.reload();
+  await openPage(page, "favorites");
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const width of [320, 390, 520, 700]) {
     await page.setViewportSize({ width, height: 844 });

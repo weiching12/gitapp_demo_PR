@@ -2187,17 +2187,6 @@ dialog.institution-dialog {
   border-radius: 10px;
   background: #fff;
 }
-.institution-overview-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 14px;
-}
-.institution-overview-toolbar h3 {
-  margin: 0 0 6px;
-}
-#institution-overview-date,
 .institution-overview-note {
   margin: 0;
   color: #64748b;
@@ -2208,6 +2197,8 @@ dialog.institution-dialog {
 .institution-window {
   display: flex;
   flex-shrink: 0;
+  width: fit-content;
+  margin-left: auto;
   gap: 4px;
   padding: 3px;
   border: 1px solid var(--border);
@@ -2252,6 +2243,149 @@ dialog.institution-dialog {
 .institution-overview-row h4 {
   margin: 5px 0 0;
   overflow-wrap: anywhere;
+}
+.sector-page {
+  overflow: hidden;
+}
+.sector-page-heading {
+  align-items: center;
+}
+.sector-sort-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+.sector-sort-control select {
+  min-height: 44px;
+  padding: 8px 30px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink);
+  background: #fff;
+}
+.sector-period {
+  display: flex;
+  width: fit-content;
+  gap: 4px;
+  margin: 0 20px 16px auto;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #f8fafc;
+}
+.sector-period button {
+  min-width: 64px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 5px;
+  color: #64748b;
+}
+.sector-period [aria-pressed="true"] {
+  color: #245cac;
+  background: #e9f1ff;
+}
+.sector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 0 20px 20px;
+}
+.sector-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-top: 3px solid #9bb8ed;
+  border-radius: 9px;
+  background: #fff;
+}
+.sector-card > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sector-card h3 {
+  margin: 0 0 3px;
+}
+.sector-card header div > span,
+.sector-rank {
+  color: var(--muted);
+}
+.sector-rank {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  color: #315c9b;
+  background: #edf4ff;
+  font-variant-numeric: tabular-nums;
+}
+.sector-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 8px;
+  padding: 12px;
+  border-radius: 7px;
+  background: #f5f7fb;
+}
+.sector-total span {
+  color: var(--muted);
+}
+.sector-total strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sector-institutions {
+  margin: 0;
+}
+.sector-institutions > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  border-bottom: 1px solid #edf1f6;
+}
+.sector-institutions dt {
+  color: var(--muted);
+}
+.sector-institutions dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.sector-members {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.sector-members > span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+}
+.sector-members b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.sector-members small {
+  color: var(--muted);
+}
+.sector-members em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sector-note {
+  margin: 0;
+  padding: 10px 20px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
 }
 .overview-detail-button {
   display: inline-flex;
@@ -2381,7 +2515,7 @@ dialog.institution-dialog {
   }
   .sidebar nav {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(48px, 1fr)) 44px 44px;
     gap: 3px;
     margin: 0;
   }
@@ -2398,6 +2532,9 @@ dialog.institution-dialog {
   }
   .sidebar nav .nav-item > span {
     display: block;
+  }
+  .sidebar nav [data-dialog] > span:first-of-type {
+    display: none;
   }
   .sidebar nav .nav-item > .nav-dot,
   .sidebar nav .nav-item > .count-pill,
@@ -2430,19 +2567,54 @@ dialog.institution-dialog {
 }
 @media (max-width: 700px) {
   .institution-overview { padding: 0; border: 0; background: transparent; }
-  .institution-overview-toolbar { display: contents; }
   .institution-window {
     position: sticky;
     top: 72px;
     z-index: 6;
     width: 100%;
-    margin-top: 14px;
+    margin: 14px 0 0;
     background: #f1f5fb;
     box-shadow: 0 3px 10px #172f5010;
   }
   .institution-window button { flex: 1; min-width: 0; }
   .institution-overview-note { margin: 2px 12px 0; }
   .institution-overview-row { grid-template-columns: 1fr; gap: 12px; padding: 14px; background: #fff; }
+  .sector-page-heading {
+    align-items: stretch;
+  }
+  .sector-sort-control {
+    justify-content: space-between;
+  }
+  .sector-sort-control select {
+    flex: 1;
+    max-width: 190px;
+  }
+  .sector-period {
+    position: sticky;
+    top: 72px;
+    z-index: 6;
+    width: calc(100% - 24px);
+    margin: 0 12px 14px;
+    background: #f1f5fb;
+    box-shadow: 0 3px 10px #172f5010;
+  }
+  .sector-period button {
+    flex: 1;
+    min-width: 0;
+  }
+  .sector-grid {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 12px 16px;
+  }
+  .sector-card {
+    padding: 14px;
+  }
+  .sector-members > span {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .sector-members small {
+    display: none;
+  }
   .institution-overview-row > header { flex-direction: row; justify-content: space-between; align-items: center; }
   .institution-overview-row > header > div { display: flex; flex-direction: column; min-width: 0; }
   .institution-overview-row h4 { margin: 0; }
@@ -2480,7 +2652,21 @@ dialog.institution-dialog {
   .overview-tabs [role="tab"] { flex: 1; padding-inline: 10px; }
 }
 @media (max-width: 360px) {
-  .sidebar .brand > span:last-child { display: none; }
+  .sidebar .brand { display: none; }
+  .sidebar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px;
+    padding-inline: 6px;
+  }
+  .sidebar nav {
+    grid-template-columns: repeat(5, minmax(44px, 1fr));
+  }
+  .sidebar nav .nav-item {
+    min-width: 44px;
+  }
+  .sidebar nav .nav-item > span:first-of-type {
+    display: none;
+  }
 }
 
 /* Layout follows the shared type scale; narrow screens wrap instead of shrinking copy. */
@@ -2586,6 +2772,11 @@ dialog.institution-dialog {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
+  }
+}
+@media (max-width: 360px) {
+  .sidebar nav .nav-item {
+    min-width: 44px;
   }
 }
 @media (max-width: 700px) {

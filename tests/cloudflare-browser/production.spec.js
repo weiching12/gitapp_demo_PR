@@ -21,6 +21,7 @@ test("real API mode shows 14 stocks including both requested favorites and corre
   await expect(page.locator('[data-sort-heading="changePercent"]')).not.toContainText("較前交易日");
   await expect(page.locator('[data-sort-heading="volume"]')).toHaveCount(0);
   const date = await page.locator("#trade-date").inputValue();
+  await page.locator('[data-page="favorites"]').click();
   for (const symbol of ["3026", "6488"]) {
     await page.locator('[data-overview="price"]').click();
     const response = await request.get(`/api/stocks/${symbol}`);
@@ -69,6 +70,7 @@ test("real API mode shows 14 stocks including both requested favorites and corre
 test("real data stays within desktop and phone widths", async ({ page }, testInfo) => {
   await page.goto("/");
   await expect(page.locator(".watch-card")).toHaveCount(5);
+  await page.locator('[data-page="favorites"]').click();
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.locator('[data-overview="price"]').click();
@@ -121,6 +123,7 @@ test("real data stays within desktop and phone widths", async ({ page }, testInf
 test("real-data institutional overview compares every favorite at each cumulative window and historical date", async ({ page, request }) => {
   await page.goto("/");
   await expect(page.locator(".watch-card")).toHaveCount(5);
+  await page.locator('[data-page="favorites"]').click();
   const stocks = await Promise.all(["2330", "2317", "0050", "3026", "6488"].map(async (symbol) => {
     const response = await request.get(`/api/stocks/${symbol}`);
     expect(response.status()).toBe(200);
@@ -132,7 +135,7 @@ test("real-data institutional overview compares every favorite at each cumulativ
   for (const index of [0, 5]) {
     await page.locator("#trade-date").selectOption({ index });
     const date = await page.locator("#trade-date").inputValue();
-    await expect(page.locator("#institution-overview-date")).toContainText(date);
+    await expect(page.locator("#institution-overview-date")).toHaveCount(0);
     for (const [key, count] of [["day", 1], ["5", 5], ["20", 20]]) {
       const selected = page.locator(`[data-institution-window="${key}"]`);
       await selected.click();
@@ -168,6 +171,7 @@ test("real-data institutional overview compares every favorite at each cumulativ
   await expect(page.locator("#institution-dialog")).toHaveAccessibleName(/環球晶.*三大法人動向/);
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
+  await page.locator('[data-page="market"]').click();
   await page.getByRole("searchbox").fill("3026");
   await expect(page.locator("#stock-rows tr")).toHaveCount(1);
   await expect(page.locator("#institution-overview-rows article")).toHaveCount(5);
@@ -175,6 +179,7 @@ test("real-data institutional overview compares every favorite at each cumulativ
 
 test("real institutional comparison stays readable on phones and tablets", async ({ page }, testInfo) => {
   await page.goto("/");
+  await page.locator('[data-page="favorites"]').click();
   await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
   await page.locator('[data-institution-window="20"]').click();
   for (const width of [320, 390, 768, 1024]) {

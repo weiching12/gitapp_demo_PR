@@ -103,8 +103,10 @@ tbody td {
 .watch-symbol,
 .overview-stock-code,
 .overview-metric dt,
+.sector-sort-control,
+.sector-total > span,
+.sector-institutions dt,
 .date-control label,
-#institution-overview-date,
 .table-manage-hint,
 .table-scroll-hint,
 .signal-note,
@@ -142,8 +144,7 @@ tbody td {
   color: var(--muted);
 }
 .guide-item h3,
-.watch-flow-heading h3,
-.institution-overview-toolbar h3 {
+.watch-flow-heading h3 {
   font-size: var(--text-title);
 }
 .signal-badge,
@@ -157,6 +158,8 @@ thead th,
 thead th button,
 .overview-tabs [role="tab"],
 .institution-window button,
+.sector-period button,
+.sector-sort-control select,
 .filter-tabs button,
 .outline-button,
 .text-button,
@@ -188,6 +191,9 @@ thead th button,
 .signal-reason,
 .institution-leader,
 .institution-overview-note,
+.sector-card header div > span,
+.sector-members small,
+.sector-note,
 .sector-inline,
 .kd-detail,
 .deviation,
@@ -213,11 +219,13 @@ thead th button,
   letter-spacing: 0.1em;
 }
 .watch-card-heading h3,
-.institution-overview-row h4 {
+.institution-overview-row h4,
+.sector-card h3 {
   font-size: var(--text-title);
 }
 .metric-value,
-.watch-flow-total strong {
+.watch-flow-total strong,
+.sector-total strong {
   font-size: var(--text-section);
   font-weight: 600;
   line-height: var(--leading-heading);
