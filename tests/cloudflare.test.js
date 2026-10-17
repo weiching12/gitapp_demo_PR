@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { refreshStock } from "../cloudflare/worker.js";
+import worker, { refreshStock, scheduledStock } from "../cloudflare/worker.js";
 import { fetchStock, normalizeHistory, stockKey, taipeiDate } from "../cloudflare/finmind.js";
 import { STOCK_CATALOG } from "../src/catalog.js";
 import { combineSnapshots, loadApiDataset } from "../src/provider.js";
@@ -19,6 +19,24 @@ const history = () => Array.from({ length: 80 }, (_, i) => {
 const snapshot = (stock = STOCK_CATALOG.find((item) => item.symbol === symbol)) => ({
   schemaVersion: 1, asOf: "2026-09-18", updatedAt: "2026-10-17T10:00:00Z",
   stock: { ...stock, history: history() },
+});
+
+test("150-symbol catalog is unique and includes existing stocks, OTC stock, and ETFs", () => {
+  assert.equal(STOCK_CATALOG.length, 150);
+  assert.equal(new Set(STOCK_CATALOG.map(({ symbol }) => symbol)).size, 150);
+  for (const symbol of ["2330", "3026", "6488", "0050", "00878"])
+    assert.ok(STOCK_CATALOG.some((stock) => stock.symbol === symbol));
+});
+
+test("scheduled stock slots cover all 150 symbols once from Taipei 21:00 through 23:29", () => {
+  const slots = Array.from({ length: 150 }, (_, slot) => {
+    const hour = 13 + Math.floor(slot / 60);
+    const minute = slot % 60;
+    return scheduledStock(new Date(Date.UTC(2026, 9, 19, hour, minute)));
+  });
+  assert.deepEqual(slots.map(({ symbol }) => symbol), STOCK_CATALOG.map(({ symbol }) => symbol));
+  assert.equal(scheduledStock(new Date("2026-10-19T15:30:00Z")), null);
+  assert.equal(scheduledStock(new Date("2026-10-19T12:59:00Z")), null);
 });
 
 test("FinMind normalization preserves share units and ETF zeros, excludes foreign dealer double count", () => {
@@ -43,6 +61,12 @@ test("Reject malformed prices, wrong symbols and duplicate institution rows", ()
   assert.throws(() => normalizeHistory(symbol, [{ ...price(), stock_id: "2330" }], flows()));
   assert.throws(() => normalizeHistory(symbol, [price()], [...flows(), flows()[0]]));
   assert.throws(() => normalizeHistory(symbol, [price(), price()], flows()));
+});
+
+test("No-trade sessions with zero OHLC are skipped while partial zero rows remain invalid", () => {
+  const noTrade = { stock_id: symbol, date: "2026-10-15", open: 0, max: 0, min: 0, close: 0, Trading_Volume: 0 };
+  assert.deepEqual(normalizeHistory(symbol, [noTrade, price()], flows()), [normalizeHistory(symbol, [price()], flows())[0]]);
+  assert.throws(() => normalizeHistory(symbol, [{ ...noTrade, close: 100 }], []), /OHLC|volume/);
 });
 
 test("Dates follow Taiwan time across the UTC day boundary", () => {
@@ -72,7 +96,7 @@ test("All stocks share a complete selected day while earlier missing sessions re
   assert.equal(dataset.info.mode, "finmind");
   assert.ok(dataset.info.asOf < newest);
   assert.ok(dataset.dates.every((date) => date <= dataset.info.asOf));
-  assert.equal(dataset.stocks.length, 14);
+  assert.equal(dataset.stocks.length, 150);
 });
 
 test("API loads fail explicitly without demo fallback", async () => {

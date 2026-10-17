@@ -16,6 +16,14 @@ export async function refreshStock(env, stock, options) {
   return stockMetadata(snapshot);
 }
 
+export function scheduledStock(scheduledTime) {
+  const scheduled = new Date(scheduledTime);
+  const hour = scheduled.getUTCHours();
+  if (hour < 13 || hour > 15) return null;
+  const slot = (hour - 13) * 60 + scheduled.getUTCMinutes();
+  return STOCK_CATALOG[slot] ?? null;
+}
+
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
@@ -38,10 +46,9 @@ export default {
     }
   },
   async scheduled(controller, env) {
-    // UTC 13:00–13:52 = Taipei 21:00–21:52. One stock every four minutes
-    // keeps individual invocations small enough for the Workers Free CPU limit.
-    const slot = Math.floor(new Date(controller.scheduledTime).getUTCMinutes() / 4);
-    const stock = STOCK_CATALOG[slot];
+    // UTC 13:00–15:29 = Taipei 21:00–23:29. One stock per minute keeps each
+    // invocation small; 150 stocks use about 120 FinMind requests in any hour.
+    const stock = scheduledStock(controller.scheduledTime);
     if (!stock) return;
     const metadata = await refreshStock(env, stock);
     console.log(JSON.stringify({ event: "stock-updated", ...metadata }));

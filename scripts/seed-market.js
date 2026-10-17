@@ -7,7 +7,12 @@ import { fetchStock, MANIFEST_KEY, stockKey, stockMetadata } from "../cloudflare
 const entries = [];
 const manifest = { schemaVersion: 1, stocks: {} };
 for (const stock of STOCK_CATALOG) {
-  const snapshot = await fetchStock(stock, null, { token: process.env.FINMIND_TOKEN });
+  let snapshot;
+  try {
+    snapshot = await fetchStock(stock, null, { token: process.env.FINMIND_TOKEN });
+  } catch (error) {
+    throw new Error(`Failed to seed ${stock.symbol} ${stock.name}: ${error.message}`, { cause: error });
+  }
   entries.push({ key: stockKey(stock.symbol), value: JSON.stringify(snapshot) });
   manifest.stocks[stock.symbol] = stockMetadata(snapshot);
   console.log(`${stock.symbol}: ${snapshot.stock.history.length} sessions, as of ${snapshot.asOf}`);

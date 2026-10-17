@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { getSnapshot } from "../../src/indicators.js";
 
-test("real API mode shows 14 stocks including both requested favorites and correct statistics", async ({ page, request }) => {
+test("real API mode shows 150 stocks including both requested favorites and correct statistics", async ({ page, request }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
-  await expect(page.locator("#stock-rows tr")).toHaveCount(14);
+  await expect(page.locator("#stock-rows tr")).toHaveCount(150);
   await expect(page.locator(".watch-card")).toHaveCount(5);
   await expect(page.locator(".watch-card .watch-flow")).toHaveCount(0);
   await expect(page.locator("#institution-dialog")).not.toBeVisible();
@@ -60,7 +60,7 @@ test("real API mode shows 14 stocks including both requested favorites and corre
   await page.getByRole("button", { name: "資料說明", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("FinMind");
   await expect(page.getByRole("dialog")).toContainText("未還原價格");
-  await expect(page.getByRole("dialog")).toContainText("21:00–21:52");
+  await expect(page.getByRole("dialog")).toContainText("21:00–23:29");
   await page.keyboard.press("Escape");
   await page.locator("#trade-date").selectOption({ index: 5 });
   await expect(page.locator(".watch-card")).toHaveCount(5);

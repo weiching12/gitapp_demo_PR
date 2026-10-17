@@ -12,6 +12,6 @@
     "run_worker_first": ["/api/*"]
   },
   "kv_namespaces": [{ "binding": "MARKET_DATA", "id": "0894cb2466e84600ba35b848e748dc9a" }],
-  "triggers": { "crons": ["*/4 13 * * mon-fri"] },
+  "triggers": { "crons": ["* 13-15 * * mon-fri"] },
   "observability": { "enabled": true }
 }

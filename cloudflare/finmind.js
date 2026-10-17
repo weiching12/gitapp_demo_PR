@@ -47,6 +47,11 @@ export function normalizeHistory(symbol, prices, flows) {
     if (row.stock_id !== symbol || !datePattern.test(row.date) || seen.has(row.date))
       throw new Error("Invalid or duplicate price identity");
     seen.add(row.date);
+    // Suspended or otherwise inactive sessions may be returned as an all-zero
+    // OHLC row. They contain no tradable price and should not block the full
+    // universe refresh; malformed partial rows still fail validation below.
+    if (row.Trading_Volume === 0 && [row.open, row.max, row.min, row.close].every((n) => n === 0))
+      return null;
     if (![row.open, row.max, row.min, row.close].every((n) => Number.isFinite(n) && n > 0) ||
         row.max < Math.max(row.open, row.close) || row.min > Math.min(row.open, row.close) ||
         !Number.isSafeInteger(row.Trading_Volume) || row.Trading_Volume < 0)
@@ -63,7 +68,7 @@ export function normalizeHistory(symbol, prices, flows) {
     if (self && hedge) institutions.push({ name: "自營商", buy: self.buy + hedge.buy, sell: self.sell + hedge.sell });
     return { date: row.date, open: row.open, high: row.max, low: row.min,
       close: row.close, volume: row.Trading_Volume, institutions };
-  }).sort((a, b) => a.date.localeCompare(b.date));
+  }).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export async function fetchStock(stock, previous = null, { token, now = new Date(), fetcher = fetch } = {}) {
