@@ -540,7 +540,7 @@ test("both overview modes follow all favorites and retain the zero-favorite sele
   await expect(page.locator("#watchlist-empty")).toBeHidden();
 });
 
-test("market favorite toggles preserve the user's row and horizontal scroll on phones, tablets and desktop", async ({ page }) => {
+test("phone additions open the matching card while removals keep the table position", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const width of [320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 720 });
@@ -556,9 +556,17 @@ test("market favorite toggles preserve the user's row and horizontal scroll on p
     await expect(star).toBeInViewport();
     await star.click();
     await expect(page.locator(".watch-card")).toHaveCount(6);
-    await expect(star).toBeFocused();
     await settleLayout(page);
-    expect(Math.abs((await row.boundingBox()).y - before.top), `Added row moved at ${width}px`).toBeLessThanOrEqual(2);
+    if (width <= 700) {
+      await expect(cardFor(page, "2454")).toBeFocused();
+      const card = await cardFor(page, "2454").boundingBox();
+      const nav = await page.locator(".sidebar").boundingBox();
+      expect(card.y, `Added card hidden by navigation at ${width}px`).toBeGreaterThanOrEqual(nav.y + nav.height);
+      expect(card.y, `Added card too low at ${width}px`).toBeLessThan(150);
+    } else {
+      await expect(star).toBeFocused();
+      expect(Math.abs((await row.boundingBox()).y - before.top), `Added row moved at ${width}px`).toBeLessThanOrEqual(2);
+    }
     expect(await table.evaluate((element) => element.scrollLeft)).toBe(before.left);
 
     await page.locator('[data-view="favorites"]').click();
@@ -586,6 +594,16 @@ test("market favorite toggles preserve the user's row and horizontal scroll on p
     expect(await table.evaluate((element) => element.scrollLeft)).toBe(removal.left);
     await expect(page.locator('[data-view="favorites"]')).toHaveClass(/active/);
   }
+});
+
+test("adding a phone favorite from the institutional view opens its price card", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
+  await page.locator('#stock-rows [data-favorite="2454"]').click();
+  await expect(page.getByRole("tab", { name: "價量總覽", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(cardFor(page, "2454")).toBeFocused();
+  await expect(cardFor(page, "2454")).toBeInViewport();
 });
 
 test("phone and tablet controls remain touch-sized with readable sticky navigation and pinned stock columns", async ({ page }, testInfo) => {

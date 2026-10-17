@@ -203,7 +203,7 @@ function renderWatchlist() {
   document.querySelector("#watchlist-grid").innerHTML = favorites.map((stock) => {
     const { latest: bar, signal } = stock;
     const kStatus = bar.k === null ? "資料不足" : bar.k > 80 ? "高檔區間" : bar.k < 20 ? "低檔區間" : "中性區間";
-    return `<article class="watch-card" data-watch-symbol="${stock.symbol}" aria-labelledby="watch-title-${stock.symbol}">
+    return `<article class="watch-card" data-watch-symbol="${stock.symbol}" aria-labelledby="watch-title-${stock.symbol}" tabindex="-1">
       <header class="watch-card-heading"><div><span class="watch-symbol">${stock.symbol} <span>${esc(stock.market)} · ${esc(stock.sector)}</span></span><h3 id="watch-title-${stock.symbol}">${esc(stock.name)}</h3></div><button class="icon-button favorite-button is-favorite" data-favorite="${stock.symbol}" aria-label="移除${esc(stock.name)}自選" aria-pressed="true">${icon("star")}</button></header>
       <div class="metrics" aria-label="${esc(stock.name)}關鍵指標">
         <div class="metric-card"><div class="metric-label">收盤價 <span>TWD</span></div><div class="metric-value"><span class="metric-number">${number(bar.close, 2)}</span><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></div><div class="metric-description">較前日 <span class="${direction(bar.change)}">${signed(bar.change)}</span></div></div>
@@ -445,15 +445,24 @@ function bindEvents() {
       const symbol = button.dataset.favorite;
       const wasFavorite = state.favorites.includes(symbol);
       const wasInOverview = Boolean(button.closest("#watchlist"));
-      const position = rememberMarketPosition(button, wasFavorite);
+      const showAddedCard = !wasFavorite && !wasInOverview && matchMedia("(max-width: 700px)").matches;
+      const position = showAddedCard ? null : rememberMarketPosition(button, wasFavorite);
       state.favorites = wasFavorite
         ? state.favorites.filter((item) => item !== symbol)
         : [...state.favorites, symbol];
+      if (showAddedCard) state.overview = "price";
       savePreferences();
       renderWatchlist();
       if (state.view === "favorites") renderTable();
       else syncTableFavorite(symbol);
-      if (position) restoreMarketPosition(position);
+      if (showAddedCard) {
+        const card = document.querySelector(`#watchlist-grid [data-watch-symbol="${symbol}"]`);
+        card.focus({ preventScroll: true });
+        card.scrollIntoView({
+          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+          block: "start",
+        });
+      } else if (position) restoreMarketPosition(position);
       else {
         const scope = wasInOverview ? "#watchlist" : "#stock-rows";
         const focusTarget = document.querySelector(`${scope} [data-favorite="${symbol}"]`) ||
