@@ -3092,3 +3092,94 @@ dialog.institution-dialog {
   .sector-identity h3 { font-size: 15px; white-space: nowrap; }
   .sector-change { font-size: 13px; }
 }
+
+.sector-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 8px;
+  padding: 14px 20px;
+  border-block: 1px solid var(--border);
+  background: #fff;
+}
+.sector-sort-control,
+.sector-period-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+.sector-sort-control > span,
+.sector-period-control > span { white-space: nowrap; }
+.sector-sort-tabs,
+.sector-period {
+  position: static;
+  display: flex;
+  width: fit-content;
+  gap: 3px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #f6f8fb;
+  box-shadow: none;
+}
+.sector-sort-tabs button,
+.sector-period button {
+  min-width: 60px;
+  min-height: 44px;
+  padding: 8px 11px;
+  border-radius: 5px;
+  color: #64748b;
+  white-space: nowrap;
+}
+.sector-sort-tabs [aria-pressed="true"],
+.sector-period [aria-pressed="true"] {
+  color: #245cac;
+  background: #e9f1ff;
+  box-shadow: 0 1px 3px #183d7414;
+}
+
+@media (max-width: 700px) {
+  .sector-toolbar {
+    gap: 8px;
+    margin-bottom: 4px;
+    padding: 10px 12px;
+  }
+  .sector-sort-control,
+  .sector-period-control { gap: 6px; }
+  .sector-sort-tabs button,
+  .sector-period button {
+    min-width: 44px;
+    padding-inline: 7px;
+  }
+  .sector-ranking-head { display: none; }
+  .sector-main {
+    grid-template-columns: 18px 8px minmax(0, 1fr) 86px;
+    grid-template-rows: auto auto;
+    gap: 4px 7px;
+    min-height: 82px;
+    padding: 12px 8px;
+  }
+  .sector-ranking .sector-rank,
+  .sector-marker { grid-row: 1 / span 2; align-self: center; }
+  .sector-identity { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  .sector-change { grid-column: 4; grid-row: 1; align-self: end; }
+  .sector-ranking .sector-total { grid-column: 4; grid-row: 2; align-self: start; }
+}
+
+@media (max-width: 430px) {
+  .sector-sort-control > span,
+  .sector-period-control > span { display: none; }
+  .sector-sort-control,
+  .sector-period-control { min-width: 0; }
+  .sector-sort-tabs,
+  .sector-period { width: 100%; }
+  .sector-sort-tabs button,
+  .sector-period button { flex: 1; }
+  .sector-main {
+    grid-template-columns: 17px 8px minmax(0, 1fr) 82px;
+    padding-inline: 4px;
+  }
+}

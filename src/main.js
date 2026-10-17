@@ -180,9 +180,8 @@ function shell() {
               "",
             )}</tr></thead><tbody id="stock-rows"></tbody></table></div><div id="table-empty" class="empty-state" hidden>${icon("search")}<h3>沒有符合條件的股票</h3><p>試試其他關鍵字，或清除篩選條件。</p><button class="outline-button" id="reset-filters">清除篩選</button></div><div class="table-footer"><span id="table-summary"></span><span>點選星號，即時更新我的自選 ${icon("star")}</span></div>
         </section>
-        <section id="sector-page" class="panel sector-page" data-page-panel="sectors" aria-labelledby="sector-page-heading" hidden>
-          <div class="panel-heading sector-page-heading"><div><h2 id="sector-page-heading">法人買株</h2><span class="panel-subtitle">依產業比較法人資金方向與熱門標的</span></div><div class="sector-sort-control"><label for="sector-sort">排行方式</label><select id="sector-sort"><option value="net-desc">買超排行</option><option value="net-asc">賣超排行</option><option value="name-asc">產業名稱</option></select></div></div>
-          <div class="sector-period" role="group" aria-label="法人買株累計區間"><button data-sector-window="day" aria-pressed="true">當日</button><button data-sector-window="5" aria-pressed="false">5 日</button><button data-sector-window="20" aria-pressed="false">20 日</button></div>
+        <section id="sector-page" class="sector-page" data-page-panel="sectors" aria-label="法人買株排行榜" hidden>
+          <div class="sector-toolbar"><div class="sector-sort-control"><span>排行方式</span><div class="sector-sort-tabs" role="group" aria-label="排行方式"><button data-sector-sort="net-desc" aria-pressed="true">買超</button><button data-sector-sort="net-asc" aria-pressed="false">賣超</button><button data-sector-sort="name-asc" aria-pressed="false">產業</button></div></div><div class="sector-period-control"><span>時間範圍</span><div class="sector-period" role="group" aria-label="法人買株累計區間"><button data-sector-window="day" aria-pressed="true">當日</button><button data-sector-window="5" aria-pressed="false">5 日</button><button data-sector-window="20" aria-pressed="false">20 日</button></div></div></div>
           <div class="sector-ranking-head" aria-hidden="true"><span>產業排名</span><span id="sector-change-label">當日平均漲跌</span><span>法人淨買賣超</span></div>
           <div id="sector-grid" class="sector-grid sector-ranking"></div>
           <p class="sector-note">單位：張。產業數據為目前研究標的加總，不代表該產業全市場資料。</p>
@@ -401,7 +400,8 @@ function renderSectorOverview() {
   });
   document.querySelectorAll("[data-sector-window]").forEach((button) =>
     button.setAttribute("aria-pressed", button.dataset.sectorWindow === state.sectorWindow));
-  document.querySelector("#sector-sort").value = state.sectorSort;
+  document.querySelectorAll("[data-sector-sort]").forEach((button) =>
+    button.setAttribute("aria-pressed", button.dataset.sectorSort === state.sectorSort));
   document.querySelector("#sector-change-label").textContent = days === 1
     ? "當日平均漲跌" : `${days} 日平均漲跌`;
   const maxAmount = Math.max(1, ...sectors.map((sector) => Math.abs(sector.total ?? 0)));
@@ -621,6 +621,10 @@ function bindEvents() {
       state.sectorWindow = button.dataset.sectorWindow;
       renderSectorOverview();
     }
+    if (button.dataset.sectorSort) {
+      state.sectorSort = button.dataset.sectorSort;
+      renderSectorOverview();
+    }
     if (button.dataset.page) {
       state.page = button.dataset.page;
       renderPage();
@@ -696,10 +700,6 @@ function bindEvents() {
       state.sector = event.target.value;
       renderTable();
     });
-  document.querySelector("#sector-sort").addEventListener("change", (event) => {
-    state.sectorSort = event.target.value;
-    renderSectorOverview();
-  });
   document.querySelector("#trade-date").addEventListener("change", (event) => {
     state.date = event.target.value;
     refreshData();

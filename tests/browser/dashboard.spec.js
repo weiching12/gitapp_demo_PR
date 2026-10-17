@@ -621,10 +621,10 @@ test("sector page aggregates institutional flows and sorts industries", async ({
       await expect(cards.nth(index).locator(".sector-total strong")).toHaveText(amountText(ranked[index][1]));
     }
   }
-  await page.locator("#sector-sort").selectOption("net-asc");
+  await page.locator('[data-sector-sort="net-asc"]').click();
   const ascending = expected(20).toReversed().map(([name]) => name);
   expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(ascending);
-  await page.locator("#sector-sort").selectOption("name-asc");
+  await page.locator('[data-sector-sort="name-asc"]').click();
   const names = [...new Set(stocks.map((stock) => stock.sector))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
   expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(names);
 });
@@ -726,7 +726,8 @@ test("primary navigation keeps market, favorites and sectors as separate pages",
   await expect(cardFor(page, "2454")).toBeVisible();
   await openPage(page, "sectors");
   await expect(page.locator("#sector-grid .sector-card")).toHaveCount(6);
-  await expect(page.getByRole("heading", { name: "法人買株", exact: true })).toBeVisible();
+  await expect(page.locator("#page-title")).toContainText("法人買株");
+  await expect(page.locator("#sector-page h1, #sector-page h2")).toHaveCount(0);
 });
 
 test("phone and tablet controls remain touch-sized with readable sticky navigation and pinned stock columns", async ({ page }, testInfo) => {
@@ -830,6 +831,12 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
     await closeInstitutionDetails(page);
     await openPage(page, "sectors");
     await expectLegible("#sector-page");
+    const sectorControls = await page.locator("[data-sector-sort], [data-sector-window]").evaluateAll((buttons) => buttons.map((button) => {
+      const rect = button.getBoundingClientRect();
+      return { width: rect.width, height: rect.height, top: Math.round(rect.top) };
+    }));
+    expect(sectorControls.every(({ width: controlWidth, height }) => controlWidth >= 44 && height >= 44)).toBe(true);
+    expect(new Set(sectorControls.map(({ top }) => top)).size).toBe(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth), `Page overflow at ${width}px`).toBeLessThanOrEqual(width);
   }
 });
