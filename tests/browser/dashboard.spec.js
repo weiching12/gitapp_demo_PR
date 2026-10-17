@@ -736,6 +736,16 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
   for (const width of [320, 390, 768, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     await openPage(page, "market");
+    if (width <= 520) {
+      await expect(page.locator('[data-page="market"] .nav-label-mobile')).toBeVisible();
+      const navLabels = await page.locator(".sidebar nav [data-page]").evaluateAll((buttons) => buttons.map((button) => {
+        const rect = button.querySelector(".nav-label-mobile").getBoundingClientRect();
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+      }));
+      for (let index = 1; index < navLabels.length; index++) {
+        expect(navLabels[index].left).toBeGreaterThanOrEqual(navLabels[index - 1].right);
+      }
+    }
     const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #manage-favorites, #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite]').evaluateAll((controls) => controls.flatMap((element) => {
       const rect = element.getBoundingClientRect();
       return rect.width && rect.height && (rect.width < 44 || rect.height < 44)
@@ -746,8 +756,9 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
     // The implicit label's padding is part of the search field's touch target.
     await page.locator(".search-box").click({ position: { x: 2, y: 2 } });
     await expect(page.getByRole("searchbox")).toBeFocused();
-    for (const item of await page.locator('.sidebar nav [data-page] > span:first-of-type').all())
-      if (width <= 360) await expect(item).toBeHidden(); else await expect(item).toBeVisible();
+    for (const item of await page.locator('.sidebar nav [data-page] > .nav-label').all())
+      if (width <= 520) await expect(item).toBeHidden(); else await expect(item).toBeVisible();
+    if (width <= 520) await expect(page.locator('.sidebar nav [data-page] > .nav-label-mobile').first()).toBeVisible();
     await page.getByRole("searchbox").scrollIntoViewIfNeeded();
     expect(await page.locator(".sidebar").evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
     expect((await page.locator(".sidebar").boundingBox()).y).toBeGreaterThanOrEqual(-1);
@@ -833,6 +844,9 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
     await closeInstitutionDetails(page);
     await openPage(page, "sectors");
     await expectLegible("#sector-page");
+    const trailingBlank = await page.evaluate(() => document.documentElement.scrollHeight -
+      (document.querySelector(".page-footer").getBoundingClientRect().bottom + window.scrollY));
+    expect(trailingBlank).toBeLessThanOrEqual(2);
     const sectorControls = await page.locator("[data-sector-sort], [data-sector-window]").evaluateAll((buttons) => buttons.map((button) => {
       const rect = button.getBoundingClientRect();
       return { width: rect.width, height: rect.height, top: Math.round(rect.top) };

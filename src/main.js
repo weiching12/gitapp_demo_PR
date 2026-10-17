@@ -132,9 +132,9 @@ function shell() {
       <a class="brand" href="#main" aria-label="株研首頁"><span class="brand-mark">${icon("chart")}</span><span>株研<span class="brand-en">STOCK INSIGHT</span></span></a>
       <div class="nav-caption">WORKSPACE <span>研究工作台</span></div>
       <nav aria-label="主要導覽">
-        <button class="nav-item active" data-page="market" aria-label="市場觀察清單">${icon("grid")}<span>市場觀察清單</span><span class="nav-dot"></span></button>
-        <button class="nav-item" data-page="favorites" aria-label="自選總覽">${icon("star")}<span>自選總覽</span><span id="favorite-count" class="count-pill"></span></button>
-        <button class="nav-item" data-page="sectors" aria-label="法人買株">${icon("chart")}<span>法人買株</span><span class="nav-dot"></span></button>
+        <button class="nav-item active" data-page="market" aria-label="市場觀察清單">${icon("grid")}<span class="nav-label">市場觀察清單</span><span class="nav-label-mobile" aria-hidden="true">市場</span><span class="nav-dot"></span></button>
+        <button class="nav-item" data-page="favorites" aria-label="自選總覽">${icon("star")}<span class="nav-label">自選總覽</span><span class="nav-label-mobile" aria-hidden="true">自選</span><span id="favorite-count" class="count-pill"></span></button>
+        <button class="nav-item" data-page="sectors" aria-label="法人買株">${icon("chart")}<span class="nav-label">法人買株</span><span class="nav-label-mobile" aria-hidden="true">法人</span><span class="nav-dot"></span></button>
         <button class="nav-item" data-dialog="methodology" aria-label="指標小百科">${icon("book")}<span>指標說明</span>${icon("chevron", "nav-chevron")}</button>
         <button class="nav-item" data-dialog="source" aria-label="資料說明">${icon("info")}<span>資料說明</span>${icon("chevron", "nav-chevron")}</button>
       </nav>
