@@ -2968,3 +2968,127 @@ dialog.institution-dialog {
     margin-top: 24px;
   }
 }
+
+/* 法人買株：以排行榜呈現產業資金方向。 */
+.sector-ranking-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 170px;
+  gap: 18px;
+  margin: 0 20px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  text-align: right;
+}
+.sector-ranking-head span:first-child { text-align: left; }
+.sector-ranking {
+  display: block;
+  padding: 0 20px 18px;
+}
+.sector-ranking .sector-card {
+  padding: 0;
+  border: 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+.sector-main {
+  display: grid;
+  grid-template-columns: 30px 10px minmax(0, 1fr) 120px 170px;
+  align-items: center;
+  gap: 12px;
+  min-height: 92px;
+  padding: 14px;
+}
+.sector-ranking .sector-rank {
+  display: block;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  color: #7c8999;
+  background: transparent;
+  text-align: right;
+  font-weight: 700;
+}
+.sector-marker {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.sector-marker.positive { background: #d76549; }
+.sector-marker.negative { background: #527eb8; }
+.sector-identity { min-width: 0; }
+.sector-identity h3 { margin: 0 0 7px; }
+.sector-identity p {
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sector-change {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sector-ranking .sector-total {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+.sector-ranking .sector-total i {
+  display: block;
+  width: min(100%, var(--sector-bar));
+  min-width: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+.sector-ranking .sector-total i.positive { background: #d76549; }
+.sector-ranking .sector-total i.negative { background: #527eb8; }
+
+@media (max-width: 700px) {
+  .sector-page-heading { gap: 14px; }
+  .sector-sort-control select { max-width: 168px; }
+  .sector-ranking-head {
+    grid-template-columns: minmax(0, 1fr) 76px 108px;
+    gap: 8px;
+    margin: 0 12px;
+    padding: 9px 8px;
+  }
+  .sector-ranking-head span:first-child { padding-left: 28px; }
+  .sector-ranking {
+    padding: 0 12px 16px;
+  }
+  .sector-main {
+    grid-template-columns: 20px 8px minmax(0, 1fr) 76px 108px;
+    gap: 7px;
+    min-height: 86px;
+    padding: 12px 8px;
+  }
+  .sector-identity h3 { margin-bottom: 6px; }
+  .sector-identity p { font-size: 12px; }
+  .sector-ranking .sector-total strong { font-size: 14px; }
+}
+
+@media (max-width: 430px) {
+  .sector-page-heading { padding-bottom: 12px; }
+  .sector-sort-control label { white-space: nowrap; }
+  .sector-ranking-head {
+    grid-template-columns: minmax(0, 1fr) 58px 82px;
+    font-size: 10px;
+  }
+  .sector-main {
+    grid-template-columns: 18px 8px minmax(0, 1fr) 58px 82px;
+    gap: 5px;
+    padding-inline: 4px;
+  }
+  .sector-ranking .sector-rank { font-size: 12px; }
+  .sector-identity h3 { font-size: 15px; white-space: nowrap; }
+  .sector-change { font-size: 13px; }
+}

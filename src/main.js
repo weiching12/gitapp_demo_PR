@@ -134,7 +134,7 @@ function shell() {
       <nav aria-label="主要導覽">
         <button class="nav-item active" data-page="market" aria-label="市場總覽">${icon("grid")}<span>市場總覽</span><span class="nav-dot"></span></button>
         <button class="nav-item" data-page="favorites" aria-label="我的自選">${icon("star")}<span>我的自選</span><span id="favorite-count" class="count-pill"></span></button>
-        <button class="nav-item" data-page="sectors" aria-label="產業法人">${icon("chart")}<span>產業法人</span><span class="nav-dot"></span></button>
+        <button class="nav-item" data-page="sectors" aria-label="法人買株">${icon("chart")}<span>法人買株</span><span class="nav-dot"></span></button>
         <button class="nav-item" data-dialog="methodology" aria-label="指標小百科">${icon("book")}<span>指標說明</span>${icon("chevron", "nav-chevron")}</button>
         <button class="nav-item" data-dialog="source" aria-label="資料說明">${icon("info")}<span>資料說明</span>${icon("chevron", "nav-chevron")}</button>
       </nav>
@@ -181,9 +181,10 @@ function shell() {
             )}</tr></thead><tbody id="stock-rows"></tbody></table></div><div id="table-empty" class="empty-state" hidden>${icon("search")}<h3>沒有符合條件的股票</h3><p>試試其他關鍵字，或清除篩選條件。</p><button class="outline-button" id="reset-filters">清除篩選</button></div><div class="table-footer"><span id="table-summary"></span><span>點選星號，即時更新我的自選 ${icon("star")}</span></div>
         </section>
         <section id="sector-page" class="panel sector-page" data-page-panel="sectors" aria-labelledby="sector-page-heading" hidden>
-          <div class="panel-heading sector-page-heading"><div><h2 id="sector-page-heading">產業法人買賣超</h2><span class="panel-subtitle">彙總目前研究標的，觀察各產業法人資金方向</span></div><div class="sector-sort-control"><label for="sector-sort">產業排序</label><select id="sector-sort"><option value="net-desc">買超由高到低</option><option value="net-asc">賣超由高到低</option><option value="name-asc">產業名稱</option></select></div></div>
-          <div class="sector-period" role="group" aria-label="產業法人累計區間"><button data-sector-window="day" aria-pressed="true">當日</button><button data-sector-window="5" aria-pressed="false">近 5 日</button><button data-sector-window="20" aria-pressed="false">近 20 日</button></div>
-          <div id="sector-grid" class="sector-grid"></div>
+          <div class="panel-heading sector-page-heading"><div><h2 id="sector-page-heading">法人買株</h2><span class="panel-subtitle">依產業比較法人資金方向與熱門標的</span></div><div class="sector-sort-control"><label for="sector-sort">排行方式</label><select id="sector-sort"><option value="net-desc">買超排行</option><option value="net-asc">賣超排行</option><option value="name-asc">產業名稱</option></select></div></div>
+          <div class="sector-period" role="group" aria-label="法人買株累計區間"><button data-sector-window="day" aria-pressed="true">當日</button><button data-sector-window="5" aria-pressed="false">5 日</button><button data-sector-window="20" aria-pressed="false">20 日</button></div>
+          <div class="sector-ranking-head" aria-hidden="true"><span>產業排名</span><span id="sector-change-label">當日平均漲跌</span><span>法人淨買賣超</span></div>
+          <div id="sector-grid" class="sector-grid sector-ranking"></div>
           <p class="sector-note">單位：張。產業數據為目前研究標的加總，不代表該產業全市場資料。</p>
         </section>
         <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK INSIGHT</span></span><span>技術提示僅供研究參考。</span><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
@@ -208,7 +209,7 @@ function refreshData() {
 const pageCopy = {
   market: ["MARKET OVERVIEW", "市場總覽", "比較全部標的的價量、技術指標與法人籌碼。"],
   favorites: ["MY WATCHLIST", "我的自選", "集中查看已收藏股票的價量與法人動向。"],
-  sectors: ["SECTOR FLOWS", "產業法人", "從產業分類觀察法人資金方向與排序。"],
+  sectors: ["INSTITUTIONAL RANKING", "法人買株", "依產業排名觀察法人資金方向與熱門標的。"],
 };
 
 function renderPage() {
@@ -375,13 +376,23 @@ function renderSectorOverview() {
     const values = stocks.map((stock) => stockInstitutionValue(stock, name, state.sectorWindow));
     return values.every(Number.isFinite) ? values.reduce((total, value) => total + value, 0) : null;
   };
-  const sectors = [...groups].map(([name, stocks]) => ({
-    name,
-    stocks,
-    total: sum(stocks, "total"),
-    institutions: Object.fromEntries(["外資", "投信", "自營商"].map((institution) =>
-      [institution, sum(stocks, institution)])),
-  }));
+  const days = state.sectorWindow === "day" ? 1 : Number(state.sectorWindow);
+  const stockReturn = (stock) => {
+    if (days === 1) return stock.latest.changePercent;
+    const previous = stock.history.at(-(days + 1));
+    return previous && Number.isFinite(previous.close) && previous.close !== 0
+      ? ((stock.latest.close - previous.close) / previous.close) * 100 : null;
+  };
+  const sectors = [...groups].map(([name, stocks]) => {
+    const returns = stocks.map(stockReturn).filter(Number.isFinite);
+    return {
+      name,
+      stocks,
+      total: sum(stocks, "total"),
+      change: returns.length === stocks.length
+        ? returns.reduce((total, value) => total + value, 0) / returns.length : null,
+    };
+  });
   sectors.sort((a, b) => {
     if (state.sectorSort === "name-asc") return a.name.localeCompare(b.name, "zh-Hant");
     if (a.total === null) return b.total === null ? 0 : 1;
@@ -391,15 +402,25 @@ function renderSectorOverview() {
   document.querySelectorAll("[data-sector-window]").forEach((button) =>
     button.setAttribute("aria-pressed", button.dataset.sectorWindow === state.sectorWindow));
   document.querySelector("#sector-sort").value = state.sectorSort;
+  document.querySelector("#sector-change-label").textContent = days === 1
+    ? "當日平均漲跌" : `${days} 日平均漲跌`;
+  const maxAmount = Math.max(1, ...sectors.map((sector) => Math.abs(sector.total ?? 0)));
   document.querySelector("#sector-grid").innerHTML = sectors.map((sector, index) => {
     const members = [...sector.stocks].sort((a, b) => {
       const av = stockInstitutionValue(a, "total", state.sectorWindow);
       const bv = stockInstitutionValue(b, "total", state.sectorWindow);
       if (av === null) return bv === null ? 0 : 1;
       if (bv === null) return -1;
-      return bv - av;
+      return (bv - av) * (state.sectorSort === "net-asc" ? -1 : 1);
     });
-    return `<article class="sector-card" data-sector-name="${esc(sector.name)}"><header><span class="sector-rank">${String(index + 1).padStart(2, "0")}</span><div><h3>${esc(sector.name)}</h3><span>${sector.stocks.length} 檔研究標的</span></div></header><div class="sector-total"><span>法人合計買賣超</span><strong class="${direction(sector.total)}">${institutionalAmount(sector.total)}</strong></div><dl class="sector-institutions">${Object.entries(sector.institutions).map(([name, value]) => `<div><dt>${name}</dt><dd class="${direction(value)}">${institutionalAmount(value)}</dd></div>`).join("")}</dl><div class="sector-members">${members.map((stock) => { const value = stockInstitutionValue(stock, "total", state.sectorWindow); return `<span><b>${esc(stock.name)}</b><small>${stock.symbol}</small><em class="${direction(value)}">${institutionalAmount(value)}</em></span>`; }).join("")}</div></article>`;
+    const leader = members[0];
+    const leaderValue = leader ? stockInstitutionValue(leader, "total", state.sectorWindow) : null;
+    const leaderInstitution = leader?.latest ? getDominantInstitution(leader.latest.institutions) : null;
+    const periodLabel = days === 1 ? "當日" : `${days} 日`;
+    const leaderText = leaderValue === null ? "資料不足" : leaderValue === 0 ? "買賣持平"
+      : `${leaderValue > 0 ? "買最多" : "賣最多"} ${leader.name}${leaderInstitution?.names?.length ? ` · ${leaderInstitution.names.join("、")}` : ""}`;
+    const barWidth = `${Math.max(4, Math.round((Math.abs(sector.total ?? 0) / maxAmount) * 100))}%`;
+    return `<article class="sector-card" data-sector-name="${esc(sector.name)}"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.total)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel} ${institutionalAmount(leaderValue)} · ${sector.stocks.length} 檔標的 · ${esc(leaderText)}</p></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total"><strong class="${direction(sector.total)}">${institutionalAmount(sector.total)}</strong><i class="${direction(sector.total)}" style="--sector-bar:${barWidth}"></i></div></div></article>`;
   }).join("");
 }
 

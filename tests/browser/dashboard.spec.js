@@ -601,7 +601,7 @@ test("institutional overview compares every favorite using independent day, 5 an
 test("sector page aggregates institutional flows and sorts industries", async ({ page }) => {
   const { stocks, info } = await demoProvider.load();
   await openPage(page, "sectors");
-  const windows = page.getByRole("group", { name: "產業法人累計區間" });
+  const windows = page.getByRole("group", { name: "法人買株累計區間" });
   const expected = (days) => {
     const totals = new Map();
     for (const stock of stocks) {
@@ -611,7 +611,7 @@ test("sector page aggregates institutional flows and sorts industries", async ({
     }
     return [...totals].sort((a, b) => b[1] - a[1]);
   };
-  for (const [key, days, label] of [["day", 1, "當日"], ["5", 5, "近 5 日"], ["20", 20, "近 20 日"]]) {
+  for (const [key, days, label] of [["day", 1, "當日"], ["5", 5, "5 日"], ["20", 20, "20 日"]]) {
     await windows.getByRole("button", { name: label, exact: true }).click();
     const ranked = expected(days);
     const cards = page.locator("#sector-grid .sector-card");
@@ -726,7 +726,7 @@ test("primary navigation keeps market, favorites and sectors as separate pages",
   await expect(cardFor(page, "2454")).toBeVisible();
   await openPage(page, "sectors");
   await expect(page.locator("#sector-grid .sector-card")).toHaveCount(6);
-  await expect(page.getByRole("heading", { name: "產業法人." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "法人買株", exact: true })).toBeVisible();
 });
 
 test("phone and tablet controls remain touch-sized with readable sticky navigation and pinned stock columns", async ({ page }, testInfo) => {
