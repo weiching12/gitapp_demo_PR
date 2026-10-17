@@ -1,8 +1,8 @@
 # 正式資料串接介面
 
-目前僅提供可操作的前端示範，沒有自動抓取正式行情、沒有 API 金鑰，也沒有設定 Cloudflare。
+已加入 FinMind 日資料 adapter、Cloudflare KV 讀取與每日排程。一般本機啟動保留示範資料；Cloudflare 正式模式使用真實資料，部署步驟見 [cloudflare.md](cloudflare.md)。
 
-`src/data.js` 的 `demoProvider.load()` 是資料來源的替換點，回傳下列結構：
+`src/provider.js` 的 `loadDataset()` 選擇來源；`loadApiDataset()` 與 `src/data.js` 的 `demoProvider.load()` 共用資料格式，回傳下列結構：
 
 ```js
 {
@@ -75,6 +75,6 @@
 
 ## 下一階段
 
-選定台灣證交所、櫃買中心或授權供應商後，再處理資料授權、API 回應驗證、缺漏值、錯誤與載入狀態、快取及更新排程。金鑰若為機密，應放在 Cloudflare Worker 或其他後端，不能放入瀏覽器或 `VITE_*` 變數。
+目前選用 FinMind；API 回應驗證、缺漏值、載入錯誤、快取與排程已實作。金鑰若為機密，應放在 Cloudflare Worker 或其他後端，不能放入瀏覽器或 `VITE_*` 變數。
 
-目前首頁及每檔自選卡片明確顯示模擬資料。正式資料接通之前請保留這些標示；接通後需要一起更新資料來源資訊、日期邏輯與標示，不能只更換 provider。
+示範模式保留模擬資料標示；正式模式顯示 FinMind、共同完整交易日、來源與未還原價格口徑。正式模式無模擬資料 fallback。

@@ -19,7 +19,11 @@ const bar = (close, date = "2026-10-01") => ({
   low: 0,
   close,
   volume: 100000,
-  institutions: [{ name: "外資", buy: 5000, sell: 3000 }],
+  institutions: [
+    { name: "外資", buy: 5000, sell: 3000 },
+    { name: "投信", buy: 0, sell: 0 },
+    { name: "自營商", buy: 0, sell: 0 },
+  ],
 });
 
 test("KD starts at 50 after a complete RSV window, then follows the recursive formula", () => {
@@ -128,7 +132,7 @@ test("search, sector, favorites and indicator filters combine correctly", () => 
 
 test("demo provider data is consistent across all OHLC and volume records", async () => {
   const { stocks, dates, info } = await demoProvider.load();
-  assert.equal(stocks.length, 12);
+  assert.equal(stocks.length, 14);
   assert.equal(dates.at(-1), info.asOf);
   for (const stock of stocks) {
     assert.equal(stock.history.length, 180);

@@ -23,6 +23,8 @@ const catalog = [
   ["2603", "長榮", "航運", 198.5, 22600, -0.002],
   ["0050", "元大台灣50", "ETF", 62.8, 56800, 0.0015],
   ["00878", "國泰永續高股息", "ETF", 23.15, 125000, -0.0004],
+  ["3026", "禾伸堂", "電子零組件", 105.5, 8500, 0.0004],
+  ["6488", "環球晶", "半導體", 450, 15000, 0.0005],
 ];
 
 function randomGenerator(seed) {
@@ -71,7 +73,7 @@ function createStock([symbol, name, sector, target, baseVolume, drift], index) {
     symbol,
     name,
     sector,
-    market: "上市",
+    market: symbol === "6488" ? "上櫃" : "上市",
     history: raw.map((bar) => ({
       ...bar,
       open: round(bar.open * scale),

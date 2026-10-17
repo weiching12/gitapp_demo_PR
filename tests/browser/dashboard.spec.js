@@ -15,13 +15,13 @@ test.beforeEach(async ({ page }) => {
 
 test("all favorites show computed metrics and institutional flows above the market table", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "台股研究室." })).toBeVisible();
-  await expect(page.locator(".watch-card")).toHaveCount(3);
-  await expect(page.locator("#stock-rows tr")).toHaveCount(12);
+  await expect(page.locator(".watch-card")).toHaveCount(5);
+  await expect(page.locator("#stock-rows tr")).toHaveCount(14);
   await expect(page.locator("#price-chart, #export-csv, #selected-title")).toHaveCount(0);
   await expect(cardFor(page, "2454")).toHaveCount(0);
   const { stocks, info } = await demoProvider.load();
   async function checkAllFavorites(date) {
-    for (const symbol of ["2330", "2317", "0050"]) {
+    for (const symbol of ["2330", "2317", "0050", "3026", "6488"]) {
       const { latest: bar } = getSnapshot(stocks.find((stock) => stock.symbol === symbol), date);
       const card = cardFor(page, symbol);
       const metrics = card.locator(".metric-number");
@@ -55,7 +55,7 @@ test("table filters and sorting keep the full favorites overview unchanged", asy
   await expect(page.locator("#stock-rows tr")).toHaveCount(1);
   await page.locator("#sector-filter").selectOption("半導體");
   await expect(page.locator("#table-empty")).toBeVisible();
-  await expect(page.locator(".watch-card")).toHaveCount(3);
+  await expect(page.locator(".watch-card")).toHaveCount(5);
   await page.getByRole("button", { name: "清除篩選" }).click();
   await page.locator('[data-sort="close"]').click();
   await expect(page.locator("#stock-rows tr").first()).toHaveAttribute("data-symbol", "2454");
@@ -64,29 +64,42 @@ test("table filters and sorting keep the full favorites overview unchanged", asy
   await page.getByRole("button", { name: "K 值低於 20", exact: true }).click();
   for (const row of await page.locator("#stock-rows tr").all())
     expect(Number(await row.locator(".k-cell").innerText())).toBeLessThan(20);
-  await expect(page.locator(".watch-card")).toHaveCount(3);
+  await expect(page.locator(".watch-card")).toHaveCount(5);
   await expect(cardFor(page, "2317")).toBeVisible();
 });
 
 test("stars update every favorite card immediately and persist after reload", async ({ page }) => {
   await page.locator('#stock-rows [data-favorite="2454"]').click();
-  await expect(page.locator(".watch-card")).toHaveCount(4);
+  await expect(page.locator(".watch-card")).toHaveCount(6);
   await expect(cardFor(page, "2454")).toContainText("1,360.00");
   await page.reload();
-  await expect(page.locator(".watch-card")).toHaveCount(4);
-  await expect(page.locator("#favorite-count")).toHaveText("4");
+  await expect(page.locator(".watch-card")).toHaveCount(6);
+  await expect(page.locator("#favorite-count")).toHaveText("6");
   await page.locator('[data-view="favorites"]').click();
-  await expect(page.locator("#stock-rows tr")).toHaveCount(4);
+  await expect(page.locator("#stock-rows tr")).toHaveCount(6);
   await cardFor(page, "2454").getByRole("button", { name: "移除聯發科自選" }).click();
   await expect(cardFor(page, "2454")).toHaveCount(0);
-  await expect(page.locator("#stock-rows tr")).toHaveCount(3);
+  await expect(page.locator("#stock-rows tr")).toHaveCount(5);
   await expect(page.locator("#manage-favorites")).toBeFocused();
   await page.reload();
   await expect(cardFor(page, "2454")).toHaveCount(0);
 });
 
+test("new requested favorites migrate once and stay removed after the user removes them", async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites: ["2330"] })));
+  await page.reload();
+  await expect(page.locator(".watch-card")).toHaveCount(3);
+  await expect(cardFor(page, "3026")).toBeVisible();
+  await expect(cardFor(page, "6488")).toBeVisible();
+  await cardFor(page, "3026").locator("[data-favorite]").click();
+  await cardFor(page, "6488").locator("[data-favorite]").click();
+  await page.reload();
+  await expect(page.locator(".watch-card")).toHaveCount(1);
+  await expect(cardFor(page, "2330")).toBeVisible();
+});
+
 test("empty favorites persist and offer a working path back to stock selection", async ({ page }) => {
-  for (const symbol of ["2330", "2317", "0050"])
+  for (const symbol of ["2330", "2317", "0050", "3026", "6488"])
     await cardFor(page, symbol).locator("[data-favorite]").click();
   await expect(page.locator(".watch-card")).toHaveCount(0);
   await expect(page.locator("#watchlist-empty")).toBeVisible();
@@ -97,7 +110,7 @@ test("empty favorites persist and offer a working path back to stock selection",
   await expect(page.locator("#table-empty")).toBeVisible();
   await page.getByRole("button", { name: "前往選擇股票" }).click();
   await expect(page.getByRole("searchbox")).toBeFocused();
-  await expect(page.locator("#stock-rows tr")).toHaveCount(12);
+  await expect(page.locator("#stock-rows tr")).toHaveCount(14);
   await page.locator('#stock-rows [data-favorite="00878"]').click();
   await expect(page.locator(".watch-card")).toHaveCount(1);
   await expect(cardFor(page, "00878")).toBeVisible();
@@ -112,7 +125,7 @@ test("KD settings recalculate every favorite and table suggestion and persist", 
   for (const stock of stocks) {
     const { latest, signal } = getSnapshot(stock, info.asOf, { period: 14, kSmooth: 3, dSmooth: 3 });
     await expect(page.locator(`[data-symbol="${stock.symbol}"] .signal-badge`)).toHaveAttribute("data-signal", signal.code);
-    if (["2330", "2317", "0050"].includes(stock.symbol)) {
+    if (["2330", "2317", "0050", "3026", "6488"].includes(stock.symbol)) {
       const card = cardFor(page, stock.symbol);
       await expect(card).toContainText("(14, 3, 3)");
       await expect(card.locator(".metric-number").nth(2)).toHaveText(formatted(latest.k, 2));
@@ -150,7 +163,7 @@ test("desktop overview screenshot and keyboard search shortcut", async ({ page }
 
 test("mobile cards stack with the table below and support scrolling and dialogs", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".watch-card")).toHaveCount(3);
+  await expect(page.locator(".watch-card")).toHaveCount(5);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.getByRole("button", { name: "管理自選" }).click();
   await expect(page.getByRole("searchbox")).toBeFocused();
@@ -201,7 +214,7 @@ test("institutional 5/20-session totals and foreign/trust streaks update with th
   const { stocks, info } = await demoProvider.load();
   for (const date of [info.asOf, "2026-09-08"]) {
     await page.locator("#trade-date").selectOption(date);
-    for (const symbol of ["2330", "2317", "0050"]) {
+    for (const symbol of ["2330", "2317", "0050", "3026", "6488"]) {
       const history = stocks.find((stock) => stock.symbol === symbol).history.filter((bar) => bar.date <= date);
       const card = cardFor(page, symbol);
       for (const days of [5, 20]) {

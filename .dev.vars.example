@@ -1,0 +1,3 @@
+# Optional: registered FinMind token. Copy to .dev.vars locally.
+# Never put this token in VITE_* variables or commit .dev.vars.
+# FINMIND_TOKEN=your_token_here

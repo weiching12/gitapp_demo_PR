@@ -50,11 +50,19 @@ export function analyzeHistory(history, settings = DEFAULT_SETTINGS) {
           : (bar.close / previousClose - 1) * 100,
       deviation:
         ma60 === null || ma60 === 0 ? null : (bar.close / ma60 - 1) * 100,
-      institutionalNet:
-        bar.institutions?.reduce((sum, row) => sum + row.buy - row.sell, 0) ??
-        null,
+      institutionalNet: getInstitutionalNet(bar.institutions),
     };
   });
+}
+
+export function getInstitutionalNet(institutions) {
+  const values = ["外資", "投信", "自營商"].map((name) => {
+    const rows = institutions?.filter((item) => item.name === name) ?? [];
+    const item = rows[0];
+    return rows.length === 1 && [item.buy, item.sell].every((n) => Number.isFinite(n) && n >= 0)
+      ? item.buy - item.sell : null;
+  });
+  return values.every(Number.isFinite) ? values.reduce((sum, n) => sum + n, 0) : null;
 }
 
 export function getSnapshot(stock, asOf, settings) {

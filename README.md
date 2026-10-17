@@ -1,12 +1,14 @@
 # 株研 Stock Insight｜台股研究室
 
-繁體中文的股票分析前端，使用原生 JavaScript、CSS、SVG 與 Vite。可建置成純靜態網站，供日後部署至 Cloudflare Pages。**目前沒有設定或執行 Cloudflare 部署。**
+繁體中文的股票分析前端，使用原生 JavaScript、CSS、SVG 與 Vite。支援本機示範模式，以及 Cloudflare Workers Static Assets + Workers KV 的正式資料模式。部署與資料來源設定見 [docs/cloudflare.md](docs/cloudflare.md)。
 
 ## 目前資料狀態
 
-所有價格、成交量與三大法人數據均為**可重現的模擬資料**，不是交易所報價。示範範圍為 12 檔上市股票／ETF、每檔 180 個模擬交易日，截止日固定為 **2026-10-16**，不會自動更新。日期以平日模擬，未套用正式休市日曆。
+`npm run dev` 與一般建置保留明確標示的示範模式：14 檔上市、上櫃股票／ETF（含禾伸堂 3026、環球晶 6488），各有 180 個模擬交易日，固定截止 **2026-10-16**。
 
-K、D 與均線由這些模擬歷史資料實際計算，並非硬填指標。正式資料 API 是下一階段工作。
+`npm run build:cloudflare` 使用 FinMind 真實日資料，從 Cloudflare KV 讀取股價與法人歷史，保留最近 260 個實際交易日。預設取全部 14 檔價量與法人都完整的共同交易日；排程平日台灣時間 21:00–21:52 分批更新，失敗保留舊資料。價格未還原、非即時報價。正式模式失敗會顯示載入錯誤，不自動改成模擬資料。
+
+兩種模式均由歷史 OHLC 在瀏覽器實際計算 K、D、均線及法人近 5／20 日累計與連續買賣日數。新增的兩檔預設加入自選；既有偏好只遷移一次，後續移除不會自動補回。
 
 ## 啟動專案
 
@@ -24,14 +26,14 @@ npm run build
 npm run preview
 ```
 
-正式建置輸出為 `dist/`。本機建置預覽預設位於 `http://localhost:4173`。所有圖片與程式均由專案本身提供，沒有外部字型、行情 API 或第三方 CDN 依賴。
+正式建置輸出為 `dist/`。本機建置預覽預設位於 `http://localhost:4173`。圖片與程式由專案本身提供，沒有外部字型或第三方 CDN 依賴；正式模式由 Worker 呼叫 FinMind，瀏覽器僅讀取同源快取 API。
 
 ## 已完成的功能
 
 - 股票名稱／代碼搜尋、產業篩選、欄位數值排序。
 - 上方自選總覽同時顯示所有自選股，每檔各有收盤價、成交量、KD、股價與季線及三大法人買賣明細；桌面並排、手機逐張排列。
 - 下方市場觀察清單可用星號新增／移除自選，上方立即同步；自選保存在目前瀏覽器的 localStorage，不會跨裝置同步。搜尋與篩選下方表格不影響上方自選範圍。
-- 30 個示範資料日回看；切換資料日會同步重算指標和法人明細。
+- 最近 30 個資料日回看；切換資料日會同步重算指標和法人明細。
 - 收盤價、日漲跌與成交量；台股慣例紅漲綠跌。
 - KD 預設 (9,3,3)，可調整 RSV 回溯週期及 K、D 平滑係數。
 - 觀察清單顯示 D 值與 KD 技術建議、判讀原因；依當日交叉與 MA20 趨勢區分買點、賣點、反彈及觀察狀態，並提供判讀規則視窗。
@@ -67,13 +69,18 @@ src/main.js                自選總覽、畫面、互動與狀態
 src/styles.css             桌面與手機版面
 src/charts.js              SVG 走勢縮圖與圖表繪製函式
 src/indicators.js          技術指標、篩選與 CSV 純函式
-src/data.js                模擬資料與 provider 介面
+src/data.js                模擬資料
+src/provider.js            正式快照讀取與共同完整交易日
+src/catalog.js             14 檔標的與市場分類
+cloudflare/                FinMind 正規化與 Worker API／排程
+scripts/seed-market.js     本機初始歷史下載
+wrangler.jsonc             部署、KV、排程設定
 docs/data-contract.md      正式資料格式與串接注意事項
 tests/                     計算與瀏覽器測試
 demo1.html                 原專案範例，保留
 ```
 
-未來接 Cloudflare Pages 時可使用 `npm run build` 與輸出目錄 `dist`。此版不需要伺服器、資料庫或環境變數。正式行情若需要機密金鑰，請在後端處理，不能放在前端程式或 `VITE_*` 環境變數。
+一般 `npm run build` 產出示範模式；`npm run dev:cloudflare` 在 `http://localhost:8787` 預覽正式模式。先用 `npm run seed` 下載資料，再依 Cloudflare 文件匯入本機或雲端 KV。`npm run deploy` 建置正式模式並部署。可選的 `FINMIND_TOKEN` 設在 Worker Secret，不進前端、Git 或 `VITE_*` 變數。
 
 正式資料串接契約與算法約定請見 [docs/data-contract.md](docs/data-contract.md)。
 
