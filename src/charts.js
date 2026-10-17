@@ -73,7 +73,7 @@ export function renderChart(history, count, compact = false) {
   for (const key of ["ma5", "ma20", "ma60"]) {
     svg += `<path d="${pathFor(rows, (row) => row[key], x, y)}" fill="none" stroke="${COLORS[key]}" stroke-width="1.7" stroke-linejoin="round"/>`;
   }
-  svg += `<line x1="${left}" y1="329" x2="${width - 12}" y2="329" class="chart-grid"/><text x="${left}" y="347" class="chart-label">KD 隨機指標</text><rect x="${left}" y="${yKd(80)}" width="${plotWidth}" height="${yKd(20) - yKd(80)}" fill="#f6f7f4"/>`;
+  svg += `<line x1="${left}" y1="329" x2="${width - 12}" y2="329" class="chart-grid"/><text x="${left}" y="347" class="chart-label">KD 隨機指標</text><rect x="${left}" y="${yKd(80)}" width="${plotWidth}" height="${yKd(20) - yKd(80)}" fill="#f8fafc"/>`;
   for (const value of [20, 50, 80]) {
     svg += `<line x1="${left}" y1="${yKd(value)}" x2="${width - right}" y2="${yKd(value)}" class="chart-grid" stroke-dasharray="4 5"/><text x="${width - right + 12}" y="${yKd(value) + 4}" class="chart-label">${value}</text>`;
   }
