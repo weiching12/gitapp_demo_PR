@@ -82,7 +82,7 @@ tests/                     計算與瀏覽器測試
 demo1.html                 原專案範例，保留
 ```
 
-一般 `npm run build` 產出示範模式；`npm run dev:cloudflare` 在 `http://localhost:8787` 預覽正式模式。先用 `npm run seed` 下載資料，再依 Cloudflare 文件匯入本機或雲端 KV。`npm run deploy` 建置正式模式並部署。可選的 `FINMIND_TOKEN` 設在 Worker Secret，不進前端、Git 或 `VITE_*` 變數。
+一般 `npm run build` 產出示範模式；`npm run dev:cloudflare` 在 `http://localhost:8787` 預覽正式模式。先用 `npm run seed` 下載資料，再依 Cloudflare 文件匯入本機或雲端 KV。`npm run deploy` 建置正式模式並部署。雲端排程所需的 `FINMIND_TOKEN` 設在 Worker Secret，不進前端、Git 或 `VITE_*` 變數；Wrangler 部署前會驗證 Secret 已存在。
 
 正式資料串接契約與算法約定請見 [docs/data-contract.md](docs/data-contract.md)。
 

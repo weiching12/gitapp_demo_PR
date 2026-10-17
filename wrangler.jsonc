@@ -4,6 +4,7 @@
   "main": "cloudflare/worker.js",
   "compatibility_date": "2026-10-17",
   "workers_dev": true,
+  "secrets": { "required": ["FINMIND_TOKEN"] },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

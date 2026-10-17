@@ -46,7 +46,7 @@ npm.cmd run deploy
 
 ## FinMind Token 與安全輸入
 
-本機匿名 API 可取得初始資料，但本次實測 Cloudflare 共用出口的匿名 API 回覆 HTTP 402（額度已滿），因此正式雲端排程需設定免費會員 Token，再驗證連線結果。
+本機匿名 API 可取得初始資料，但本次實測 Cloudflare 共用出口的匿名 API 回覆 HTTP 402（額度已滿），因此正式雲端排程需設定免費會員 Token。已完成 Secret 設定，並以 Cloudflare 遠端排程成功重新抓取禾伸堂（3026）及寫回 KV；部署設定要求 `FINMIND_TOKEN` 必須存在，避免日後漏設。
 
 Windows 可執行安全輸入工具；輸入會隱藏，先向 FinMind 驗證，再設定 Cloudflare Secret 與 Git 忽略的本機 `.dev.vars`：
 
