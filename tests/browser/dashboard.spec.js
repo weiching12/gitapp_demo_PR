@@ -20,6 +20,30 @@ const formatted = (value, digits = 0) => value.toLocaleString("en-US", {
   maximumFractionDigits: digits,
 });
 const signed = (value) => `${value > 0 ? "+" : ""}${formatted(value)}`;
+const overviewFor = (page, symbol) => page.locator(`[data-overview-symbol="${symbol}"]`);
+const institutionalNames = ["外資", "投信", "自營商"];
+const amountText = (shares) => {
+  const lots = shares / 1000;
+  const digits = Number.isInteger(lots) ? 0 : 2;
+  return `${lots > 0 ? "+" : ""}${formatted(lots, digits)} 張`;
+};
+function streakText(history, name) {
+  const nets = history.map((bar) => {
+    const item = bar.institutions.find((row) => row.name === name);
+    return item.buy - item.sell;
+  });
+  const side = Math.sign(nets.at(-1));
+  if (!side) return "當日持平";
+  let days = 0;
+  for (const net of nets.toReversed()) {
+    if (Math.sign(net) !== side) break;
+    days++;
+  }
+  return `${days === nets.length ? "至少" : ""}連${side > 0 ? "買" : "賣"}${days}日`;
+}
+const settleLayout = (page) => page.evaluate(() => new Promise((resolve) =>
+  requestAnimationFrame(() => requestAnimationFrame(resolve)),
+));
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -33,7 +57,7 @@ test("all favorites show compact metrics with institutional details available se
   await expect(cardFor(page, "2454")).toHaveCount(0);
   await expect(page.locator(".watch-card .watch-flow")).toHaveCount(0);
   await expect(page.locator("#institution-dialog")).not.toBeVisible();
-  await expect(page.locator("[data-institution-details]")).toHaveCount(5);
+  await expect(page.locator("#watchlist-grid [data-institution-details]")).toHaveCount(5);
   const cardHeights = await page.locator(".watch-card").evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().height));
   expect(Math.max(...cardHeights)).toBeLessThanOrEqual(500);
   const { stocks, info } = await demoProvider.load();
@@ -343,5 +367,236 @@ test("institutional 5/20-session totals and foreign/trust streaks update with th
       await expect(dialog.locator('[data-institution="自營商"] [data-streak]')).toHaveCount(0);
       await closeInstitutionDetails(page);
     }
+  }
+});
+
+test("source information lives in the sidebar and opens one accessible explanation", async ({ page }) => {
+  const source = page.getByRole("button", { name: "資料說明", exact: true });
+  await expect(source).toHaveCount(1);
+  await expect(page.locator('.sidebar button.nav-item[data-dialog="source"]')).toHaveCount(1);
+  await expect(source).toContainText("資料說明");
+  await expect(page.locator("main .demo-notice, .topbar [data-dialog=source]")).toHaveCount(0);
+  await source.click();
+  await expect(page.getByRole("dialog")).toContainText("沒有連接交易所");
+  await page.keyboard.press("Escape");
+  await expect(source).toBeFocused();
+});
+
+test("watchlist tabs support keyboard selection and restore focus to the exact overview details button", async ({ page }) => {
+  const tabs = page.getByRole("tablist", { name: "自選總覽視角" });
+  const price = tabs.getByRole("tab", { name: "價量總覽", exact: true });
+  const institutions = tabs.getByRole("tab", { name: "法人總覽", exact: true });
+  await expect(price).toHaveAttribute("aria-selected", "true");
+  await expect(price).toHaveAttribute("tabindex", "0");
+  await expect(price).toHaveAttribute("aria-controls", "watchlist-grid");
+  await expect(institutions).toHaveAttribute("tabindex", "-1");
+  await expect(page.locator("#watchlist-grid")).toHaveAttribute("role", "tabpanel");
+  await expect(page.locator("#watchlist-grid")).toHaveAttribute("aria-labelledby", "watchlist-price-tab");
+  await expect(page.locator("#institution-overview")).toBeHidden();
+  await price.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(institutions).toBeFocused();
+  await expect(institutions).toHaveAttribute("aria-selected", "true");
+  await expect(institutions).toHaveAttribute("tabindex", "0");
+  await expect(institutions).toHaveAttribute("aria-controls", "institution-overview");
+  await expect(price).toHaveAttribute("aria-selected", "false");
+  await expect(price).toHaveAttribute("tabindex", "-1");
+  await expect(page.locator("#watchlist-grid")).toBeHidden();
+  await expect(page.locator("#institution-overview")).toHaveAttribute("role", "tabpanel");
+  await expect(page.locator("#institution-overview")).toHaveAttribute("aria-labelledby", "watchlist-institutions-tab");
+  await expect(page.locator("#institution-overview")).toBeVisible();
+  const trigger = overviewFor(page, "6488").locator('[data-institution-details="6488"]');
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#institution-dialog")).toHaveAccessibleName(/環球晶.*三大法人動向/);
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await institutions.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(price).toBeFocused();
+  await expect(price).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("End");
+  await expect(institutions).toBeFocused();
+  await expect(page.locator("#institution-overview")).toBeVisible();
+  await page.keyboard.press("Home");
+  await expect(price).toBeFocused();
+  await expect(page.locator("#watchlist-grid")).toBeVisible();
+});
+
+test("institutional overview compares every favorite using independent day, 5 and 20-session sums and streaks", async ({ page }) => {
+  const { stocks, info } = await demoProvider.load();
+  await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
+  await expect(page.locator("#institution-overview-rows article")).toHaveCount(5);
+  const windows = page.getByRole("group", { name: "法人累計區間" });
+  for (const date of [info.asOf, "2026-09-08"]) {
+    await page.locator("#trade-date").selectOption(date);
+    await expect(page.locator("#institution-overview-date")).toContainText(date);
+    for (const [key, count, label] of [["day", 1, "當日"], ["5", 5, "近 5 日"], ["20", 20, "近 20 日"]]) {
+      await windows.getByRole("button", { name: label, exact: true }).click();
+      await expect(windows.locator(`[data-institution-window="${key}"]`)).toHaveAttribute("aria-pressed", "true");
+      await expect(windows.locator('[aria-pressed="true"]')).toHaveCount(1);
+      for (const symbol of ["2330", "2317", "0050", "3026", "6488"]) {
+        const stock = stocks.find((item) => item.symbol === symbol);
+        const history = stock.history.filter((bar) => bar.date <= date);
+        const row = overviewFor(page, symbol);
+        await expect(row).toContainText(stock.name);
+        await expect(row).toContainText(symbol);
+        let total = 0;
+        for (const name of institutionalNames) {
+          const sum = history.slice(-count).reduce((net, bar) => {
+            const item = bar.institutions.find((institution) => institution.name === name);
+            return net + item.buy - item.sell;
+          }, 0);
+          total += sum;
+          await expect(row.locator(`[data-overview-net="${name}"]`)).toHaveText(amountText(sum));
+        }
+        await expect(row.locator('[data-overview-net="total"]')).toHaveText(amountText(total));
+        for (const name of ["外資", "投信"])
+          await expect(row.locator(`[data-overview-streak="${name}"]`)).toHaveText(streakText(history, name));
+      }
+    }
+  }
+  await page.getByRole("searchbox").fill("0050");
+  await expect(page.locator("#stock-rows tr")).toHaveCount(1);
+  await expect(page.locator("#institution-overview-rows article")).toHaveCount(5);
+  await page.locator("#sector-filter").selectOption("半導體");
+  await expect(page.locator("#table-empty")).toBeVisible();
+  await expect(overviewFor(page, "2330")).toBeVisible();
+  await expect(overviewFor(page, "0050")).toBeVisible();
+});
+
+test("both overview modes follow all favorites and retain the zero-favorite selection path", async ({ page }) => {
+  const { stocks } = await demoProvider.load();
+  await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })), stocks.map((stock) => stock.symbol));
+  await page.reload();
+  await expect(page.locator(".watch-card")).toHaveCount(14);
+  await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
+  await expect(page.locator("#institution-overview-rows article")).toHaveCount(14);
+  for (const stock of stocks) await expect(overviewFor(page, stock.symbol)).toBeVisible();
+  await page.getByRole("searchbox").fill("2454");
+  await page.locator('#stock-rows [data-favorite="2454"]').click();
+  await expect(page.locator("#institution-overview-rows article")).toHaveCount(13);
+  await expect(overviewFor(page, "2454")).toHaveCount(0);
+  await page.locator('#stock-rows [data-favorite="2454"]').click();
+  await expect(overviewFor(page, "2454")).toBeVisible();
+  await page.getByRole("tab", { name: "價量總覽", exact: true }).click();
+  await expect(cardFor(page, "2454")).toBeVisible();
+  await page.evaluate(() => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites: [], catalogVersion: 2 })));
+  await page.reload();
+  await expect(page.locator("#watchlist-empty")).toBeVisible();
+  await expect(page.locator(".watch-card")).toHaveCount(0);
+  await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
+  await expect(page.locator("#watchlist-empty")).toBeVisible();
+  await expect(page.locator("#institution-overview-rows article")).toHaveCount(0);
+  await page.getByRole("button", { name: "前往選擇股票", exact: true }).click();
+  await expect(page.getByRole("searchbox")).toBeFocused();
+  await page.locator('#stock-rows [data-favorite="00878"]').click();
+  await expect(overviewFor(page, "00878")).toBeVisible();
+  await expect(page.locator("#watchlist-empty")).toBeHidden();
+});
+
+test("market favorite toggles preserve the user's row and horizontal scroll on phones, tablets and desktop", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 720 });
+    await page.reload();
+    const table = page.locator(".table-scroll");
+    const star = page.locator('#stock-rows [data-favorite="2454"]');
+    const row = page.locator('#stock-rows tr[data-symbol="2454"]');
+    await star.scrollIntoViewIfNeeded();
+    await row.evaluate((element) => window.scrollBy({ top: element.getBoundingClientRect().top - 220, behavior: "instant" }));
+    await table.evaluate((element) => { element.scrollLeft = 180; });
+    await settleLayout(page);
+    const before = { top: (await row.boundingBox()).y, left: await table.evaluate((element) => element.scrollLeft) };
+    await expect(star).toBeInViewport();
+    await star.click();
+    await expect(page.locator(".watch-card")).toHaveCount(6);
+    await expect(star).toBeFocused();
+    await settleLayout(page);
+    expect(Math.abs((await row.boundingBox()).y - before.top), `Added row moved at ${width}px`).toBeLessThanOrEqual(2);
+    expect(await table.evaluate((element) => element.scrollLeft)).toBe(before.left);
+
+    await page.locator('[data-view="favorites"]').click();
+    await expect(page.locator("#stock-rows tr")).toHaveCount(6);
+    const symbols = await page.locator("#stock-rows tr").evaluateAll((rows) => rows.map((element) => element.dataset.symbol));
+    const nextSymbol = symbols[symbols.indexOf("2454") + 1];
+    expect(nextSymbol).toBeTruthy();
+    await star.scrollIntoViewIfNeeded();
+    await row.evaluate((element) => window.scrollBy({ top: element.getBoundingClientRect().top - 220, behavior: "instant" }));
+    await table.evaluate((element) => { element.scrollLeft = 180; });
+    await settleLayout(page);
+    const removal = { top: (await row.boundingBox()).y, left: await table.evaluate((element) => element.scrollLeft) };
+    await star.click();
+    await expect(page.locator("#stock-rows tr")).toHaveCount(5);
+    const nextRow = page.locator(`#stock-rows tr[data-symbol="${nextSymbol}"]`);
+    await expect(nextRow.locator("[data-favorite]")).toBeFocused();
+    await settleLayout(page);
+    const afterRemoval = await nextRow.evaluate((element) => {
+      const top = element.getBoundingClientRect().top;
+      return { top, documentTop: top + window.scrollY, maxScroll: Math.max(0, document.documentElement.scrollHeight - window.innerHeight) };
+    });
+    const expectedScroll = Math.max(0, Math.min(afterRemoval.maxScroll, afterRemoval.documentTop - removal.top));
+    // Keep the row in place wherever the page's remaining scroll range permits it.
+    expect(Math.abs(afterRemoval.top - (afterRemoval.documentTop - expectedScroll)), `Neighbor row moved at ${width}px`).toBeLessThanOrEqual(2);
+    expect(await table.evaluate((element) => element.scrollLeft)).toBe(removal.left);
+    await expect(page.locator('[data-view="favorites"]')).toHaveClass(/active/);
+  }
+});
+
+test("phone and tablet controls remain touch-sized with readable sticky navigation and pinned stock columns", async ({ page }, testInfo) => {
+  for (const width of [320, 390, 768, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByRole("tab", { name: "價量總覽", exact: true }).click();
+    const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #manage-favorites, #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite], #watchlist-grid [data-institution-details]').evaluateAll((controls) => controls.flatMap((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width && rect.height && (rect.width < 44 || rect.height < 44)
+        ? [{ control: element.getAttribute("aria-label") || element.textContent.trim(), width: rect.width, height: rect.height }]
+        : [];
+    }));
+    expect(undersized, `Small touch targets at ${width}px`).toEqual([]);
+    // The implicit label's padding is part of the search field's touch target.
+    await page.locator(".search-box").click({ position: { x: 2, y: 2 } });
+    await expect(page.getByRole("searchbox")).toBeFocused();
+    for (const item of await page.locator('.sidebar nav .nav-item > span:first-of-type').all()) await expect(item).toBeVisible();
+    await page.getByRole("searchbox").scrollIntoViewIfNeeded();
+    expect(await page.locator(".sidebar").evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
+    expect((await page.locator(".sidebar").boundingBox()).y).toBeGreaterThanOrEqual(-1);
+    const pinning = await page.locator(".table-scroll").evaluate((element) => {
+      element.scrollLeft = 0;
+      const cells = [...element.querySelector("tbody tr").children];
+      const before = cells.slice(0, 3).map((cell) => cell.getBoundingClientRect().left);
+      element.scrollLeft = 180;
+      const after = cells.slice(0, 3).map((cell) => cell.getBoundingClientRect().left);
+      return { moved: after.map((left, i) => left - before[i]), scroll: element.scrollLeft };
+    });
+    if (pinning.scroll > 0) {
+      expect(Math.abs(pinning.moved[0])).toBeLessThanOrEqual(1);
+      expect(Math.abs(pinning.moved[1])).toBeLessThanOrEqual(1);
+      expect(Math.abs(pinning.moved[2] + pinning.scroll)).toBeLessThanOrEqual(1);
+    }
+    await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
+    const overviewReport = await page.locator("#institution-overview").evaluate((element) => {
+      const clipped = [];
+      for (const row of element.querySelectorAll("article")) {
+        const bounds = row.getBoundingClientRect();
+        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          if (!walker.currentNode.textContent.trim()) continue;
+          const range = document.createRange(); range.selectNodeContents(walker.currentNode);
+          for (const rect of range.getClientRects()) if (rect.left < bounds.left || rect.right > bounds.right)
+            clipped.push(walker.currentNode.textContent.trim());
+        }
+      }
+      return { clipped, width: document.documentElement.scrollWidth };
+    });
+    expect(overviewReport.clipped, `Overview clipping at ${width}px`).toEqual([]);
+    expect(overviewReport.width).toBeLessThanOrEqual(width);
+    for (const control of await page.locator("#institution-overview [data-institution-window], #institution-overview [data-institution-details]").all()) {
+      const bounds = await control.boundingBox();
+      expect(bounds.height).toBeGreaterThanOrEqual(44);
+      expect(bounds.width).toBeGreaterThanOrEqual(44);
+    }
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await page.screenshot({ path: testInfo.outputPath(`institutional-overview-${width}.png`), fullPage: true });
   }
 });

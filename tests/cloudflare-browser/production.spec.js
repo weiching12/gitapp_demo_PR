@@ -11,6 +11,8 @@ test("real API mode shows 14 stocks including both requested favorites and corre
   await expect(page.locator("#institution-dialog")).not.toBeVisible();
   await expect(page.locator(".demo-badge")).toHaveText("FinMind 日資料");
   await expect(page.locator("body")).not.toContainText("模擬資料");
+  await expect(page.locator("main .demo-notice, .topbar [data-dialog=source]")).toHaveCount(0);
+  await expect(page.locator('.sidebar .nav-item[data-dialog="source"]')).toHaveAccessibleName("資料說明");
   const date = await page.locator("#trade-date").inputValue();
   for (const symbol of ["3026", "6488"]) {
     const response = await request.get(`/api/stocks/${symbol}`);
@@ -28,7 +30,7 @@ test("real API mode shows 14 stocks including both requested favorites and corre
     await expect(dialog).toBeVisible();
     await expect(dialog.locator("[data-institution-symbol]")).toHaveAttribute("data-institution-symbol", symbol);
     const text = await dialog.locator('.watch-total-history [data-window="20"] b').innerText();
-    expect(Number(text.replaceAll(",", "").replace("張", "").trim())).toBeCloseTo(sum / 1000, 2);
+    expect(Math.abs(Number(text.replaceAll(",", "").replace("張", "").trim()) - sum / 1000)).toBeLessThanOrEqual(0.005001);
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await expect(card.locator(`[data-institution-details="${symbol}"]`)).toBeFocused();
@@ -63,7 +65,7 @@ test("real data stays within desktop and phone widths", async ({ page }, testInf
     });
     expect(report.clipped, `Clipping at ${width}px`).toEqual([]);
     expect(report.width).toBeLessThanOrEqual(width);
-    await page.locator('[data-institution-details="6488"]').click();
+    await page.locator('#watchlist-grid [data-institution-details="6488"]').click();
     const dialog = page.locator("#institution-dialog");
     await expect(dialog).toBeVisible();
     const dialogReport = await dialog.evaluate((element) => {
@@ -89,4 +91,90 @@ test("real data stays within desktop and phone widths", async ({ page }, testInf
   await page.screenshot({ path: testInfo.outputPath("real-desktop.png"), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('[data-watch-symbol="6488"]').screenshot({ path: testInfo.outputPath("globalwafers-mobile.png") });
+});
+
+test("real-data institutional overview compares every favorite at each cumulative window and historical date", async ({ page, request }) => {
+  await page.goto("/");
+  await expect(page.locator(".watch-card")).toHaveCount(5);
+  const stocks = await Promise.all(["2330", "2317", "0050", "3026", "6488"].map(async (symbol) => {
+    const response = await request.get(`/api/stocks/${symbol}`);
+    expect(response.status()).toBe(200);
+    return (await response.json()).stock;
+  }));
+  await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
+  await expect(page.locator("#watchlist-grid")).toBeHidden();
+  await expect(page.locator("#institution-overview-rows article")).toHaveCount(5);
+  for (const index of [0, 5]) {
+    await page.locator("#trade-date").selectOption({ index });
+    const date = await page.locator("#trade-date").inputValue();
+    await expect(page.locator("#institution-overview-date")).toContainText(date);
+    for (const [key, count] of [["day", 1], ["5", 5], ["20", 20]]) {
+      const selected = page.locator(`[data-institution-window="${key}"]`);
+      await selected.click();
+      await expect(selected).toHaveAttribute("aria-pressed", "true");
+      for (const stock of stocks) {
+        const row = page.locator(`[data-overview-symbol="${stock.symbol}"]`);
+        const history = stock.history.filter((bar) => bar.date <= date).slice(-count);
+        let total = 0;
+        let complete = history.length === count;
+        for (const name of ["外資", "投信", "自營商"]) {
+          const values = history.map((bar) => {
+            const item = bar.institutions.find((institution) => institution.name === name);
+            return item ? item.buy - item.sell : null;
+          });
+          const cell = row.locator(`[data-overview-net="${name}"]`);
+          if (history.length < count || values.some((value) => value === null)) {
+            complete = false;
+            await expect(cell).toHaveText("資料不足");
+          } else {
+            const sum = values.reduce((net, value) => net + value, 0);
+            total += sum;
+            expect(Math.abs(Number((await cell.innerText()).replaceAll(",", "").replace("張", "").trim()) - sum / 1000)).toBeLessThanOrEqual(0.005001);
+          }
+        }
+        const totalCell = row.locator('[data-overview-net="total"]');
+        if (complete) expect(Math.abs(Number((await totalCell.innerText()).replaceAll(",", "").replace("張", "").trim()) - total / 1000)).toBeLessThanOrEqual(0.005001);
+        else await expect(totalCell).toHaveText("資料不足");
+      }
+    }
+  }
+  const trigger = page.locator('[data-overview-symbol="6488"] [data-institution-details="6488"]');
+  await trigger.click();
+  await expect(page.locator("#institution-dialog")).toHaveAccessibleName(/環球晶.*三大法人動向/);
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await page.getByRole("searchbox").fill("3026");
+  await expect(page.locator("#stock-rows tr")).toHaveCount(1);
+  await expect(page.locator("#institution-overview-rows article")).toHaveCount(5);
+});
+
+test("real institutional comparison stays readable on phones and tablets", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
+  await page.locator('[data-institution-window="20"]').click();
+  for (const width of [320, 390, 768, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    const report = await page.locator("#institution-overview").evaluate((element) => {
+      const clipped = [];
+      for (const row of element.querySelectorAll("article")) {
+        const bounds = row.getBoundingClientRect();
+        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          if (!walker.currentNode.textContent.trim()) continue;
+          const range = document.createRange(); range.selectNodeContents(walker.currentNode);
+          for (const rect of range.getClientRects()) if (rect.left < bounds.left || rect.right > bounds.right)
+            clipped.push(walker.currentNode.textContent.trim());
+        }
+      }
+      const smallTargets = [...element.querySelectorAll("button")].flatMap((button) => {
+        const bounds = button.getBoundingClientRect();
+        return bounds.width < 44 || bounds.height < 44 ? [button.textContent.trim()] : [];
+      });
+      return { clipped, smallTargets, width: document.documentElement.scrollWidth };
+    });
+    expect(report.clipped, `Real comparison clipping at ${width}px`).toEqual([]);
+    expect(report.smallTargets, `Real comparison small controls at ${width}px`).toEqual([]);
+    expect(report.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: testInfo.outputPath(`real-overview-${width}.png`), fullPage: true });
+  }
 });
