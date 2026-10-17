@@ -1,4 +1,5 @@
 import "./styles.css";
+import "./typography.css";
 import { loadDataset } from "./provider.js";
 import {
   DEFAULT_SETTINGS,
@@ -213,7 +214,7 @@ function renderWatchlist() {
       </div>
       <div class="watch-signal"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><span class="signal-reason">${esc(signal.reason)}</span></div>
 
-      <footer class="watch-card-footer"><span>${bar.date.replaceAll("-", ".")} · ${isDemo ? "模擬資料" : "FinMind"}</span><button class="institution-trigger" data-institution-details="${stock.symbol}" aria-label="查看${esc(stock.name)}三大法人動向" aria-haspopup="dialog" aria-controls="institution-dialog">${icon("chart")} 查看三大法人 ${icon("chevron")}</button></footer>
+      <footer class="watch-card-footer"><span>${bar.date.replaceAll("-", ".")} · ${isDemo ? "模擬資料" : "FinMind"}</span></footer>
     </article>`;
   }).join("");
   renderInstitutionOverview(favorites);

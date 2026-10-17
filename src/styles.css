@@ -1,11 +1,7 @@
 :root {
-  font-family:
-    Inter, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
   color: var(--ink);
   background: var(--surface);
   font-synthesis: none;
-  font-weight: 400;
-  font-size: 14px;
   --accent: #2563eb;
   --accent-soft: #eff6ff;
   --ink: #1e293b;
@@ -131,10 +127,7 @@ button .icon {
   align-items: center;
   gap: 11px;
   padding: 0 13px;
-  font-size: 25px;
   letter-spacing: 2px;
-  font-weight: 650;
-  line-height: 1.2;
 }
 .brand-mark {
   display: grid;
@@ -152,21 +145,17 @@ button .icon {
 }
 .brand-en {
   display: block;
-  font-size: 8px;
   letter-spacing: 2px;
-  font-weight: 500;
   margin-top: 7px;
   color: #b0bac8;
 }
 .nav-caption {
   color: #7e8ea5;
-  font-size: 9px;
   letter-spacing: 1.7px;
   margin: 51px 16px 16px;
 }
 .nav-caption span {
   display: block;
-  font-size: 10px;
   letter-spacing: 0.5px;
   margin-top: 6px;
 }
@@ -184,7 +173,6 @@ button .icon {
   padding: 13px 15px;
   border-radius: 7px;
   color: #bcc5d1;
-  font-size: 13px;
   white-space: nowrap;
   transition: background 0.15s;
 }
@@ -211,7 +199,6 @@ button .icon {
   margin-left: auto;
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 10px;
 }
 .nav-chevron {
   margin-left: auto;
@@ -228,15 +215,11 @@ button .icon {
   background: #73849d;
 }
 .sidebar-note p {
-  font-size: 16px;
-  line-height: 1.95;
   letter-spacing: 1.8px;
   color: #b9c2ce;
-  font-weight: 400;
   margin: 18px 0 13px;
 }
 .sidebar-note > span:last-child {
-  font-size: 7px;
   letter-spacing: 1.3px;
   color: #7d8ea5;
 }
@@ -248,7 +231,6 @@ button .icon {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 10px;
   border-top: 1px solid #273d5c;
   padding: 21px 9px 2px;
   margin-top: 13px;
@@ -283,7 +265,6 @@ button .icon {
   align-items: center;
   gap: 14px;
   color: #7a8ba2;
-  font-size: 11px;
 }
 .breadcrumb .icon {
   width: 10px;
@@ -299,7 +280,6 @@ button .icon {
   gap: 20px;
 }
 .demo-badge {
-  font-size: 10px;
   color: #8c7946;
   border: 1px solid #e7dfc1;
   border-radius: 4px;
@@ -319,7 +299,6 @@ button .icon {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
   color: #61728b;
 }
 .text-button .icon {
@@ -339,24 +318,18 @@ main {
   margin-bottom: 25px;
 }
 .eyebrow {
-  font-size: 9px;
   letter-spacing: 2px;
   color: #6b7e99;
-  font-weight: 600;
 }
 h1 {
-  font-size: 30px;
-  line-height: 1.4;
   letter-spacing: 1px;
   margin: 8px 0 8px;
-  font-weight: 650;
 }
 .heading-dot {
   color: var(--accent);
   margin-left: 4px;
 }
 .page-heading p {
-  font-size: 12px;
   color: #6a7d98;
   margin: 0;
   letter-spacing: 0.4px;
@@ -367,7 +340,6 @@ h1 {
   gap: 7px;
 }
 .date-control label {
-  font-size: 10px;
   color: #73849d;
   display: flex;
   align-items: center;
@@ -383,12 +355,10 @@ h1 {
   background: #fff;
   color: #2c4568;
   padding: 9px 30px 9px 12px;
-  font-size: 12px;
   letter-spacing: 0.3px;
   font-variant-numeric: tabular-nums;
 }
 .date-control > span {
-  font-size: 9px;
   color: #8493a9;
 }
 .demo-notice {
@@ -400,7 +370,6 @@ h1 {
   color: #5f7189;
   padding: 10px 13px;
   border-radius: 5px;
-  font-size: 10px;
   margin-bottom: 27px;
 }
 .demo-notice > .icon {
@@ -412,7 +381,6 @@ h1 {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
   color: #546378;
   white-space: nowrap;
 }
@@ -433,21 +401,16 @@ h1 {
   min-height: 30px;
 }
 .stock-code {
-  font-size: 12px;
-  font-weight: 600;
   color: #6a7d98;
   border-right: 1px solid #d0d9e5;
   padding-right: 11px;
   letter-spacing: 1px;
 }
 .selected-title h2 {
-  font-size: 18px;
   margin: 0;
-  font-weight: 600;
   letter-spacing: 1px;
 }
 .tag {
-  font-size: 9px;
   color: #7789a1;
   background: #e1e7ef;
   padding: 4px 6px;
@@ -478,7 +441,6 @@ h1 {
   stroke: #ae9559;
 }
 .market-label {
-  font-size: 10px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -510,16 +472,12 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  line-height: 1.5;
-  font-size: 11px;
   color: #697c96;
   margin-bottom: 16px;
 }
 .metric-label > span {
   flex-shrink: 0;
-  font-size: 9px;
   color: #8494aa;
-  font-weight: 400;
   letter-spacing: 0.5px;
 }
 .metric-label .icon {
@@ -534,11 +492,8 @@ h1 {
   align-items: center;
   align-content: flex-start;
   gap: 10px;
-  font-size: 29px;
-  font-weight: 550;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.7px;
-  line-height: 1.2;
   white-space: nowrap;
 }
 .metric-number {
@@ -550,25 +505,19 @@ h1 {
   flex-shrink: 0;
 }
 .metric-value small {
-  font-size: 11px;
   color: #73849d;
-  font-weight: 400;
   align-self: flex-end;
   margin-bottom: 4px;
   letter-spacing: 0;
 }
 .metric-value .change-chip {
-  font-size: 10px;
   letter-spacing: 0;
   padding: 5px 6px;
 }
 .change-chip {
   display: inline-block;
-  font-size: 11px;
-  line-height: 1.3;
   border-radius: 4px;
   padding: 5px 6px;
-  font-weight: 450;
   font-variant-numeric: tabular-nums;
   background: #eff2f6;
 }
@@ -583,10 +532,8 @@ h1 {
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  font-size: 9px;
   color: #8191a8;
   margin-top: 15px;
-  line-height: 1.7;
 }
 .metric-detail {
   white-space: nowrap;
@@ -596,13 +543,11 @@ h1 {
   margin: 0 1px;
 }
 .indicator-tag {
-  font-size: 9px;
   color: #8d855f;
   border: 1px solid #e8e1cb;
   border-radius: 4px;
   padding: 5px;
   letter-spacing: 0;
-  font-weight: 400;
 }
 .quarter-card {
   background: #f7f8fa;
@@ -613,8 +558,6 @@ h1 {
 }
 .position-arrow {
   margin-left: auto;
-  font-size: 25px;
-  font-weight: 300;
   opacity: 0.5;
 }
 .analysis-grid {
@@ -638,13 +581,10 @@ h1 {
   gap: 12px;
 }
 .panel-heading h2 {
-  font-size: 14px;
-  font-weight: 600;
   letter-spacing: 0.3px;
   margin: 0 0 6px;
 }
 .panel-subtitle {
-  font-size: 9px;
   color: #8191a8;
   letter-spacing: 0.3px;
 }
@@ -658,7 +598,6 @@ h1 {
   flex-shrink: 0;
 }
 .segmented button {
-  font-size: 9px;
   white-space: nowrap;
   color: #7688a0;
   border-radius: 3px;
@@ -668,14 +607,12 @@ h1 {
   background: #fff;
   color: #1d4ed8;
   box-shadow: 0 1px 3px #21334d14;
-  font-weight: 550;
 }
 .chart-legend {
   display: flex;
   align-items: center;
   gap: 17px;
   padding: 0 22px 4px;
-  font-size: 9px;
   color: #71839d;
   min-height: 30px;
   flex-wrap: wrap;
@@ -686,8 +623,6 @@ h1 {
   gap: 5px;
 }
 .chart-legend b {
-  font-size: 9px;
-  font-weight: 450;
   color: #546378;
   font-variant-numeric: tabular-nums;
 }
@@ -728,7 +663,6 @@ h1 {
 }
 .chart-label {
   fill: #7b8ca3;
-  font-size: 10px;
   font-family: inherit;
   font-variant-numeric: tabular-nums;
 }
@@ -738,7 +672,6 @@ h1 {
   justify-content: space-between;
   margin: 0 21px;
   padding: 12px 0 16px;
-  font-size: 8px;
   color: #8494aa;
   gap: 10px;
 }
@@ -746,7 +679,6 @@ h1 {
   padding-bottom: 13px;
 }
 .unit-label {
-  font-size: 9px;
   color: #8493a9;
   white-space: nowrap;
 }
@@ -758,28 +690,21 @@ h1 {
   padding: 15px 14px 13px;
 }
 .flow-total > span {
-  font-size: 10px;
   color: #6c7f99;
   display: block;
 }
 .flow-total strong {
   display: block;
-  font-size: 29px;
   letter-spacing: -0.7px;
-  font-weight: 500;
-  line-height: 1.6;
   font-variant-numeric: tabular-nums;
 }
 .flow-total small {
-  font-size: 10px;
-  font-weight: 400;
   color: #6d809a;
   letter-spacing: 0;
 }
 .flow-total > div {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
   color: #75869f;
   padding-top: 6px;
   border-top: 1px solid #d9e0ea;
@@ -789,7 +714,6 @@ h1 {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  font-size: 8px;
   color: #7a8ba2;
   padding: 13px 21px 3px;
 }
@@ -821,19 +745,11 @@ h1 {
   margin-bottom: 10px;
 }
 .institution-heading h3 {
-  font-size: 11px;
   margin: 0;
-  font-weight: 500;
   color: #526177;
 }
 .institution-heading > span {
-  font-size: 13px;
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
-}
-.institution-heading small {
-  font-size: 8px;
-  font-weight: 400;
 }
 .flow-bar-row {
   display: flex;
@@ -852,7 +768,6 @@ h1 {
   opacity: 0.8;
 }
 .flow-bar-row > span:last-child {
-  font-size: 9px;
   color: #72849d;
   position: absolute;
   right: 0;
@@ -866,7 +781,6 @@ h1 {
   align-items: center;
   gap: 5px;
   color: #8090a7;
-  font-size: 8px;
   white-space: nowrap;
 }
 .flow-note .icon {
@@ -885,8 +799,6 @@ h1 {
   gap: 9px;
 }
 .table-heading h2 > span {
-  font-size: 9px;
-  font-weight: 400;
   letter-spacing: 0;
   color: #74869f;
   background: #e9edf3;
@@ -902,7 +814,6 @@ h1 {
   border: 1px solid #d3dbe7;
   background: #fff;
   border-radius: 5px;
-  font-size: 10px;
   color: #56667c;
   white-space: nowrap;
 }
@@ -927,7 +838,6 @@ h1 {
   flex-shrink: 0;
 }
 .filter-tabs button {
-  font-size: 10px;
   padding: 8px 9px;
   color: #7a8ba2;
   white-space: nowrap;
@@ -969,11 +879,9 @@ h1 {
   outline: 0;
   width: 100%;
   min-width: 0;
-  font-size: 10px;
   background: transparent;
   color: #2e476a;
   padding: 0;
-  line-height: 1.5;
 }
 .search-box:focus-within {
   outline: 2px solid var(--accent);
@@ -983,7 +891,6 @@ h1 {
   color: #93a1b4;
 }
 .search-box kbd {
-  font-size: 9px;
   border: 1px solid #dae1eb;
   padding: 0 4px;
   border-radius: 2px;
@@ -994,7 +901,6 @@ h1 {
   border-radius: 4px;
   padding: 7px 21px 7px 8px;
   color: #70829c;
-  font-size: 10px;
   background: #fff;
   max-width: 125px;
 }
@@ -1015,21 +921,16 @@ thead {
   background: #f6f8fa;
 }
 thead th {
-  font-size: 11px;
   color: #7a8ba2;
-  font-weight: 400;
   height: 40px;
   border-bottom: 1px solid var(--border);
 }
 thead th button {
-  font-size: inherit;
-  font-weight: inherit;
   color: inherit;
   padding: 8px 0;
 }
 thead th button span {
   color: #a0acbd;
-  font-size: 9px;
 }
 thead th[aria-sort="descending"] button,
 thead th[aria-sort="ascending"] button {
@@ -1050,8 +951,6 @@ tbody td,
 tbody th {
   height: 66px;
   border-bottom: 1px solid #e6ebf1;
-  font-size: 12px;
-  font-weight: 400;
   padding: 8px 10px;
 }
 tbody td:first-child {
@@ -1091,26 +990,18 @@ tbody th {
   min-width: 105px;
 }
 .stock-name strong {
-  font-size: 12px;
-  font-weight: 550;
   color: #2b4365;
 }
 .stock-name > span {
-  font-size: 10px;
   letter-spacing: 0.7px;
   color: #7b8ca3;
 }
 .sector-inline {
-  font-size: 8px;
   letter-spacing: 0;
   color: #94a1b4;
   margin-left: 8px;
 }
-.price-cell {
-  font-weight: 500;
-}
 .position-tag {
-  font-size: 10px;
   padding: 3px 5px;
   border: 1px solid #dce3ec;
   border-radius: 3px;
@@ -1126,7 +1017,6 @@ tbody th {
 .deviation {
   display: block;
   margin-top: 7px;
-  font-size: 10px;
 }
 .k-cell {
   display: inline-flex;
@@ -1134,7 +1024,6 @@ tbody th {
   align-items: stretch;
   gap: 5px;
   width: 38px;
-  font-size: 11px;
 }
 .k-cell i {
   display: block;
@@ -1147,7 +1036,6 @@ tbody th {
   display: block;
   margin-top: 6px;
   color: #64748b;
-  font-size: 9px;
 }
 .signal-heading,
 .signal-cell {
@@ -1168,8 +1056,6 @@ tbody th {
   border-radius: 5px;
   background: #f1f5f9;
   color: #475569;
-  font-size: 11px;
-  font-weight: 600;
   white-space: nowrap;
 }
 .signal-badge.positive {
@@ -1191,8 +1077,6 @@ tbody th {
   display: block;
   margin-top: 6px;
   color: #64748b;
-  font-size: 10px;
-  line-height: 1.6;
 }
 .signal-note {
   display: flex;
@@ -1203,8 +1087,6 @@ tbody th {
   color: #475569;
   background: #f8fafc;
   border-bottom: 1px solid var(--border);
-  font-size: 10px;
-  line-height: 1.7;
 }
 .signal-note > .icon {
   width: 14px;
@@ -1221,8 +1103,6 @@ tbody th {
 }
 .signal-rules {
   margin: 0 0 18px;
-  font-size: 12px;
-  line-height: 1.8;
 }
 .signal-rules > div {
   padding: 10px 0;
@@ -1230,7 +1110,6 @@ tbody th {
 }
 .signal-rules dt {
   color: var(--ink);
-  font-weight: 600;
 }
 .signal-rules dd {
   margin: 4px 0 0;
@@ -1245,7 +1124,6 @@ tbody th {
   display: flex;
   justify-content: space-between;
   color: #8796ab;
-  font-size: 9px;
 }
 .table-footer > span:last-child {
   display: flex;
@@ -1261,23 +1139,19 @@ tbody th {
   justify-content: space-between;
   align-items: center;
   gap: 18px;
-  font-size: 9px;
   color: #8695ab;
   padding: 29px 0 27px;
 }
 .footer-brand {
-  font-size: 13px;
   letter-spacing: 1px;
   color: #657791;
   white-space: nowrap;
 }
 .footer-brand span {
-  font-size: 7px;
   letter-spacing: 1px;
   margin-left: 7px;
 }
 .page-footer button {
-  font-size: 9px;
   color: #7889a1;
   display: flex;
   align-items: center;
@@ -1300,11 +1174,9 @@ tbody th {
   height: 30px;
 }
 .empty-state h3 {
-  font-size: 15px;
   color: #536278;
 }
 .empty-state p {
-  font-size: 12px;
   color: #8595ab;
   margin-bottom: 20px;
 }
@@ -1328,23 +1200,15 @@ dialog::backdrop {
   justify-content: space-between;
   margin-bottom: 13px;
 }
-.dialog-top .eyebrow {
-  font-size: 8px;
-}
 .dialog-top .icon-button {
   color: #7a8ba2;
 }
 dialog h2 {
-  font-size: 22px;
-  line-height: 1.6;
   letter-spacing: 0.5px;
-  font-weight: 550;
   margin: 12px 0;
 }
 .dialog-intro {
-  font-size: 12px;
   color: #73859e;
-  line-height: 1.9;
   margin-bottom: 24px;
 }
 .source-banner {
@@ -1356,8 +1220,6 @@ dialog h2 {
   color: #8e8050;
   padding: 14px;
   border-radius: 6px;
-  font-size: 11px;
-  line-height: 1.8;
 }
 .source-banner .icon {
   width: 15px;
@@ -1372,8 +1234,6 @@ dialog h2 {
   grid-template-columns: 112px 1fr;
   border-bottom: 1px solid #e3e8f0;
   padding: 14px 0;
-  font-size: 11px;
-  line-height: 1.8;
 }
 .source-details dt {
   color: #7889a1;
@@ -1383,8 +1243,6 @@ dialog h2 {
   color: #505e72;
 }
 .helper-text {
-  font-size: 10px;
-  line-height: 1.9;
   color: #8493a9;
 }
 .guide-item {
@@ -1394,26 +1252,18 @@ dialog h2 {
   padding: 19px 0 4px;
 }
 .guide-item > span {
-  font-size: 10px;
   color: #9aa7b9;
-  line-height: 2.2;
 }
 .guide-item h3 {
-  font-size: 13px;
-  font-weight: 550;
   margin: 0 0 8px;
 }
 .guide-item p {
-  font-size: 11px;
-  line-height: 2;
   color: #697c97;
   margin: 4px 0 10px;
 }
 .guide-item code {
   display: block;
   white-space: normal;
-  font-size: 10px;
-  line-height: 2.2;
   color: #57667c;
   background: #f0f3f7;
   padding: 11px;
@@ -1426,9 +1276,6 @@ dialog h2 {
   padding: 15px 0;
   border-bottom: 1px solid #dee4ed;
   gap: 16px;
-}
-.form-field label {
-  font-size: 12px;
 }
 .form-field > div {
   display: flex;
@@ -1444,7 +1291,6 @@ dialog h2 {
   background: #f9fafc;
 }
 .form-field > div span {
-  font-size: 10px;
   color: #7e8ea5;
 }
 .dialog-buttons {
@@ -1458,7 +1304,6 @@ dialog h2 {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-size: 11px;
   background: var(--accent);
   color: #eff2f6;
   padding: 11px 15px;
@@ -1481,7 +1326,6 @@ dialog h2 {
   color: #ebeff4;
   box-shadow: 0 6px 24px #131d2b2b;
   padding: 12px 20px;
-  font-size: 12px;
   z-index: 30;
   opacity: 0;
   pointer-events: none;
@@ -1512,15 +1356,6 @@ dialog h2 {
   .metric-card {
     padding: 22px;
   }
-  .metric-value {
-    font-size: 34px;
-  }
-  .metric-label {
-    font-size: 12px;
-  }
-  .metric-description {
-    font-size: 10px;
-  }
   .analysis-grid {
     grid-template-columns: minmax(0, 2.45fr) minmax(300px, 1fr);
   }
@@ -1532,17 +1367,11 @@ dialog h2 {
     padding-top: 20px;
     padding-bottom: 20px;
   }
-  .flow-total strong {
-    font-size: 34px;
-  }
   .flow-key {
     padding-top: 18px;
   }
   .flow-note {
     margin-top: 19px;
-  }
-  .panel-heading h2 {
-    font-size: 15px;
   }
 }
 @media (max-width: 1250px) {
@@ -1553,16 +1382,12 @@ dialog h2 {
     padding: 30px 11px 16px;
   }
   .brand {
-    font-size: 23px;
     gap: 9px;
     padding: 0 10px;
   }
   .brand-mark {
     width: 34px;
     height: 38px;
-  }
-  .brand-en {
-    font-size: 7px;
   }
   .nav-caption {
     margin-left: 14px;
@@ -1587,25 +1412,13 @@ dialog h2 {
     padding: 16px 13px;
   }
   .metric-value {
-    font-size: 25px;
     gap: 7px;
   }
   .metric-value .change-chip {
-    font-size: 9px;
     padding: 4px;
   }
   .metric-description {
-    font-size: 8px;
     gap: 4px;
-  }
-  .metric-label {
-    font-size: 10px;
-  }
-  .metric-label > span {
-    font-size: 8px;
-  }
-  .indicator-tag {
-    font-size: 8px;
   }
   .analysis-grid {
     gap: 15px;
@@ -1616,7 +1429,6 @@ dialog h2 {
   }
   .segmented button {
     padding: 6px 7px;
-    font-size: 8px;
   }
   .chart-legend {
     gap: 12px;
@@ -1628,13 +1440,9 @@ dialog h2 {
   .institution {
     padding: 10px 17px;
   }
-  .flow-total strong {
-    font-size: 26px;
-  }
   .flow-note {
     margin-left: 17px;
     margin-right: 17px;
-    font-size: 7px;
   }
   .table-toolbar {
     align-items: flex-start;
@@ -1657,10 +1465,6 @@ dialog h2 {
   }
   .chart-foot {
     margin: 0 17px;
-    font-size: 7px;
-  }
-  .page-footer {
-    font-size: 8px;
   }
 }
 @media (max-width: 1000px) {
@@ -1706,26 +1510,8 @@ dialog h2 {
   .metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .metric-value {
-    font-size: 29px;
-  }
   .metric-card {
     padding: 17px;
-  }
-  .metric-description {
-    font-size: 10px;
-  }
-  .metric-label {
-    font-size: 11px;
-  }
-  .metric-label > span {
-    font-size: 9px;
-  }
-  .metric-value .change-chip {
-    font-size: 10px;
-  }
-  .panel-heading h2 {
-    font-size: 13px;
   }
   .chart-panel > .panel-heading {
     flex-wrap: wrap;
@@ -1741,17 +1527,11 @@ dialog h2 {
   .chart-panel .panel-heading h2 {
     margin: 0;
   }
-  .panel-subtitle {
-    font-size: 8px;
-  }
   .chart-panel .segmented {
     margin-left: auto;
   }
   .chart-legend {
     gap: 10px;
-  }
-  .chart-legend b {
-    font-size: 8px;
   }
 }
 @media (max-width: 760px) {
@@ -1781,9 +1561,6 @@ dialog h2 {
     margin: 0 20px;
     padding: 15px;
   }
-  .flow-total strong {
-    font-size: 30px;
-  }
   .flow-total > div {
     justify-content: flex-start;
     gap: 28px;
@@ -1796,20 +1573,10 @@ dialog h2 {
   }
   .flow-note {
     margin: 15px 20px 18px;
-    font-size: 9px;
-  }
-  .institution-heading h3 {
-    font-size: 12px;
-  }
-  .institution-heading > span {
-    font-size: 14px;
   }
   .flow-bar-row {
     height: 10px;
     padding-right: 60px;
-  }
-  .flow-bar-row > span:last-child {
-    font-size: 10px;
   }
   .page-heading {
     gap: 20px;
@@ -1820,43 +1587,23 @@ dialog h2 {
     margin-top: 7px;
   }
   .date-control select {
-    font-size: 10px;
     padding: 8px 22px 8px 9px;
   }
-  .date-control > span {
-    font-size: 8px;
-  }
-  .page-heading h1 {
-    font-size: 26px;
-  }
   .page-heading p {
-    font-size: 10px;
-    line-height: 1.8;
     max-width: 230px;
   }
   .eyebrow {
-    font-size: 8px;
     letter-spacing: 1.4px;
   }
   .demo-notice {
-    font-size: 9px;
     align-items: flex-start;
-    line-height: 1.7;
     padding: 10px;
   }
   .demo-notice > .icon {
     margin-top: 2px;
   }
   .demo-notice button {
-    font-size: 8px;
     padding: 0;
-    line-height: 1.9;
-  }
-  .selected-title h2 {
-    font-size: 17px;
-  }
-  .market-label {
-    font-size: 8px;
   }
   .table-heading {
     padding: 20px 17px;
@@ -1878,19 +1625,14 @@ dialog h2 {
     order: 3;
     width: 100%;
     text-align: center;
-    font-size: 9px;
   }
   .page-footer button {
     margin-left: auto;
-  }
-  .table-heading h2 {
-    font-size: 13px;
   }
   .filter-tabs {
     gap: 3px;
   }
   .filter-tabs button {
-    font-size: 9px;
     padding: 8px;
   }
   .search-box {
@@ -1899,9 +1641,6 @@ dialog h2 {
   }
   .search-controls {
     gap: 9px;
-  }
-  .search-box input {
-    font-size: 11px;
   }
 }
 @media (max-width: 520px) {
@@ -1932,10 +1671,8 @@ dialog h2 {
   }
   .brand > span:last-child {
     display: block;
-    font-size: 19px;
   }
   .brand-en {
-    font-size: 6px;
     letter-spacing: 1.3px;
     margin-top: 4px;
   }
@@ -1967,18 +1704,15 @@ dialog h2 {
     padding: 0 18px;
   }
   .breadcrumb {
-    font-size: 9px;
     gap: 9px;
   }
   .topbar-actions {
     gap: 12px;
   }
   .demo-badge {
-    font-size: 8px;
     padding: 4px 6px;
   }
   .text-button {
-    font-size: 9px;
     gap: 5px;
   }
   .text-button .icon {
@@ -1993,17 +1727,14 @@ dialog h2 {
     gap: 10px;
   }
   .page-heading h1 {
-    font-size: 25px;
     margin-top: 8px;
     margin-bottom: 7px;
     letter-spacing: 0.5px;
   }
   .page-heading p {
     max-width: 190px;
-    font-size: 9px;
   }
   .eyebrow {
-    font-size: 7px;
     letter-spacing: 1px;
   }
   .date-control {
@@ -2011,20 +1742,11 @@ dialog h2 {
     margin-top: 2px;
     gap: 7px;
   }
-  .date-control label {
-    font-size: 9px;
-  }
   .date-control select {
-    font-size: 10px;
     padding: 8px 15px 8px 8px;
     letter-spacing: 0;
   }
-  .date-control > span {
-    font-size: 7px;
-    line-height: 1.5;
-  }
   .demo-notice {
-    font-size: 9px;
     gap: 6px;
     margin-bottom: 21px;
     flex-wrap: wrap;
@@ -2035,20 +1757,14 @@ dialog h2 {
   }
   .demo-notice button {
     margin-left: 19px;
-    font-size: 8px;
   }
   .selected-title {
     gap: 8px;
   }
   .stock-code {
-    font-size: 11px;
     padding-right: 8px;
   }
-  .selected-title h2 {
-    font-size: 16px;
-  }
   .tag {
-    font-size: 8px;
     padding: 3px 5px;
   }
   .selected-title .icon-button {
@@ -2056,7 +1772,6 @@ dialog h2 {
     height: 27px;
   }
   .market-label {
-    font-size: 0;
     gap: 0;
   }
   .market-label .status-dot {
@@ -2078,40 +1793,28 @@ dialog h2 {
     border-radius: 6px;
   }
   .metric-label {
-    font-size: 9px;
     margin-bottom: 14px;
   }
   .metric-label > span {
-    font-size: 7px;
     letter-spacing: 0;
   }
   .metric-value {
-    font-size: 23px;
     gap: 6px;
     letter-spacing: -0.7px;
     min-height: 28px;
   }
-  .metric-value small {
-    font-size: 9px;
-  }
   .metric-value .change-chip {
-    font-size: 8px;
     padding: 4px 4px;
   }
   .metric-description {
-    font-size: 7px;
     gap: 3px;
     margin-top: 12px;
   }
   .indicator-tag {
-    font-size: 7px;
     padding: 4px 3px;
   }
   .metric-separator {
     margin: 0;
-  }
-  .position-arrow {
-    font-size: 22px;
   }
   .panel {
     border-radius: 6px;
@@ -2119,30 +1822,19 @@ dialog h2 {
   .panel-heading {
     padding: 18px 14px 13px;
   }
-  .panel-heading h2 {
-    font-size: 12px;
-  }
-  .panel-subtitle {
-    font-size: 7px;
-  }
   .segmented {
     padding: 2px;
   }
   .segmented button {
-    font-size: 7px;
     padding: 6px;
   }
   .chart-legend {
     padding: 0 14px 6px;
     gap: 9px;
-    font-size: 7px;
     min-height: 27px;
   }
   .chart-legend span {
     gap: 3px;
-  }
-  .chart-legend b {
-    font-size: 7px;
   }
   .legend-dot {
     width: 4px;
@@ -2154,7 +1846,6 @@ dialog h2 {
   .chart-foot {
     margin: 0 14px;
     padding: 11px 0 14px;
-    font-size: 6px;
     gap: 6px;
   }
   .analysis-grid {
@@ -2168,45 +1859,23 @@ dialog h2 {
     margin: 0 15px;
     padding: 14px;
   }
-  .flow-total strong {
-    font-size: 29px;
-  }
-  .flow-total > span {
-    font-size: 9px;
-  }
   .flow-total > div {
-    font-size: 9px;
     gap: 23px;
   }
   .flow-key {
     padding-right: 15px;
     padding-top: 13px;
-    font-size: 8px;
   }
   .institution {
     padding: 11px 15px;
   }
-  .institution-heading h3 {
-    font-size: 11px;
-  }
-  .institution-heading > span {
-    font-size: 13px;
-  }
   .flow-note {
     margin: 13px 15px 16px;
-    font-size: 8px;
   }
   .table-heading {
     padding: 18px 14px;
   }
-  .table-heading h2 {
-    font-size: 12px;
-  }
-  .table-heading h2 > span {
-    font-size: 8px;
-  }
   .outline-button {
-    font-size: 9px;
     padding: 7px 9px;
     gap: 5px;
   }
@@ -2224,7 +1893,6 @@ dialog h2 {
     gap: 1px;
   }
   .filter-tabs button {
-    font-size: 9px;
     padding: 7px 8px;
   }
   .search-controls {
@@ -2234,63 +1902,37 @@ dialog h2 {
     padding: 8px;
     min-width: 100px;
   }
-  .search-box input {
-    font-size: 10px;
-  }
   .search-box kbd {
     display: none;
   }
   #sector-filter {
     max-width: 95px;
-    font-size: 9px;
     padding: 8px 14px 8px 6px;
   }
   .table-footer {
-    font-size: 8px;
     padding: 13px 14px;
   }
   .page-footer {
     padding: 23px 2px;
   }
-  .footer-brand {
-    font-size: 11px;
-  }
-  .footer-brand span {
-    font-size: 6px;
-  }
   dialog {
     padding: 18px 20px 23px;
     max-height: 88dvh;
   }
-  dialog h2 {
-    font-size: 19px;
-  }
-  .dialog-intro {
-    font-size: 11px;
-  }
   .source-details > div {
     grid-template-columns: 90px 1fr;
-    font-size: 10px;
-  }
-  .source-banner {
-    font-size: 10px;
   }
   .dialog-buttons {
     gap: 9px;
   }
   .dialog-buttons .primary-button {
-    font-size: 10px;
     padding: 10px;
   }
   .guide-item {
     gap: 10px;
   }
-  .guide-item code {
-    font-size: 9px;
-  }
   .toast {
     bottom: 18px;
-    font-size: 11px;
     left: 50%;
     width: max-content;
   }
@@ -2314,8 +1956,6 @@ dialog h2 {
   flex-wrap: wrap;
   gap: 9px;
   margin: 7px 0;
-  font-size: 20px;
-  font-weight: 600;
   outline-offset: 5px;
 }
 #watchlist-count {
@@ -2323,13 +1963,10 @@ dialog h2 {
   border-radius: 5px;
   color: #1d4ed8;
   background: #eaf1ff;
-  font-size: 10px;
 }
 .watchlist-heading p {
   margin: 0;
   color: #64748b;
-  font-size: 11px;
-  line-height: 1.8;
 }
 .watchlist-grid {
   display: grid;
@@ -2340,7 +1977,7 @@ dialog h2 {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 18px;
+  padding: 16px;
   border: 1px solid var(--border);
   border-top: 3px solid #9bb8ed;
   border-radius: 10px;
@@ -2351,81 +1988,65 @@ dialog h2 {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .watch-card-heading h3 {
   margin: 6px 0 0;
   color: var(--ink);
-  font-size: 20px;
-  line-height: 1.5;
-  font-weight: 600;
 }
 .watch-symbol {
   color: #42628f;
-  font-size: 11px;
   letter-spacing: .6px;
 }
 .watch-symbol > span {
   margin-left: 7px;
   color: #64748b;
-  font-size: 9px;
   letter-spacing: 0;
 }
 .watch-card .metrics {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .watch-card .metric-card {
-  padding: 10px;
+  padding: 8px;
   border-radius: 6px;
   background: #f8fafc;
   border-color: #e9eef5;
 }
 .watch-card .metric-label {
-  font-size: 10px;
-  margin-bottom: 7px;
+  margin-bottom: 4px;
 }
 .watch-card .metric-label > span {
-  font-size: 8px;
   letter-spacing: 0;
 }
 .watch-card .metric-value {
-  font-size: 24px;
   min-height: 29px;
   gap: 6px;
   letter-spacing: -.6px;
 }
-.watch-card .metric-value small {
-  font-size: 10px;
-}
 .watch-card .metric-value .change-chip {
-  font-size: 9px;
   padding: 4px 5px;
 }
 .watch-card .indicator-tag {
   padding: 4px;
-  font-size: 8px;
 }
 .watch-card .metric-description {
   gap: 4px;
-  margin-top: 8px;
-  font-size: 9px;
+  margin-top: 6px;
 }
 .watch-signal {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  min-height: 49px;
+  min-height: 44px;
   padding: 2px 0 8px;
 }
 .watch-signal .signal-badge {
   flex-shrink: 0;
-  font-size: 10px;
 }
 .watch-signal .signal-reason {
   margin: 1px 0 0;
-  line-height: 1.8;
 }
 .watch-flow {
   margin-top: auto;
@@ -2441,12 +2062,9 @@ dialog h2 {
 }
 .watch-flow-heading h3 {
   margin: 0;
-  font-size: 12px;
-  font-weight: 600;
 }
 .watch-flow-heading > span {
   color: #64748b;
-  font-size: 9px;
 }
 .watch-flow-total {
   display: flex;
@@ -2462,23 +2080,17 @@ dialog h2 {
 .watch-flow-total > div:first-child > span {
   display: block;
   color: #64748b;
-  font-size: 9px;
   margin-bottom: 5px;
 }
 .watch-flow-total strong {
-  font-size: 24px;
-  font-weight: 550;
   font-variant-numeric: tabular-nums;
 }
 .watch-flow-total small {
   color: #64748b;
-  font-size: 10px;
-  font-weight: 400;
 }
 .watch-flow-amounts {
   display: grid;
   gap: 7px;
-  font-size: 9px;
   color: #64748b;
   font-variant-numeric: tabular-nums;
 }
@@ -2488,7 +2100,6 @@ dialog h2 {
   gap: 10px;
   margin: 13px 0 12px;
   color: #64748b;
-  font-size: 8px;
 }
 .watch-flow-legend span {
   display: inline-flex;
@@ -2509,11 +2120,9 @@ dialog h2 {
 }
 .watch-institution-heading {
   margin-bottom: 5px;
-  font-size: 11px;
 }
 .watch-institution-heading > strong {
   flex-shrink: 0;
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 .watch-institution-label {
@@ -2527,8 +2136,6 @@ dialog h2 {
   border-radius: 4px;
   background: #f1f5f9;
   color: #64748b;
-  font-size: 9px;
-  line-height: 1.4;
 }
 .watch-streak.buy {
   color: var(--up);
@@ -2552,15 +2159,11 @@ dialog h2 {
   flex-direction: column;
   gap: 4px;
   font-variant-numeric: tabular-nums;
-  line-height: 1.5;
 }
 .watch-cumulative > span {
   color: #64748b;
-  font-size: 9px;
 }
 .watch-cumulative > b {
-  font-size: 11px;
-  font-weight: 500;
   overflow-wrap: anywhere;
 }
 .watch-total-history .watch-history {
@@ -2572,12 +2175,11 @@ dialog h2 {
 .watch-history-note {
   margin: 7px 0 0;
   color: #64748b;
-  font-size: 8px;
 }
 .watch-flow-bar-row {
   position: relative;
-  min-height: 10px;
-  padding-right: 46px;
+  min-height: 24px;
+  padding-right: 84px;
 }
 .watch-flow-bar {
   display: block;
@@ -2594,9 +2196,8 @@ dialog h2 {
 .watch-flow-bar-row > span:last-child {
   position: absolute;
   right: 0;
-  top: -3px;
+  top: 0;
   color: #64748b;
-  font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 .watch-card-footer {
@@ -2606,10 +2207,9 @@ dialog h2 {
   align-items: center;
   gap: 9px;
   margin-top: auto;
-  padding-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
   color: #64748b;
-  font-size: 8px;
 }
 .institution-trigger {
   display: inline-flex;
@@ -2622,9 +2222,6 @@ dialog h2 {
   border-radius: 6px;
   background: #f2f6ff;
   color: #315c9b;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.5;
   cursor: pointer;
 }
 .institution-trigger:hover {
@@ -2664,8 +2261,6 @@ dialog.institution-dialog {
 }
 .institution-dialog-top h2 {
   margin: 9px 0 7px;
-  font-size: 22px;
-  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .institution-dialog-top .icon-button {
@@ -2678,8 +2273,6 @@ dialog.institution-dialog {
 #institution-meta {
   margin: 0;
   color: #64748b;
-  font-size: 11px;
-  line-height: 1.8;
 }
 .institution-dialog-body {
   padding: 20px 26px 24px;
@@ -2690,9 +2283,6 @@ dialog.institution-dialog {
 }
 .institution-dialog .watch-flow-heading {
   margin-bottom: 12px;
-}
-.institution-dialog .watch-flow-heading h3 {
-  font-size: 13px;
 }
 .institution-summary {
   display: grid;
@@ -2708,12 +2298,7 @@ dialog.institution-dialog {
   padding: 16px;
 }
 .institution-dialog .watch-flow-total strong {
-  font-size: 30px;
   overflow-wrap: anywhere;
-}
-.institution-dialog .watch-flow-total > div:first-child > span,
-.institution-dialog .watch-flow-amounts {
-  font-size: 11px;
 }
 .institution-dialog .watch-total-history .watch-history {
   height: 100%;
@@ -2721,19 +2306,8 @@ dialog.institution-dialog {
   padding: 16px;
   align-content: center;
 }
-.institution-dialog .watch-cumulative > span {
-  font-size: 10px;
-}
-.institution-dialog .watch-cumulative > b {
-  font-size: 12px;
-}
-.institution-dialog .watch-history-note {
-  font-size: 10px;
-  line-height: 1.8;
-}
 .institution-dialog .watch-flow-legend {
   margin-top: 18px;
-  font-size: 10px;
 }
 .institution-dialog .watch-institutions {
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2747,26 +2321,21 @@ dialog.institution-dialog {
 .institution-dialog .watch-institution-heading {
   flex-wrap: wrap;
   margin-bottom: 12px;
-  font-size: 13px;
 }
 .institution-dialog .watch-institution-label {
   gap: 5px;
 }
 .institution-dialog .watch-flow-bar-row {
-  min-height: 18px;
+  min-height: 24px;
 }
 .institution-dialog .watch-flow-bar {
   height: 5px;
-}
-.institution-dialog .watch-flow-bar-row > span:last-child {
-  font-size: 10px;
 }
 .institution-dialog-footer {
   padding: 13px 26px;
   border-top: 1px solid var(--border);
   color: #64748b;
   background: #f8fafc;
-  font-size: 10px;
 }
 @media (max-width: 740px) {
   .institution-dialog .watch-institutions {
@@ -2784,11 +2353,7 @@ dialog.institution-dialog {
     gap: 10px;
     padding: 18px 16px 14px;
   }
-  .institution-dialog-top h2 {
-    font-size: 19px;
-  }
   .institution-dialog-top .eyebrow {
-    font-size: 9px;
     letter-spacing: 1px;
   }
   .institution-dialog-body {
@@ -2817,21 +2382,14 @@ dialog.institution-dialog {
   height: 26px;
   color: var(--accent);
 }
-.watchlist-empty h3 {
-  font-size: 16px;
-}
 .watchlist-empty p {
-  font-size: 11px;
   color: #64748b;
-  line-height: 1.8;
 }
 .table-manage-hint {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
   color: #64748b;
-  line-height: 1.7;
 }
 .table-manage-hint .icon {
   width: 14px;
@@ -2843,27 +2401,15 @@ dialog.institution-dialog {
     gap: 10px;
     align-items: flex-start;
   }
-  .watchlist-heading h2 {
-    font-size: 18px;
-  }
-  .watchlist-heading p {
-    font-size: 10px;
-  }
   .watchlist-heading .outline-button {
     margin-top: 18px;
   }
   .watch-card {
     padding: 15px;
   }
-  .watch-card .metric-value {
-    font-size: 23px;
-  }
   .table-heading {
     align-items: flex-start;
     flex-wrap: wrap;
-  }
-  .table-manage-hint {
-    font-size: 9px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2899,7 +2445,6 @@ dialog.institution-dialog {
   padding: 9px 18px;
   border-radius: 6px;
   color: #64748b;
-  font-size: 12px;
 }
 .overview-tabs [aria-selected="true"] {
   background: #fff;
@@ -2925,14 +2470,11 @@ dialog.institution-dialog {
 }
 .institution-overview-toolbar h3 {
   margin: 0 0 6px;
-  font-size: 15px;
 }
 #institution-overview-date,
 .institution-overview-note {
   margin: 0;
   color: #64748b;
-  font-size: 11px;
-  line-height: 1.8;
 }
 .institution-overview-note {
   margin: 12px 0 16px;
@@ -2952,7 +2494,6 @@ dialog.institution-dialog {
   padding: 8px 12px;
   border-radius: 5px;
   color: #64748b;
-  font-size: 12px;
 }
 .institution-window [aria-pressed="true"] {
   color: #245cac;
@@ -2980,12 +2521,9 @@ dialog.institution-dialog {
 }
 .overview-stock-code {
   color: #64748b;
-  font-size: 11px;
 }
 .institution-overview-row h4 {
   margin: 5px 0 0;
-  font-size: 15px;
-  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .overview-detail-button {
@@ -2997,7 +2535,6 @@ dialog.institution-dialog {
   padding: 7px 10px;
   border-radius: 6px;
   color: #315c9b;
-  font-size: 12px;
 }
 .overview-detail-button:hover {
   background: #eff5ff;
@@ -3014,27 +2551,19 @@ dialog.institution-dialog {
 }
 .overview-metric {
   min-width: 0;
-  line-height: 1.7;
 }
 .overview-metric dt {
   margin-bottom: 5px;
   color: #64748b;
-  font-size: 11px;
 }
 .overview-metric dd {
   margin: 0;
-  font-size: 15px;
-  font-weight: 550;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 .overview-metric .watch-streak {
   display: inline-block;
   margin-top: 6px;
-  font-size: 10px;
-}
-.overview-total dd {
-  font-weight: 650;
 }
 .table-scroll-hint {
   display: none;
@@ -3042,8 +2571,6 @@ dialog.institution-dialog {
   padding: 9px 14px;
   border-top: 1px solid var(--border);
   color: #64748b;
-  font-size: 11px;
-  line-height: 1.8;
 }
 .favorite-button,
 .institution-trigger,
@@ -3110,7 +2637,6 @@ dialog.institution-dialog {
   }
   .sidebar .brand > span:last-child {
     display: block;
-    font-size: 18px;
   }
   .sidebar .brand-mark {
     width: 26px;
@@ -3146,8 +2672,6 @@ dialog.institution-dialog {
   }
   .sidebar nav .nav-item > span {
     display: block;
-    font-size: 10px;
-    line-height: 1.3;
   }
   .sidebar nav .nav-item > .nav-dot,
   .sidebar nav .nav-item > .count-pill,
@@ -3176,31 +2700,243 @@ dialog.institution-dialog {
   #sector-filter,
   .date-control select,
   .search-box { min-height: 44px; }
-  .filter-tabs button { font-size: 11px; }
-  .search-box input,
-  #sector-filter,
-  .date-control select { font-size: 16px; }
   .table-scroll-hint { display: block; }
-  .watch-card .metric-label { font-size: 11px; }
-  .watch-card .metric-description { font-size: 10px; line-height: 1.6; }
-  .watch-symbol { font-size: 12px; }
-  .watch-symbol > span { font-size: 10px; }
-  .watchlist-heading p,
-  .page-heading p { font-size: 11px; }
-  .watch-card-footer { font-size: 10px; }
 }
 @media (max-width: 700px) {
-  .institution-overview { padding: 14px; }
-  .institution-overview-toolbar { align-items: stretch; }
-  .institution-window { width: 100%; }
+  .institution-overview { padding: 0; border: 0; background: transparent; }
+  .institution-overview-toolbar { display: contents; }
+  .institution-window {
+    position: sticky;
+    top: 72px;
+    z-index: 6;
+    width: 100%;
+    margin-top: 14px;
+    background: #f1f5fb;
+    box-shadow: 0 3px 10px #172f5010;
+  }
   .institution-window button { flex: 1; min-width: 0; }
-  .institution-overview-row { grid-template-columns: 1fr; padding: 14px; }
+  .institution-overview-note { margin-bottom: 12px; }
+  .institution-overview-row { grid-template-columns: 1fr; gap: 12px; padding: 14px; background: #fff; }
   .institution-overview-row > header { flex-direction: row; justify-content: space-between; align-items: center; }
-  .institution-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 10px; }
-  .overview-metric dd { font-size: 16px; }
+  .institution-overview-row > header > div { display: flex; flex-direction: column; min-width: 0; }
+  .institution-overview-row h4 { margin: 0; }
+  .overview-stock-code { order: 1; margin-top: 4px; }
+  .overview-detail-button { flex-shrink: 0; border: 1px solid #dce6f6; background: #f2f6ff; }
+  .institution-overview-metrics { display: flex; flex-direction: column; gap: 0; }
+  .overview-metric:not(.overview-total) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+    min-height: 48px;
+    padding: 8px 0;
+    border-bottom: 1px solid #edf1f7;
+  }
+  .overview-metric:last-child { border-bottom: 0; padding-bottom: 0; }
+  .overview-metric dt { margin-bottom: 0; }
+  .overview-metric:not(.overview-total) dt { grid-column: 1; grid-row: 1; }
+  .overview-metric:not(.overview-total) dd { grid-column: 3; grid-row: 1; text-align: right; white-space: nowrap; }
+  .overview-metric .watch-streak { grid-column: 2; grid-row: 1; justify-self: start; margin-top: 0; white-space: nowrap; }
+  .overview-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+    padding: 10px;
+    border: 1px solid #e2eaf7;
+    border-radius: 7px;
+    background: #f4f7fc;
+  }
+  .overview-total dt { min-width: 0; }
+  .overview-total dd { flex-shrink: 0; text-align: right; white-space: nowrap; }
   .overview-tabs { width: 100%; }
   .overview-tabs [role="tab"] { flex: 1; padding-inline: 10px; }
 }
 @media (max-width: 360px) {
   .sidebar .brand > span:last-child { display: none; }
+}
+
+/* Layout follows the shared type scale; narrow screens wrap instead of shrinking copy. */
+.page-heading > div:first-child,
+.watchlist-heading > div,
+.panel-heading > div {
+  min-width: 0;
+}
+.date-control {
+  flex-shrink: 0;
+  max-width: 260px;
+}
+.date-control > span {
+  max-width: 260px;
+}
+.topbar {
+  min-height: 56px;
+  height: auto;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  gap: 16px;
+}
+.topbar-actions,
+.breadcrumb,
+.watchlist-heading,
+.panel-heading,
+.watch-signal {
+  flex-wrap: wrap;
+}
+.watchlist-heading {
+  align-items: flex-start;
+}
+.watchlist-heading > div {
+  flex: 1 1 230px;
+}
+.panel-subtitle {
+  display: block;
+}
+.metric-detail {
+  white-space: normal;
+}
+.watch-card .metric-card {
+  overflow: visible;
+}
+.watch-signal .signal-reason {
+  flex: 1 1 160px;
+}
+.watch-card-footer > span {
+  white-space: nowrap;
+}
+.filter-tabs {
+  flex-wrap: wrap;
+}
+.filter-tabs button,
+.primary-button,
+.text-button,
+.icon-button {
+  min-height: 44px;
+}
+.icon-button {
+  min-width: 44px;
+}
+.search-box {
+  min-height: 44px;
+  max-width: 300px;
+}
+#sector-filter {
+  max-width: 180px;
+  min-height: 44px;
+}
+.k-cell {
+  width: auto;
+  min-width: 44px;
+}
+.signal-cell .signal-reason {
+  max-width: 300px;
+}
+.institution-dialog .watch-institutions {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+.source-details > div {
+  grid-template-columns: minmax(80px, 112px) minmax(0, 1fr);
+  gap: 12px;
+}
+.source-details dd,
+.guide-item code {
+  overflow-wrap: anywhere;
+}
+.form-field {
+  flex-wrap: wrap;
+}
+.overview-metric dd {
+  overflow-wrap: normal;
+}
+.institution-overview-row > header {
+  gap: 8px;
+}
+@media (max-width: 1100px) {
+  .sidebar nav .nav-item {
+    min-width: 48px;
+  }
+  .institution-overview-row {
+    grid-template-columns: 1fr;
+  }
+  .institution-overview-row > header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+@media (max-width: 700px) {
+  .page-heading {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 20px;
+  }
+  .page-heading p {
+    max-width: none;
+  }
+  .date-control {
+    max-width: none;
+    margin-top: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 180px);
+    align-items: center;
+    gap: 6px 12px;
+  }
+  .date-control > span {
+    max-width: none;
+    grid-column: 1 / -1;
+  }
+  .watchlist-heading .outline-button {
+    margin-top: 0;
+  }
+  .watch-card {
+    padding: 12px;
+  }
+  .watch-card .metric-card {
+    padding: 8px;
+  }
+  .table-heading {
+    align-items: flex-start;
+  }
+  .filter-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px;
+  }
+  .filter-tabs button {
+    white-space: normal;
+  }
+  .search-box {
+    max-width: none;
+  }
+  #sector-filter {
+    max-width: 140px;
+  }
+  .sector-inline {
+    display: none;
+  }
+  .signal-note {
+    flex-wrap: wrap;
+  }
+  .signal-note > span {
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+  .signal-note .text-button {
+    margin-left: auto;
+  }
+  .institution-summary {
+    grid-template-columns: 1fr;
+  }
+  .dialog-buttons {
+    flex-wrap: wrap;
+  }
+  .dialog-buttons button {
+    flex: 1 1 140px;
+  }
+}
+@media (min-width: 380px) and (max-width: 700px) {
+  .watchlist-heading .outline-button {
+    margin-top: 24px;
+  }
 }

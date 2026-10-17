@@ -9,12 +9,14 @@ test("real API mode shows 14 stocks including both requested favorites and corre
   await expect(page.locator(".watch-card")).toHaveCount(5);
   await expect(page.locator(".watch-card .watch-flow")).toHaveCount(0);
   await expect(page.locator("#institution-dialog")).not.toBeVisible();
+  await expect(page.locator("#watchlist-grid [data-institution-details]")).toHaveCount(0);
   await expect(page.locator(".demo-badge")).toHaveText("FinMind 日資料");
   await expect(page.locator("body")).not.toContainText("模擬資料");
   await expect(page.locator("main .demo-notice, .topbar [data-dialog=source]")).toHaveCount(0);
   await expect(page.locator('.sidebar .nav-item[data-dialog="source"]')).toHaveAccessibleName("資料說明");
   const date = await page.locator("#trade-date").inputValue();
   for (const symbol of ["3026", "6488"]) {
+    await page.locator('[data-overview="price"]').click();
     const response = await request.get(`/api/stocks/${symbol}`);
     expect(response.status()).toBe(200);
     const payload = await response.json();
@@ -25,7 +27,9 @@ test("real API mode shows 14 stocks including both requested favorites and corre
     await expect(card.locator(".metric-number").nth(0)).toHaveText(snapshot.latest.close.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     const sum = payload.stock.history.filter((bar) => bar.date <= date).slice(-20)
       .reduce((net, bar) => net + bar.institutions.reduce((n, item) => n + item.buy - item.sell, 0), 0);
-    await card.locator(`[data-institution-details="${symbol}"]`).click();
+    await page.locator('[data-overview="institutions"]').click();
+    const details = page.locator(`#institution-overview [data-institution-details="${symbol}"]`);
+    await details.click();
     const dialog = page.locator("#institution-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.locator("[data-institution-symbol]")).toHaveAttribute("data-institution-symbol", symbol);
@@ -33,7 +37,7 @@ test("real API mode shows 14 stocks including both requested favorites and corre
     expect(Math.abs(Number(text.replaceAll(",", "").replace("張", "").trim()) - sum / 1000)).toBeLessThanOrEqual(0.005001);
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
-    await expect(card.locator(`[data-institution-details="${symbol}"]`)).toBeFocused();
+    await expect(details).toBeFocused();
   }
   await page.getByRole("button", { name: "資料說明", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("未還原價格");
@@ -49,6 +53,7 @@ test("real data stays within desktop and phone widths", async ({ page }, testInf
   await expect(page.locator(".watch-card")).toHaveCount(5);
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
+    await page.locator('[data-overview="price"]').click();
     const report = await page.locator("#watchlist-grid").evaluate((grid) => {
       const clipped = [];
       for (const card of grid.querySelectorAll(".watch-card, .metric-card")) {
@@ -65,7 +70,8 @@ test("real data stays within desktop and phone widths", async ({ page }, testInf
     });
     expect(report.clipped, `Clipping at ${width}px`).toEqual([]);
     expect(report.width).toBeLessThanOrEqual(width);
-    await page.locator('#watchlist-grid [data-institution-details="6488"]').click();
+    await page.locator('[data-overview="institutions"]').click();
+    await page.locator('#institution-overview [data-institution-details="6488"]').click();
     const dialog = page.locator("#institution-dialog");
     await expect(dialog).toBeVisible();
     const dialogReport = await dialog.evaluate((element) => {
@@ -88,6 +94,7 @@ test("real data stays within desktop and phone widths", async ({ page }, testInf
     await page.locator("#close-institution-dialog").click();
     await expect(dialog).not.toBeVisible();
   }
+  await page.locator('[data-overview="price"]').click();
   await page.screenshot({ path: testInfo.outputPath("real-desktop.png"), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('[data-watch-symbol="6488"]').screenshot({ path: testInfo.outputPath("globalwafers-mobile.png") });

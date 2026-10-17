@@ -3,8 +3,9 @@ import { demoProvider } from "../../src/data.js";
 import { getSnapshot } from "../../src/indicators.js";
 
 const cardFor = (page, symbol) => page.locator(`[data-watch-symbol="${symbol}"]`);
-const detailsButtonFor = (page, symbol) => cardFor(page, symbol).locator(`[data-institution-details="${symbol}"]`);
+const detailsButtonFor = (page, symbol) => page.locator(`#institution-overview [data-institution-details="${symbol}"]`);
 async function openInstitutionDetails(page, symbol) {
+  await page.locator('[data-overview="institutions"]').click();
   await detailsButtonFor(page, symbol).click();
   const dialog = page.locator("#institution-dialog");
   await expect(dialog).toBeVisible();
@@ -57,7 +58,7 @@ test("all favorites show compact metrics with institutional details available se
   await expect(cardFor(page, "2454")).toHaveCount(0);
   await expect(page.locator(".watch-card .watch-flow")).toHaveCount(0);
   await expect(page.locator("#institution-dialog")).not.toBeVisible();
-  await expect(page.locator("#watchlist-grid [data-institution-details]")).toHaveCount(5);
+  await expect(page.locator("#watchlist-grid [data-institution-details]")).toHaveCount(0);
   const cardHeights = await page.locator(".watch-card").evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().height));
   expect(Math.max(...cardHeights)).toBeLessThanOrEqual(500);
   const { stocks, info } = await demoProvider.load();
@@ -81,6 +82,7 @@ test("all favorites show compact metrics with institutional details available se
         await expect(row.locator(".watch-flow-bar-row").nth(1)).toContainText(formatted(item.sell / 1000));
       }
       await closeInstitutionDetails(page);
+      await page.locator('[data-overview="price"]').click();
       await expect(card.locator(".watch-card-footer")).toContainText(date.replaceAll("-", "."));
     }
   }
@@ -94,6 +96,7 @@ test("all favorites show compact metrics with institutional details available se
 });
 
 test("institutional details identify the selected stock and support keyboard, Escape and backdrop dismissal", async ({ page }) => {
+  await page.locator('[data-overview="institutions"]').click();
   const firstButton = detailsButtonFor(page, "2330");
   await expect(firstButton).toHaveAccessibleName("查看台積電三大法人動向");
   await firstButton.focus();
@@ -451,6 +454,7 @@ test("institutional overview compares every favorite using independent day, 5 an
           await expect(row.locator(`[data-overview-net="${name}"]`)).toHaveText(amountText(sum));
         }
         await expect(row.locator('[data-overview-net="total"]')).toHaveText(amountText(total));
+        await expect(row.locator(".overview-total-context")).toHaveCount(0);
         for (const name of ["外資", "投信"])
           await expect(row.locator(`[data-overview-streak="${name}"]`)).toHaveText(streakText(history, name));
       }
@@ -547,7 +551,7 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
   for (const width of [320, 390, 768, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     await page.getByRole("tab", { name: "價量總覽", exact: true }).click();
-    const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #manage-favorites, #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite], #watchlist-grid [data-institution-details]').evaluateAll((controls) => controls.flatMap((element) => {
+    const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #manage-favorites, #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite]').evaluateAll((controls) => controls.flatMap((element) => {
       const rect = element.getBoundingClientRect();
       return rect.width && rect.height && (rect.width < 44 || rect.height < 44)
         ? [{ control: element.getAttribute("aria-label") || element.textContent.trim(), width: rect.width, height: rect.height }]
@@ -598,5 +602,79 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
     }
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
     await page.screenshot({ path: testInfo.outputPath(`institutional-overview-${width}.png`), fullPage: true });
+  }
+});
+
+test("reading copy and metadata stay legible across mobile, tablet and desktop views", async ({ page }) => {
+  async function expectLegible(scope = "body") {
+    const undersized = await page.locator(scope).evaluate((root) => {
+      const small = [];
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const element = node.parentElement;
+        if (!node.textContent.trim() || element.closest(".sr-only, svg, script, style, [aria-hidden='true']")) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        if (![...range.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0)) continue;
+        const size = parseFloat(getComputedStyle(element).fontSize);
+        if (size < 12) small.push({ text: node.textContent.trim(), size });
+      }
+      return small;
+    });
+    expect(undersized).toEqual([]);
+  }
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator('[data-overview="price"]').click();
+    const sizes = await page.locator(".panel-subtitle, .watchlist-heading p, .metric-label, .metric-description, .signal-reason").evaluateAll((elements) =>
+      elements.filter((element) => element.getClientRects().length).map((element) => parseFloat(getComputedStyle(element).fontSize)));
+    expect(Math.min(...sizes), `Reading copy at ${width}px`).toBeGreaterThanOrEqual(14);
+    expect(await page.locator(".search-box input").evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
+    await expectLegible();
+    await page.locator('[data-overview="institutions"]').click();
+    await expectLegible();
+    for (const name of ["source", "methodology", "settings"]) {
+      await page.locator(`.sidebar [data-dialog="${name}"]`).click();
+      await expect(page.locator("#info-dialog")).toBeVisible();
+      await expectLegible("#info-dialog");
+      await page.locator("#close-dialog").click();
+    }
+    await page.locator('#institution-overview [data-institution-details="6488"]').click();
+    await expectLegible("#institution-dialog");
+    await closeInstitutionDetails(page);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `Page overflow at ${width}px`).toBeLessThanOrEqual(width);
+  }
+});
+
+test("phone institutional rows align values and keep interval switching available while scrolling", async ({ page }) => {
+  const { stocks } = await demoProvider.load();
+  await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })), stocks.map((stock) => stock.symbol));
+  await page.reload();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const width of [320, 390, 520, 700]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.locator('[data-overview="institutions"]').click();
+    await page.locator('[data-institution-window="20"]').click();
+    await expect(page.locator(".institution-overview-row")).toHaveCount(14);
+    const report = await page.locator(".institution-overview-row").evaluateAll((rows) => rows.flatMap((row) => {
+      const issues = [];
+      const fields = [...row.querySelectorAll(".overview-metric")];
+      for (const field of fields) if (field.scrollWidth > field.clientWidth + 1) issues.push("field overflow");
+      const components = fields.slice(1).map((field) => field.querySelector("dd").getBoundingClientRect());
+      if (!components.every((rect, index) => Math.abs(rect.right - components[0].right) <= 1 && (!index || rect.top > components[index - 1].bottom)))
+        issues.push("institution values do not align in distinct rows");
+      return issues;
+    }));
+    expect(report, `Mobile comparisons at ${width}px`).toEqual([]);
+    await page.locator('.institution-overview-row').nth(10).evaluate((row) => row.scrollIntoView({ block: "start", behavior: "instant" }));
+    await settleLayout(page);
+    const interval = await page.locator(".institution-window").boundingBox();
+    const nav = await page.locator(".sidebar").boundingBox();
+    expect(interval.y).toBeGreaterThanOrEqual(nav.y + nav.height);
+    expect(interval.y + interval.height).toBeLessThan(844);
+    await page.locator('[data-institution-window="5"]').click();
+    await expect(page.locator('[data-institution-window="5"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-institution-window="5"]')).toBeFocused();
   }
 });
