@@ -2303,6 +2303,323 @@ dialog h2 {
     left: 16px;
   }
 }
+#watchlist {
+  margin-bottom: 30px;
+}
+.watchlist-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 19px;
+}
+.watchlist-heading h2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 7px 0;
+  font-size: 20px;
+  font-weight: 600;
+  outline-offset: 5px;
+}
+#watchlist-count {
+  padding: 4px 7px;
+  border-radius: 5px;
+  color: #1d4ed8;
+  background: #eaf1ff;
+  font-size: 10px;
+}
+.watchlist-heading p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.watchlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+  gap: 18px;
+}
+.watch-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-top: 3px solid #9bb8ed;
+  border-radius: 10px;
+  background: #fff;
+}
+.watch-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 17px;
+}
+.watch-card-heading h3 {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+.watch-symbol {
+  color: #42628f;
+  font-size: 11px;
+  letter-spacing: .6px;
+}
+.watch-symbol > span {
+  margin-left: 7px;
+  color: #64748b;
+  font-size: 9px;
+  letter-spacing: 0;
+}
+.watch-card .metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.watch-card .metric-card {
+  padding: 12px 10px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border-color: #e9eef5;
+}
+.watch-card .metric-label {
+  font-size: 10px;
+  margin-bottom: 10px;
+}
+.watch-card .metric-label > span {
+  font-size: 8px;
+  letter-spacing: 0;
+}
+.watch-card .metric-value {
+  font-size: 24px;
+  min-height: 29px;
+  gap: 6px;
+  letter-spacing: -.6px;
+}
+.watch-card .metric-value small {
+  font-size: 10px;
+}
+.watch-card .metric-value .change-chip {
+  font-size: 9px;
+  padding: 4px 5px;
+}
+.watch-card .indicator-tag {
+  padding: 4px;
+  font-size: 8px;
+}
+.watch-card .metric-description {
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 9px;
+}
+.watch-signal {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 49px;
+  padding: 2px 0 14px;
+}
+.watch-signal .signal-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+}
+.watch-signal .signal-reason {
+  margin: 1px 0 0;
+  line-height: 1.8;
+}
+.watch-flow {
+  margin-top: auto;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+.watch-flow-heading,
+.watch-institution-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.watch-flow-heading h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.watch-flow-heading > span {
+  color: #64748b;
+  font-size: 9px;
+}
+.watch-flow-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f5f7fb;
+}
+.watch-flow-total > div:first-child > span {
+  display: block;
+  color: #64748b;
+  font-size: 9px;
+  margin-bottom: 5px;
+}
+.watch-flow-total strong {
+  font-size: 24px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+.watch-flow-total small {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 400;
+}
+.watch-flow-amounts {
+  display: grid;
+  gap: 7px;
+  font-size: 9px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+.watch-flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 13px 0 12px;
+  color: #64748b;
+  font-size: 8px;
+}
+.watch-flow-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.watch-flow-legend span:last-child {
+  margin-left: auto;
+}
+.watch-flow-legend i {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+}
+.watch-institutions {
+  display: grid;
+  gap: 12px;
+}
+.watch-institution-heading {
+  margin-bottom: 5px;
+  font-size: 11px;
+}
+.watch-institution-heading > strong {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.watch-flow-bar-row {
+  position: relative;
+  min-height: 10px;
+  padding-right: 46px;
+}
+.watch-flow-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  opacity: .8;
+}
+.watch-flow-bar.buy {
+  background: #c4867a;
+}
+.watch-flow-bar.sell {
+  background: #6b9b89;
+}
+.watch-flow-bar-row > span:last-child {
+  position: absolute;
+  right: 0;
+  top: -3px;
+  color: #64748b;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+.watch-card-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: #64748b;
+  font-size: 8px;
+}
+.watchlist-empty {
+  padding: 42px 20px;
+  border: 1px dashed #b8cae5;
+  border-radius: 10px;
+  background: #f5f8fe;
+  text-align: center;
+}
+.watchlist-empty[hidden] {
+  display: none;
+}
+.watchlist-empty > .icon {
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+}
+.watchlist-empty h3 {
+  font-size: 16px;
+}
+.watchlist-empty p {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.8;
+}
+.table-manage-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.7;
+}
+.table-manage-hint .icon {
+  width: 14px;
+  height: 14px;
+  color: #7992b7;
+}
+@media (max-width: 520px) {
+  .watchlist-heading {
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .watchlist-heading h2 {
+    font-size: 18px;
+  }
+  .watchlist-heading p {
+    font-size: 10px;
+  }
+  .watchlist-heading .outline-button {
+    margin-top: 18px;
+  }
+  .watch-card {
+    padding: 15px;
+  }
+  .watch-card .metric-value {
+    font-size: 23px;
+  }
+  .table-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .table-manage-hint {
+    font-size: 9px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

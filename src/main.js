@@ -4,16 +4,14 @@ import {
   DEFAULT_SETTINGS,
   getSnapshot,
   filterStocks,
-  toCsv,
 } from "./indicators.js";
-import { renderChart, sparkline } from "./charts.js";
+import { sparkline } from "./charts.js";
 
 const icons = {
   chart: '<path d="M4 19V9m8 10V4m8 15v-7"/>',
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   star: '<path d="m12 3 2.8 5.8 6.4.9-4.6 4.5 1.1 6.3L12 17.5l-5.7 3 1.1-6.3-4.6-4.5 6.4-.9Z"/>',
   search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
-  download: '<path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/>',
   arrow: '<path d="m7 17 10-10M7 7h10v10"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>',
   settings:
@@ -52,9 +50,7 @@ const direction = (value) =>
 const percent = (value) =>
   value === null || value === undefined ? "—" : `${signed(value)}%`;
 const state = {
-  symbol: "2330",
   date: "",
-  range: 66,
   view: "all",
   sector: "all",
   query: "",
@@ -135,14 +131,15 @@ function shell() {
             "",
           )}</select><span id="date-hint">預設顯示前一交易日的模擬資料</span></div></section>
         <div class="demo-notice">${icon("info")}<span>目前為前端展示，行情與法人數據皆為模擬資料。</span><button data-dialog="source">了解資料來源 ${icon("chevron")}</button></div>
-        <section class="selection-heading" aria-label="目前分析標的"><div class="selected-title" id="selected-title"></div><div class="market-label"><span class="status-dot"></span>台灣證券市場 <span class="muted">/ TWD</span></div></section>
-        <section class="metrics" id="metrics" aria-label="標的關鍵指標"></section>
-        <div class="analysis-grid"><section class="panel chart-panel" aria-labelledby="chart-heading"><div class="panel-heading"><div><h2 id="chart-heading">價格與技術走勢</h2><span class="panel-subtitle">日 K 線 · 成交量 · KD 指標</span></div><div class="segmented" role="group" aria-label="圖表期間"><button data-range="22">1 個月</button><button data-range="66" class="active">3 個月</button><button data-range="132">6 個月</button></div></div><div class="chart-legend" id="chart-legend"></div><div id="price-chart"></div><div class="chart-foot"><span>紅漲綠跌 · 均線以收盤價計算</span><span id="chart-period"></span></div></section>
-        <section class="panel flow-panel" aria-labelledby="flow-heading"><div class="panel-heading"><div><h2 id="flow-heading">三大法人動向</h2><span class="panel-subtitle" id="flow-date"></span></div><span class="unit-label">單位：張</span></div><div id="institutional-flow"></div></section></div>
-        <section class="panel stocks-panel" aria-labelledby="stocks-heading"><div class="panel-heading table-heading"><div><h2 id="stocks-heading">市場觀察清單 <span id="stock-count"></span></h2><span class="panel-subtitle">比較價量、技術指標與法人籌碼</span></div><button class="outline-button" id="export-csv">${icon("download")} 匯出 CSV</button></div>
+        <section id="watchlist" aria-labelledby="watchlist-heading">
+          <div class="watchlist-heading"><div><div class="eyebrow">MY WATCHLIST</div><h2 id="watchlist-heading" tabindex="-1">我的自選總覽 <span id="watchlist-count" role="status"></span></h2><p>所有自選，一次掌握價量、KD 與法人動向。</p></div><button class="outline-button" id="manage-favorites">${icon("star")} 管理自選</button></div>
+          <div id="watchlist-grid" class="watchlist-grid"></div>
+          <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>在下方市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div>
+        </section>
+        <section class="panel stocks-panel" aria-labelledby="stocks-heading"><div class="panel-heading table-heading"><div><h2 id="stocks-heading">市場觀察清單 <span id="stock-count"></span></h2><span class="panel-subtitle">比較價量、技術指標與法人籌碼</span></div><span class="table-manage-hint">${icon("star")} 點星號，加入上方自選總覽</span></div>
           <div class="table-toolbar"><div class="filter-tabs" role="group" aria-label="清單篩選"><button data-view="all" class="active">全部標的</button><button data-view="favorites">我的自選</button><button data-view="above">站上季線</button><button data-view="oversold">K 值低於 20</button></div><div class="search-controls"><label class="search-box">${icon("search")}<input id="stock-search" type="search" placeholder="搜尋代碼或名稱" aria-label="搜尋股票代碼或名稱" autocomplete="off"/><kbd>/</kbd></label><select id="sector-filter" aria-label="產業篩選"><option value="all">全部產業</option>${[...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("")}</select></div></div>
           <div class="signal-note">${icon("info")}<span>依資料日 KD 交叉與 MA20 趨勢判讀；模擬資料技術提示，需搭配風險控管。</span><button class="text-button" data-dialog="signals">判讀規則 ${icon("chevron")}</button></div>
-          <div class="table-scroll" tabindex="0" role="region" aria-label="股票觀察清單，可左右捲動"><table><caption class="sr-only">模擬股票行情、KD 技術建議與三大法人買賣超，點選股票名稱可查看分析。</caption><thead><tr><th scope="col"><span class="sr-only">自選</span></th><th scope="col">股票名稱 / 代碼</th>${[
+          <div class="table-scroll" tabindex="0" role="region" aria-label="股票觀察清單，可左右捲動"><table><caption class="sr-only">模擬股票行情、KD 技術建議與三大法人買賣超，點選星號可加入或移除上方自選總覽。</caption><thead><tr><th scope="col"><span class="sr-only">自選</span></th><th scope="col">股票名稱 / 代碼</th>${[
             ["close", "收盤價"],
             ["changePercent", "漲跌幅"],
             ["volume", "成交量（張）"],
@@ -156,7 +153,7 @@ function shell() {
             )
             .join(
               "",
-            )}<th scope="col">近月走勢</th></tr></thead><tbody id="stock-rows"></tbody></table></div><div id="table-empty" class="empty-state" hidden>${icon("search")}<h3>沒有符合條件的股票</h3><p>試試其他關鍵字，或清除篩選條件。</p><button class="outline-button" id="reset-filters">清除篩選</button></div><div class="table-footer"><span id="table-summary"></span><span>點選股票名稱，查看完整分析 ${icon("arrow")}</span></div>
+            )}<th scope="col">近月走勢</th></tr></thead><tbody id="stock-rows"></tbody></table></div><div id="table-empty" class="empty-state" hidden>${icon("search")}<h3>沒有符合條件的股票</h3><p>試試其他關鍵字，或清除篩選條件。</p><button class="outline-button" id="reset-filters">清除篩選</button></div><div class="table-footer"><span id="table-summary"></span><span>點選星號，即時更新上方自選 ${icon("star")}</span></div>
         </section>
         <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK INSIGHT</span></span><span>示範資料僅供功能展示，不作為投資依據。</span><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
       </main>
@@ -169,65 +166,41 @@ function refreshData() {
   snapshots = dataset.stocks.map((stock) =>
     getSnapshot(stock, state.date, state.settings),
   );
-  renderSelected();
+  renderWatchlist();
   renderTable();
 }
 
-function renderSelected() {
-  const stock = snapshots.find((item) => item.symbol === state.symbol);
-  const bar = stock.latest;
-  const favorite = state.favorites.includes(stock.symbol);
-  document.querySelector("#selected-title").innerHTML =
-    `<span class="stock-code">${stock.symbol}</span><h2>${esc(stock.name)}</h2><span class="tag">${esc(stock.sector)}</span><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button>`;
-  const kStatus =
-    bar.k === null
-      ? "資料不足"
-      : bar.k > 80
-        ? "高檔區間"
-        : bar.k < 20
-          ? "低檔區間"
-          : "中性區間";
-  document.querySelector("#metrics").innerHTML = `
-    <article class="metric-card"><div class="metric-label">收盤價 <span>TWD</span></div><div class="metric-value"><span class="metric-number">${number(bar.close, 2)}</span><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></div><div class="metric-description"><span class="${direction(bar.change)}">${bar.change >= 0 ? "↗" : "↘"} ${signed(bar.change)}</span> <span>較前一交易日</span></div></article>
-    <article class="metric-card"><div class="metric-label">當日成交量 ${icon("chart")}</div><div class="metric-value"><span class="metric-number">${number(bar.volume / 1000)}</span><small>張</small></div><div class="metric-description">三大法人淨額 <span class="${direction(bar.institutionalNet)}">${signed(bar.institutionalNet / 1000, 0)} 張</span></div></article>
-    <article class="metric-card"><div class="metric-label">K 值 <span>KD (${state.settings.period}, ${state.settings.kSmooth}, ${state.settings.dSmooth})</span></div><div class="metric-value"><span class="metric-number">${number(bar.k, 2)}</span><span class="indicator-tag">${kStatus}</span></div><div class="metric-description"><span class="metric-detail">D 值 <span class="dark-text">${number(bar.d, 2)}</span></span><span class="metric-separator">·</span><span class="metric-detail">RSV <span class="dark-text">${number(bar.rsv, 2)}</span></span></div></article>
-    <article class="metric-card quarter-card"><div class="metric-label">股價與季線 <span>MA60</span></div><div class="metric-value ${direction(bar.deviation)}"><span class="metric-number">${percent(bar.deviation)}</span><span class="position-arrow" aria-hidden="true">${bar.deviation > 0 ? "↗" : bar.deviation < 0 ? "↘" : "→"}</span></div><div class="metric-description"><span>${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "站上季線" : bar.deviation < 0 ? "位於季線下方" : "位於季線"} </span><span class="metric-separator">·</span> <span>季線 ${number(bar.ma60, 2)}</span></div></article>`;
-  document.querySelector("#chart-legend").innerHTML = [
-    ["ma5", "MA5"],
-    ["ma20", "MA20"],
-    ["ma60", "MA60"],
-    ["k", "K"],
-    ["d", "D"],
-  ]
-    .map(
-      ([key, label]) =>
-        `<span><i class="legend-dot ${key}"></i>${label} <b>${number(bar[key], 2)}</b></span>`,
-    )
-    .join("");
-  document.querySelector("#price-chart").innerHTML = renderChart(
-    stock.history,
-    state.range,
-    window.matchMedia("(max-width: 520px)").matches,
-  );
-  const visible = stock.history.slice(-state.range);
-  document.querySelector("#chart-period").textContent =
-    `${visible[0].date} — ${bar.date}`;
-  document.querySelector("#flow-date").textContent =
-    `${bar.date.replaceAll("-", ".")} · 當日買賣超`;
-  const buy = bar.institutions.reduce((sum, item) => sum + item.buy, 0);
-  const sell = bar.institutions.reduce((sum, item) => sum + item.sell, 0);
-  const max = Math.max(
-    ...bar.institutions.flatMap((item) => [item.buy, item.sell]),
-    1,
-  );
-  document.querySelector("#institutional-flow").innerHTML =
-    `<div class="flow-total"><span>三大法人合計買賣超</span><strong class="${direction(buy - sell)}">${signed((buy - sell) / 1000, 0)}<small> 張</small></strong><div><span>買進 ${number(buy / 1000)} 張</span><span>賣出 ${number(sell / 1000)} 張</span></div></div><div class="flow-key"><span><i class="buy-key"></i>買進</span><span><i class="sell-key"></i>賣出</span></div>${bar.institutions.map((item) => `<div class="institution"><div class="institution-heading"><h3>${item.name}</h3><span class="${direction(item.buy - item.sell)}">${signed((item.buy - item.sell) / 1000, 0)} <small>張</small></span></div><div class="flow-bar-row"><span class="flow-bar buy" style="width:${(item.buy / max) * 100}%"></span><span>${number(item.buy / 1000)}</span></div><div class="flow-bar-row"><span class="flow-bar sell" style="width:${(item.sell / max) * 100}%"></span><span>${number(item.sell / 1000)}</span></div></div>`).join("")}<div class="flow-note">${icon("info")} 買賣超 = 買進 − 賣出；1 張 = 1,000 股</div>`;
-  document.querySelectorAll("[data-range]").forEach((button) => {
-    const active = Number(button.dataset.range) === state.range;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", active);
-  });
+function renderWatchlist() {
+  const favorites = state.favorites
+    .map((symbol) => snapshots.find((stock) => stock.symbol === symbol))
+    .filter((stock) => stock?.latest);
+  document.querySelector("#watchlist-count").textContent = `${favorites.length} 檔`;
+  document.querySelector("#watchlist-empty").hidden = favorites.length > 0;
+  document.querySelector("#watchlist-grid").innerHTML = favorites.map((stock) => {
+    const { latest: bar, signal } = stock;
+    const kStatus = bar.k === null ? "資料不足" : bar.k > 80 ? "高檔區間" : bar.k < 20 ? "低檔區間" : "中性區間";
+    const buy = bar.institutions.reduce((sum, item) => sum + item.buy, 0);
+    const sell = bar.institutions.reduce((sum, item) => sum + item.sell, 0);
+    const max = Math.max(...bar.institutions.flatMap((item) => [item.buy, item.sell]), 1);
+    return `<article class="watch-card" data-watch-symbol="${stock.symbol}" aria-labelledby="watch-title-${stock.symbol}">
+      <header class="watch-card-heading"><div><span class="watch-symbol">${stock.symbol} <span>${esc(stock.market)} · ${esc(stock.sector)}</span></span><h3 id="watch-title-${stock.symbol}">${esc(stock.name)}</h3></div><button class="icon-button favorite-button is-favorite" data-favorite="${stock.symbol}" aria-label="移除${esc(stock.name)}自選" aria-pressed="true">${icon("star")}</button></header>
+      <div class="metrics" aria-label="${esc(stock.name)}關鍵指標">
+        <div class="metric-card"><div class="metric-label">收盤價 <span>TWD</span></div><div class="metric-value"><span class="metric-number">${number(bar.close, 2)}</span><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></div><div class="metric-description">較前日 <span class="${direction(bar.change)}">${signed(bar.change)}</span></div></div>
+        <div class="metric-card"><div class="metric-label">成交量 <span>當日</span></div><div class="metric-value"><span class="metric-number">${number(bar.volume / 1000)}</span><small>張</small></div><div class="metric-description">三大法人淨額 <span class="${direction(bar.institutionalNet)}">${signed(bar.institutionalNet / 1000, 0)} 張</span></div></div>
+        <div class="metric-card"><div class="metric-label">KD 值 <span>(${state.settings.period}, ${state.settings.kSmooth}, ${state.settings.dSmooth})</span></div><div class="metric-value"><span class="metric-number">${number(bar.k, 2)}</span><span class="indicator-tag">${kStatus}</span></div><div class="metric-description"><span class="metric-detail">D 值 ${number(bar.d, 2)}</span><span class="metric-detail">RSV ${number(bar.rsv, 2)}</span></div></div>
+        <div class="metric-card quarter-card"><div class="metric-label">股價與季線 <span>MA60</span></div><div class="metric-value ${direction(bar.deviation)}"><span class="metric-number">${percent(bar.deviation)}</span></div><div class="metric-description"><span>${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><span class="metric-detail">季線 ${number(bar.ma60, 2)}</span></div></div>
+      </div>
+      <div class="watch-signal"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><span class="signal-reason">${esc(signal.reason)}</span></div>
+      <section class="watch-flow" aria-label="${esc(stock.name)}三大法人動向"><div class="watch-flow-heading"><h4>三大法人動向</h4><span>單位：張</span></div>
+        <div class="watch-flow-total"><div><span>合計買賣超</span><strong class="${direction(buy - sell)}">${signed((buy - sell) / 1000, 0)}<small> 張</small></strong></div><div class="watch-flow-amounts"><span>買進 ${number(buy / 1000)}</span><span>賣出 ${number(sell / 1000)}</span></div></div>
+        <div class="watch-flow-legend"><span><i class="buy-key"></i>買進</span><span><i class="sell-key"></i>賣出</span><span>右側為買賣超</span></div>
+        <div class="watch-institutions">${bar.institutions.map((item) => `<div class="watch-institution" data-institution="${esc(item.name)}"><div class="watch-institution-heading"><span>${esc(item.name)}</span><strong class="${direction(item.buy - item.sell)}">${signed((item.buy - item.sell) / 1000, 0)}</strong></div><div class="watch-flow-bar-row"><span class="watch-flow-bar buy" style="width:${(item.buy / max) * 100}%"></span><span>${number(item.buy / 1000)}</span></div><div class="watch-flow-bar-row"><span class="watch-flow-bar sell" style="width:${(item.sell / max) * 100}%"></span><span>${number(item.sell / 1000)}</span></div></div>`).join("")}</div>
+      </section>
+      <footer class="watch-card-footer"><span>${bar.date.replaceAll("-", ".")} · 模擬資料</span><span>1 張 = 1,000 股</span></footer>
+    </article>`;
+  }).join("");
 }
+
 
 function renderTable() {
   visibleStocks = filterStocks(snapshots, state);
@@ -243,12 +216,10 @@ function renderTable() {
     .map((stock) => {
       const { latest: bar, signal } = stock;
       const favorite = state.favorites.includes(stock.symbol);
-      const selected = state.symbol === stock.symbol;
-      return `<tr class="${selected ? "selected-row" : ""}" data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><button class="stock-name" data-select="${stock.symbol}" aria-pressed="${selected}"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></button></th><td class="price-cell">${number(bar.close, 2)}</td><td><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td>${number(bar.volume / 1000)}</td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}">${signed(bar.institutionalNet / 1000, 0)}</td><td>${sparkline(stock.history)}</td></tr>`;
+      return `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell">${number(bar.close, 2)}</td><td><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td>${number(bar.volume / 1000)}</td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}">${signed(bar.institutionalNet / 1000, 0)}</td><td>${sparkline(stock.history)}</td></tr>`;
     })
     .join("");
   document.querySelector("#table-empty").hidden = visibleStocks.length !== 0;
-  document.querySelector("#export-csv").disabled = visibleStocks.length === 0;
   document.querySelector("#stock-count").textContent =
     `${visibleStocks.length} 檔`;
   document.querySelector("#favorite-count").textContent =
@@ -321,126 +292,37 @@ function resetFilters() {
   renderTable();
 }
 
-function exportCsv() {
-  const headers = [
-    "資料模式",
-    "交易日",
-    "代碼",
-    "名稱",
-    "收盤價_TWD",
-    "漲跌幅_%",
-    "成交量_張",
-    "K",
-    "D",
-    "MA60",
-    "季線乖離_%",
-    "外資買進_張",
-    "外資賣出_張",
-    "外資買賣超_張",
-    "投信買進_張",
-    "投信賣出_張",
-    "投信買賣超_張",
-    "自營商買進_張",
-    "自營商賣出_張",
-    "自營商買賣超_張",
-    "法人合計買賣超_張",
-    "RSV週期",
-    "K平滑係數",
-    "D平滑係數",
-    "KD技術建議",
-    "技術判讀原因",
-    "MA20",
-  ];
-  const fixed = (value) => (value === null ? "" : value.toFixed(4));
-  const rows = visibleStocks.map((stock) => {
-    const bar = stock.latest;
-    return [
-      "模擬資料",
-      bar.date,
-      stock.symbol,
-      stock.name,
-      bar.close,
-      fixed(bar.changePercent),
-      bar.volume / 1000,
-      fixed(bar.k),
-      fixed(bar.d),
-      fixed(bar.ma60),
-      fixed(bar.deviation),
-      ...bar.institutions.flatMap((item) => [
-        item.buy / 1000,
-        item.sell / 1000,
-        (item.buy - item.sell) / 1000,
-      ]),
-      bar.institutionalNet / 1000,
-      state.settings.period,
-      state.settings.kSmooth,
-      state.settings.dSmooth,
-      stock.signal.label,
-      stock.signal.reason,
-      fixed(bar.ma20),
-    ];
-  });
-  const url = URL.createObjectURL(
-    new Blob([toCsv([headers, ...rows])], { type: "text/csv;charset=utf-8;" }),
-  );
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `stock-insight-demo-${state.date}.csv`;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  toast(`已匯出 ${visibleStocks.length} 檔股票的示範資料`);
-}
-
 function bindEvents() {
-  window.matchMedia("(max-width: 520px)").addEventListener("change", () => {
-    renderSelected();
-  });
   document.addEventListener("click", (event) => {
     const button = event.target.closest("button");
     if (!button) return;
     if (button.dataset.dialog) openDialog(button.dataset.dialog);
     if (button.id === "close-dialog")
       document.querySelector("#info-dialog").close();
-    if (button.dataset.select) {
-      state.symbol = button.dataset.select;
-      renderSelected();
-      renderTable();
-      // Keep keyboard focus on the selected stock after updating table markup.
-      document
-        .querySelector(`[data-select="${state.symbol}"]`)
-        ?.focus({ preventScroll: true });
-      toast(
-        `已切換至 ${snapshots.find((stock) => stock.symbol === state.symbol).name}`,
-      );
-    }
     if (button.dataset.favorite) {
       const symbol = button.dataset.favorite;
       const wasFavorite = state.favorites.includes(symbol);
-      const wasInTitle = Boolean(button.closest("#selected-title"));
+      const wasInOverview = Boolean(button.closest("#watchlist"));
       state.favorites = wasFavorite
         ? state.favorites.filter((item) => item !== symbol)
         : [...state.favorites, symbol];
       savePreferences();
-      renderSelected();
+      renderWatchlist();
       renderTable();
-      const scope = wasInTitle ? "#selected-title" : "#stock-rows";
-      document
-        .querySelector(`${scope} [data-favorite="${symbol}"]`)
-        ?.focus({ preventScroll: true });
+      const scope = wasInOverview ? "#watchlist" : "#stock-rows";
+      const focusTarget = document.querySelector(`${scope} [data-favorite="${symbol}"]`) ||
+        document.querySelector(wasInOverview ? "#manage-favorites" : '[data-view="favorites"]');
+      focusTarget.focus({ preventScroll: true });
       toast(
         wasFavorite ? `已將 ${symbol} 移出自選` : `已將 ${symbol} 加入自選`,
       );
-    }
-    if (button.dataset.range) {
-      state.range = Number(button.dataset.range);
-      renderSelected();
     }
     if (button.dataset.view || button.dataset.nav) {
       state.view = button.dataset.view ?? button.dataset.nav;
       renderTable();
       if (button.dataset.nav)
         document
-          .querySelector("#stocks-heading")
+          .querySelector(button.dataset.nav === "favorites" ? "#watchlist-heading" : "#stocks-heading")
           .scrollIntoView({ behavior: "smooth", block: "start" });
     }
     if (button.dataset.sort) {
@@ -450,7 +332,11 @@ function bindEvents() {
       renderTable();
     }
     if (button.id === "reset-filters") resetFilters();
-    if (button.id === "export-csv") exportCsv();
+    if (button.id === "manage-favorites" || button.hasAttribute("data-manage-favorites")) {
+      resetFilters();
+      document.querySelector("#stocks-heading").scrollIntoView({ behavior: "smooth", block: "start" });
+      document.querySelector("#stock-search").focus({ preventScroll: true });
+    }
     if (button.id === "default-settings") {
       for (const [key, value] of Object.entries(DEFAULT_SETTINGS))
         document.querySelector(`#${key}`).value = value;
