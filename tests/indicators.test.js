@@ -5,12 +5,27 @@ import {
   getSnapshot,
   getTechnicalSignal,
   getInstitutionalSummary,
+  getDominantInstitution,
   filterStocks,
 } from "../src/indicators.js";
 import { demoProvider } from "../src/data.js";
 
 const near = (actual, expected) =>
   assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
+
+test("dominant institution follows the total net direction and handles ties", () => {
+  const entries = (foreign, trust, dealer) => [
+    ["外資", foreign], ["投信", trust], ["自營商", dealer],
+  ].map(([name, net]) => ({ name, buy: Math.max(0, net), sell: Math.max(0, -net) }));
+  assert.deepEqual(getDominantInstitution(entries(-1200, -300, 500)),
+    { names: ["外資"], direction: "sell" });
+  assert.deepEqual(getDominantInstitution(entries(800, 200, -100)),
+    { names: ["外資"], direction: "buy" });
+  assert.deepEqual(getDominantInstitution(entries(-300, -300, 100)),
+    { names: ["外資", "投信"], direction: "sell" });
+  assert.equal(getDominantInstitution(entries(100, -100, 0)), null);
+  assert.equal(getDominantInstitution(entries(100, -100, 0).slice(0, 2)), null);
+});
 const bar = (close, date = "2026-10-01") => ({
   date,
   open: close,

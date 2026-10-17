@@ -17,7 +17,8 @@ test("real API mode shows 14 stocks including both requested favorites and corre
   await expect(page.locator("body")).not.toContainText("模擬資料");
   await expect(page.locator("main .demo-notice, .topbar [data-dialog=source]")).toHaveCount(0);
   await expect(page.locator('.sidebar .nav-item[data-dialog="source"]')).toHaveAccessibleName("資料說明");
-  await expect(page.locator('[data-sort-heading="changePercent"]')).toContainText("較前交易日");
+  await expect(page.locator('[data-sort-heading="changePercent"]')).toHaveText(/日漲跌幅/);
+  await expect(page.locator('[data-sort-heading="changePercent"]')).not.toContainText("較前交易日");
   await expect(page.locator('[data-sort-heading="volume"]')).toHaveCount(0);
   const date = await page.locator("#trade-date").inputValue();
   for (const symbol of ["3026", "6488"]) {
@@ -33,6 +34,13 @@ test("real API mode shows 14 stocks including both requested favorites and corre
     const marketRow = page.locator(`#stock-rows tr[data-symbol="${symbol}"]`);
     await expect(marketRow.locator(".stock-close")).toHaveText(snapshot.latest.close.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     await expect(marketRow.locator(".price-cell .stock-volume")).toHaveText(`量 ${(snapshot.latest.volume / 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} 張`);
+    const institutionNets = snapshot.latest.institutions.map((item) => ({ name: item.name, net: item.buy - item.sell }));
+    const totalNet = institutionNets.reduce((sum, item) => sum + item.net, 0);
+    const extreme = totalNet > 0 ? Math.max(...institutionNets.map((item) => item.net))
+      : Math.min(...institutionNets.map((item) => item.net));
+    const leader = totalNet === 0 ? "合計持平"
+      : `${institutionNets.filter((item) => item.net === extreme).map((item) => item.name).join("、")}${totalNet > 0 ? "買超" : "賣超"}最多`;
+    await expect(marketRow.locator(".institution-leader")).toHaveText(leader);
     const sum = payload.stock.history.filter((bar) => bar.date <= date).slice(-20)
       .reduce((net, bar) => net + bar.institutions.reduce((n, item) => n + item.buy - item.sell, 0), 0);
     await page.locator('[data-overview="institutions"]').click();
@@ -184,6 +192,7 @@ test("real institutional comparison stays readable on phones and tablets", async
         }
       }
       const smallTargets = [...element.querySelectorAll("button")].flatMap((button) => {
+        if (!button.getClientRects().length) return [];
         const bounds = button.getBoundingClientRect();
         return bounds.width < 44 || bounds.height < 44 ? [button.textContent.trim()] : [];
       });

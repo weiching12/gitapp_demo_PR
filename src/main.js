@@ -5,6 +5,7 @@ import {
   DEFAULT_SETTINGS,
   getSnapshot,
   filterStocks,
+  getDominantInstitution,
 } from "./indicators.js";
 
 const icons = {
@@ -150,10 +151,11 @@ function shell() {
             "",
           )}</select><span id="date-hint">${isDemo ? "預設顯示前一交易日的模擬資料" : "最近一個價量與法人資料均完整的交易日"}</span></div></section>
         <section id="watchlist" aria-labelledby="watchlist-heading">
-          <div class="watchlist-heading"><div><div class="eyebrow">MY WATCHLIST</div><h2 id="watchlist-heading" tabindex="-1">我的自選總覽 <span id="watchlist-count" role="status"></span></h2><p>切換價量與法人總覽，一次比較所有自選。</p></div><button class="outline-button" id="manage-favorites">${icon("star")} 管理自選</button></div>
+          <div class="watchlist-heading"><div><div class="eyebrow">MY WATCHLIST</div><h2 id="watchlist-heading" tabindex="-1">我的自選總覽 <span id="watchlist-count" role="status"></span></h2><p>切換價量與法人總覽，查看所有自選。</p></div><button class="outline-button" id="manage-favorites">${icon("star")} 管理自選</button></div>
           <div class="overview-tabs" role="tablist" aria-label="自選總覽視角"><button id="watchlist-price-tab" role="tab" data-overview="price" aria-controls="watchlist-grid" aria-selected="true" tabindex="0">${icon("grid")} 價量總覽</button><button id="watchlist-institutions-tab" role="tab" data-overview="institutions" aria-controls="institution-overview" aria-selected="false" tabindex="-1">${icon("chart")} 法人總覽</button></div>
+          <div id="watchlist-carousel-controls" class="watchlist-carousel-controls" data-carousel="price" aria-label="自選卡片導覽"><span id="watchlist-carousel-status" role="status"></span><div class="watchlist-carousel-actions"><select id="watchlist-carousel-jump" data-carousel-jump aria-label="快速選擇自選股票" hidden></select><button class="icon-button" data-carousel-step="-1" aria-label="上一檔自選股票">${icon("chevron")}</button><button class="icon-button" data-carousel-step="1" aria-label="下一檔自選股票">${icon("chevron")}</button></div></div>
           <div id="watchlist-grid" class="watchlist-grid" role="tabpanel" aria-labelledby="watchlist-price-tab"></div>
-          <section id="institution-overview" class="institution-overview" role="tabpanel" aria-labelledby="watchlist-institutions-tab" hidden><div class="institution-overview-toolbar"><div><h3>所有自選法人比較</h3><p id="institution-overview-date"></p></div><div class="institution-window" role="group" aria-label="法人累計區間"><button data-institution-window="day" aria-pressed="true">當日</button><button data-institution-window="5" aria-pressed="false">近 5 日</button><button data-institution-window="20" aria-pressed="false">近 20 日</button></div></div><p class="institution-overview-note">單位：張。連買／連賣天數截至資料日，與累計區間分開計算。</p><div id="institution-overview-rows" class="institution-overview-rows"></div></section>
+          <section id="institution-overview" class="institution-overview" role="tabpanel" aria-labelledby="watchlist-institutions-tab" hidden><div class="institution-overview-toolbar"><div><h3>所有自選法人比較</h3><p id="institution-overview-date"></p></div><div class="institution-window" role="group" aria-label="法人累計區間"><button data-institution-window="day" aria-pressed="true">當日</button><button data-institution-window="5" aria-pressed="false">近 5 日</button><button data-institution-window="20" aria-pressed="false">近 20 日</button></div></div><div id="institution-carousel-controls" class="watchlist-carousel-controls" data-carousel="institutions" aria-label="法人卡片導覽"><span role="status"></span><div class="watchlist-carousel-actions"><select data-carousel-jump aria-label="快速選擇法人比較股票" hidden></select><button class="icon-button" data-carousel-step="-1" aria-label="上一檔法人比較股票">${icon("chevron")}</button><button class="icon-button" data-carousel-step="1" aria-label="下一檔法人比較股票">${icon("chevron")}</button></div></div><div id="institution-overview-rows" class="institution-overview-rows"></div><p class="institution-overview-note">單位：張。連買／連賣天數截至資料日，與累計區間分開計算。</p></section>
           <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>在下方市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div>
         </section>
         <section class="panel stocks-panel" aria-labelledby="stocks-heading"><div class="panel-heading table-heading"><div><h2 id="stocks-heading">市場觀察清單 <span id="stock-count"></span></h2><span class="panel-subtitle">比較價量、技術指標與法人籌碼</span></div><span class="table-manage-hint">${icon("star")} 點星號，加入上方自選總覽</span></div>
@@ -168,7 +170,7 @@ function shell() {
           ]
             .map(
               ([key, label]) =>
-                `<th scope="col" data-sort-heading="${key}" aria-sort="none"><button data-sort="${key}">${label} <span aria-hidden="true">↕</span>${key === "changePercent" ? '<small class="column-hint">較前交易日</small>' : ""}</button></th>${key === "k" ? '<th scope="col" class="signal-heading">KD 技術建議</th>' : ""}`,
+                `<th scope="col" data-sort-heading="${key}" aria-sort="none"><button data-sort="${key}">${label} <span aria-hidden="true">↕</span></button></th>${key === "k" ? '<th scope="col" class="signal-heading">KD 技術建議</th>' : ""}`,
             )
             .join(
               "",
@@ -192,6 +194,9 @@ function refreshData() {
 }
 
 function renderWatchlist() {
+  const previousCards = [...document.querySelectorAll("#watchlist-grid .watch-card")];
+  const previousIndex = carouselIndex("price", previousCards);
+  const previousSymbol = previousCards[previousIndex]?.dataset.watchSymbol;
   const favorites = state.favorites
     .map((symbol) => snapshots.find((stock) => stock.symbol === symbol))
     .filter((stock) => stock?.latest);
@@ -217,11 +222,66 @@ function renderWatchlist() {
   }).join("");
   renderInstitutionOverview(favorites);
   renderOverviewVisibility();
+  setCarouselOptions("price", favorites);
+  if (matchMedia("(max-width: 700px)").matches && favorites.length) {
+    const nextIndex = Math.max(0, favorites.findIndex((stock) => stock.symbol === previousSymbol));
+    scrollToCarouselCard("price", nextIndex, "instant");
+  }
+  updateCarouselControls("price");
+}
+
+const carouselConfig = {
+  price: { container: "#watchlist-grid", item: ".watch-card", symbol: "watchSymbol" },
+  institutions: { container: "#institution-overview-rows", item: ".institution-overview-row", symbol: "overviewSymbol" },
+};
+
+function carouselParts(kind) {
+  const config = carouselConfig[kind];
+  const grid = document.querySelector(config.container);
+  return { grid, cards: [...grid.querySelectorAll(config.item)],
+    controls: document.querySelector(`[data-carousel="${kind}"]`), symbol: config.symbol };
+}
+
+function carouselIndex(kind, cards = carouselParts(kind).cards) {
+  if (!cards.length) return 0;
+  const { grid } = carouselParts(kind);
+  const left = grid.getBoundingClientRect().left + parseFloat(getComputedStyle(grid).paddingLeft);
+  return cards.reduce((nearest, card, index) =>
+    Math.abs(card.getBoundingClientRect().left - left) < Math.abs(cards[nearest].getBoundingClientRect().left - left)
+      ? index : nearest, 0);
+}
+
+function setCarouselOptions(kind, favorites) {
+  const jump = carouselParts(kind).controls.querySelector("[data-carousel-jump]");
+  jump.innerHTML = favorites.map((stock) =>
+    `<option value="${stock.symbol}">${esc(stock.name)} ${stock.symbol}</option>`).join("");
+  jump.hidden = favorites.length <= 10;
+}
+
+function updateCarouselControls(kind) {
+  const { cards, controls, symbol } = carouselParts(kind);
+  const index = carouselIndex(kind, cards);
+  controls.querySelector('[role="status"]').textContent = cards.length
+    ? `第 ${index + 1}／${cards.length} 檔 · 左右滑動` : "";
+  controls.querySelector('[data-carousel-step="-1"]').disabled = index === 0;
+  controls.querySelector('[data-carousel-step="1"]').disabled = index >= cards.length - 1;
+  controls.querySelector("[data-carousel-jump]").value = cards[index]?.dataset[symbol] ?? "";
+}
+
+function scrollToCarouselCard(kind, index, behavior = "smooth") {
+  const { grid, cards } = carouselParts(kind);
+  const card = cards[index];
+  if (!card) return;
+  const left = card.getBoundingClientRect().left - grid.getBoundingClientRect().left +
+    grid.scrollLeft - parseFloat(getComputedStyle(grid).paddingLeft);
+  grid.scrollTo({ left, behavior });
+  if (behavior === "instant") updateCarouselControls(kind);
 }
 
 function renderOverviewVisibility() {
   const empty = state.favorites.length === 0;
   document.querySelector("#watchlist-grid").hidden = empty || state.overview !== "price";
+  document.querySelector("#watchlist-carousel-controls").hidden = empty || state.overview !== "price";
   document.querySelector("#institution-overview").hidden = empty || state.overview !== "institutions";
   document.querySelectorAll("[data-overview]").forEach((tab) => {
     const active = tab.dataset.overview === state.overview;
@@ -232,6 +292,8 @@ function renderOverviewVisibility() {
 
 function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
   snapshots.find((stock) => stock.symbol === symbol)).filter((stock) => stock?.latest)) {
+  const previousRows = carouselParts("institutions").cards;
+  const previousSymbol = previousRows[carouselIndex("institutions", previousRows)]?.dataset.overviewSymbol;
   document.querySelector("#institution-overview-date").textContent =
     `${state.date} · ${favorites.length} 檔自選${isDemo ? " · 模擬資料" : ""}`;
   document.querySelectorAll("[data-institution-window]").forEach((button) =>
@@ -251,6 +313,12 @@ function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
       return metric(name, value, streak);
     }).join("")}</dl></article>`;
   }).join("");
+  setCarouselOptions("institutions", favorites);
+  if (matchMedia("(max-width: 700px)").matches && favorites.length) {
+    const nextIndex = Math.max(0, favorites.findIndex((stock) => stock.symbol === previousSymbol));
+    scrollToCarouselCard("institutions", nextIndex, "instant");
+  }
+  updateCarouselControls("institutions");
 }
 
 
@@ -304,7 +372,10 @@ function renderTable() {
     .map((stock) => {
       const { latest: bar, signal } = stock;
       const favorite = state.favorites.includes(stock.symbol);
-      return `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell"><span class="stock-close">${number(bar.close, 2)}</span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}">${bar.institutionalNet === null ? "—" : signed(bar.institutionalNet / 1000, 0)}</td></tr>`;
+      const leader = getDominantInstitution(bar.institutions);
+      const leaderLabel = bar.institutionalNet === null ? "資料不足" : !leader ? "合計持平"
+        : `${leader.names.join("、")}${leader.direction === "buy" ? "買超" : "賣超"}最多`;
+      return `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell"><span class="stock-close">${number(bar.close, 2)}</span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}"><span class="institution-net">${bar.institutionalNet === null ? "—" : signed(bar.institutionalNet / 1000, 0)}</span><small class="institution-leader">${leaderLabel}</small></td></tr>`;
     })
     .join("");
   document.querySelector("#table-empty").hidden = visibleStocks.length !== 0;
@@ -432,6 +503,13 @@ function bindEvents() {
       state.overview = button.dataset.overview;
       renderOverviewVisibility();
     }
+    if (button.dataset.carouselStep) {
+      const kind = button.closest("[data-carousel]").dataset.carousel;
+      const count = carouselParts(kind).cards.length;
+      scrollToCarouselCard(kind, Math.max(0, Math.min(count - 1,
+        carouselIndex(kind) + Number(button.dataset.carouselStep))),
+      matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
+    }
     if (button.dataset.institutionWindow) {
       state.institutionWindow = button.dataset.institutionWindow;
       renderInstitutionOverview();
@@ -502,6 +580,15 @@ function bindEvents() {
     state.query = event.target.value;
     renderTable();
   });
+  for (const kind of Object.keys(carouselConfig)) {
+    const { grid, controls, symbol } = carouselParts(kind);
+    grid.addEventListener("scroll", () => updateCarouselControls(kind), { passive: true });
+    controls.querySelector("[data-carousel-jump]").addEventListener("change", (event) => {
+      const cards = carouselParts(kind).cards;
+      scrollToCarouselCard(kind, cards.findIndex((card) => card.dataset[symbol] === event.target.value),
+        matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
+    });
+  }
   document
     .querySelector("#sector-filter")
     .addEventListener("change", (event) => {

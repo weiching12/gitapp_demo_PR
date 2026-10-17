@@ -851,8 +851,7 @@ tbody th {
   color: #2b4365;
 }
 .stock-close,
-.stock-volume,
-.column-hint {
+.stock-volume {
   display: block;
 }
 .stock-volume {
@@ -860,9 +859,15 @@ tbody th {
   color: var(--muted);
   white-space: nowrap;
 }
-.column-hint {
-  margin-top: 2px;
+.institution-net,
+.institution-leader {
+  display: block;
+}
+.institution-leader {
+  margin-top: 4px;
   color: var(--muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .stock-name > span {
   letter-spacing: 0.7px;
@@ -1726,6 +1731,9 @@ dialog h2 {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
   gap: 18px;
 }
+.watchlist-carousel-controls {
+  display: none;
+}
 .watch-card {
   min-width: 0;
   display: flex;
@@ -2195,7 +2203,7 @@ dialog.institution-dialog {
   color: #64748b;
 }
 .institution-overview-note {
-  margin: 12px 0 16px;
+  margin: 14px 0 0;
 }
 .institution-window {
   display: flex;
@@ -2220,6 +2228,7 @@ dialog.institution-dialog {
 .institution-overview-rows {
   display: grid;
   gap: 12px;
+  margin-top: 16px;
 }
 .institution-overview-row {
   display: grid;
@@ -2432,7 +2441,7 @@ dialog.institution-dialog {
     box-shadow: 0 3px 10px #172f5010;
   }
   .institution-window button { flex: 1; min-width: 0; }
-  .institution-overview-note { margin-bottom: 12px; }
+  .institution-overview-note { margin: 2px 12px 0; }
   .institution-overview-row { grid-template-columns: 1fr; gap: 12px; padding: 14px; background: #fff; }
   .institution-overview-row > header { flex-direction: row; justify-content: space-between; align-items: center; }
   .institution-overview-row > header > div { display: flex; flex-direction: column; min-width: 0; }
@@ -2580,13 +2589,82 @@ dialog.institution-dialog {
   }
 }
 @media (max-width: 700px) {
+  .watchlist-carousel-controls:not([hidden]) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: var(--text-secondary);
+  }
+  .watchlist-carousel-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .watchlist-carousel-actions select {
+    min-height: 44px;
+    max-width: 130px;
+  }
+  .watchlist-carousel-actions .icon-button {
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    background: #fff;
+  }
+  .watchlist-carousel-actions [data-carousel-step="-1"] .icon { transform: rotate(180deg); }
+  .watchlist-carousel-actions .icon-button:disabled { opacity: .4; cursor: default; }
+  .watchlist-grid,
+  .institution-overview-rows {
+    display: flex;
+    gap: 12px;
+    margin-top: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 12px;
+    padding: 2px 12px 12px;
+    scrollbar-width: none;
+  }
+  #institution-carousel-controls {
+    margin-top: 12px;
+  }
+  .watchlist-grid::-webkit-scrollbar,
+  .institution-overview-rows::-webkit-scrollbar { display: none; }
+  .watchlist-grid .watch-card,
+  .institution-overview-rows .institution-overview-row {
+    flex: 0 0 calc(100% - 12px);
+    scroll-snap-align: start;
+  }
+  .watch-card .metrics {
+    grid-auto-rows: 1fr;
+  }
+  .watch-card .metric-card {
+    display: grid;
+    grid-template-rows: minmax(40px, auto) minmax(50px, auto) minmax(44px, auto);
+    row-gap: 4px;
+  }
+  .watch-card .metric-label,
+  .watch-card .metric-description {
+    margin: 0;
+  }
+  .watch-card .metric-value {
+    flex: initial;
+    align-content: center;
+  }
+  .watch-card .metric-description {
+    align-content: end;
+  }
   .table-scroll {
     --table-favorite-width: 44px;
     --table-stock-width: clamp(72px, 21vw, 88px);
+    --table-net-width: 132px;
   }
   .table-scroll table {
     table-layout: fixed;
-    width: calc(var(--table-favorite-width) + var(--table-stock-width) + 92px + 80px + 72px + 210px + 112px + 160px);
+    width: calc(var(--table-favorite-width) + var(--table-stock-width) + 92px + 80px + 72px + 210px + 112px + var(--table-net-width));
     min-width: 0;
   }
   .favorite-column { width: var(--table-favorite-width); }
@@ -2596,7 +2674,7 @@ dialog.institution-dialog {
   .kd-column { width: 72px; }
   .signal-column { width: 210px; }
   .position-column { width: 112px; }
-  .net-column { width: 160px; }
+  .net-column { width: var(--table-net-width); }
   .table-scroll thead th,
   .table-scroll tbody td,
   .table-scroll tbody th {

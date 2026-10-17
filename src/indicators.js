@@ -64,6 +64,20 @@ export function getInstitutionalNet(institutions) {
   return values.every(Number.isFinite) ? values.reduce((sum, n) => sum + n, 0) : null;
 }
 
+export function getDominantInstitution(institutions) {
+  const total = getInstitutionalNet(institutions);
+  if (total === null || total === 0) return null;
+  const values = ["外資", "投信", "自營商"].map((name) => {
+    const item = institutions.find((row) => row.name === name);
+    return { name, net: item.buy - item.sell };
+  });
+  const extreme = total > 0
+    ? Math.max(...values.map((item) => item.net))
+    : Math.min(...values.map((item) => item.net));
+  return { names: values.filter((item) => item.net === extreme).map((item) => item.name),
+    direction: total > 0 ? "buy" : "sell" };
+}
+
 export function getSnapshot(stock, asOf, settings) {
   const history = analyzeHistory(
     stock.history.filter((bar) => bar.date <= asOf),
