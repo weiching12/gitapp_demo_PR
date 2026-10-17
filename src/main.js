@@ -6,6 +6,8 @@ import {
   getSnapshot,
   filterStocks,
   getDominantInstitution,
+  getDirectionalLeader,
+  getInstitutionNet,
 } from "./indicators.js";
 
 const icons = {
@@ -23,7 +25,6 @@ const icons = {
     '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
-  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
 };
 const icon = (name, cls = "") =>
   `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] ?? icons.chart}</svg>`;
@@ -78,7 +79,7 @@ const state = {
   institutionSymbol: null,
   settings: { ...DEFAULT_SETTINGS },
 };
-let dataset, snapshots, visibleStocks;
+let dataset, snapshots;
 let toastTimer;
 let isDemo;
 
@@ -337,11 +338,8 @@ function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
     const total = day ? bar.institutionalNet : summary.total[`net${state.institutionWindow}`];
     const metric = (name, value, streak = "") => `<div class="overview-metric${name === "total" ? " overview-total" : ""}"><dt>${name === "total" ? "合計買賣超" : esc(name)}</dt><dd class="${direction(value)}" data-overview-net="${name}">${institutionalAmount(value)}</dd>${streak}</div>`;
     return `<article class="institution-overview-row" data-overview-symbol="${stock.symbol}" aria-labelledby="overview-name-${stock.symbol}"><header><div><span class="overview-stock-code">${stock.symbol} · ${esc(stock.market)}</span><h4 id="overview-name-${stock.symbol}">${esc(stock.name)}</h4></div><button class="overview-detail-button" data-institution-details="${stock.symbol}" aria-label="查看${esc(stock.name)}三大法人動向" aria-haspopup="dialog" aria-controls="institution-dialog">明細 ${icon("chevron")}</button></header><dl class="institution-overview-metrics">${metric("total", total)}${["外資", "投信", "自營商"].map((name) => {
-      const rows = bar.institutions.filter((item) => item.name === name);
-      const current = rows.length === 1 && [rows[0].buy, rows[0].sell].every(Number.isFinite)
-        ? rows[0].buy - rows[0].sell : null;
       const stats = summary.institutions[name];
-      const value = day ? current : stats[`net${state.institutionWindow}`];
+      const value = day ? getInstitutionNet(bar.institutions, name) : stats[`net${state.institutionWindow}`];
       const streak = name === "自營商" ? "" : `<span class="watch-streak ${stats.streak.direction}" data-overview-streak="${name}">${institutionalStreak(stats.streak)}</span>`;
       return metric(name, value, streak);
     }).join("")}</dl></article>`;
@@ -357,8 +355,7 @@ function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
 function stockInstitutionValue(stock, name, window) {
   if (window === "day") {
     if (name === "total") return stock.latest.institutionalNet;
-    const row = stock.latest.institutions.find((item) => item.name === name);
-    return row && Number.isFinite(row.buy) && Number.isFinite(row.sell) ? row.buy - row.sell : null;
+    return getInstitutionNet(stock.latest.institutions, name);
   }
   const key = `net${window}`;
   return name === "total" ? stock.institutionalSummary.total[key]
@@ -406,16 +403,17 @@ function renderSectorOverview() {
     ? "當日平均漲跌" : `${days} 日平均漲跌`;
   const maxAmount = Math.max(1, ...sectors.map((sector) => Math.abs(sector.total ?? 0)));
   document.querySelector("#sector-grid").innerHTML = sectors.map((sector, index) => {
-    const members = [...sector.stocks].sort((a, b) => {
-      const av = stockInstitutionValue(a, "total", state.sectorWindow);
-      const bv = stockInstitutionValue(b, "total", state.sectorWindow);
-      if (av === null) return bv === null ? 0 : 1;
-      if (bv === null) return -1;
-      return (bv - av) * (state.sectorSort === "net-asc" ? -1 : 1);
-    });
-    const leader = members[0];
-    const leaderValue = leader ? stockInstitutionValue(leader, "total", state.sectorWindow) : null;
-    const leaderInstitution = leader?.latest ? getDominantInstitution(leader.latest.institutions) : null;
+    const candidates = sector.stocks.map((stock) => ({
+      stock,
+      value: stockInstitutionValue(stock, "total", state.sectorWindow),
+    }));
+    const { stock: leader, value: leaderValue } = getDirectionalLeader(candidates, sector.total);
+    const leaderFlows = leader ? ["外資", "投信", "自營商"].map((name) => {
+      const net = stockInstitutionValue(leader, name, state.sectorWindow);
+      return { name, buy: net === null ? null : Math.max(0, net),
+        sell: net === null ? null : Math.max(0, -net) };
+    }) : [];
+    const leaderInstitution = getDominantInstitution(leaderFlows);
     const periodLabel = days === 1 ? "當日" : `${days} 日`;
     const leaderText = leaderValue === null ? "資料不足" : leaderValue === 0 ? "買賣持平"
       : `${leaderValue > 0 ? "買最多" : "賣最多"} ${leader.name}${leaderInstitution?.names?.length ? ` · ${leaderInstitution.names.join("、")}` : ""}`;
@@ -462,7 +460,7 @@ function openInstitutionDialog(symbol) {
 }
 
 function renderTable() {
-  visibleStocks = filterStocks(snapshots, state);
+  const visibleStocks = filterStocks(snapshots, state);
   if (state.sort)
     visibleStocks.sort((a, b) => {
       const av = a.latest[state.sort],
@@ -490,15 +488,6 @@ function renderTable() {
     const active = button.dataset.view === state.view;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", active);
-  });
-  document.querySelectorAll("[data-nav]").forEach((button) => {
-    const active =
-      button.dataset.nav === "favorites"
-        ? state.view === "favorites"
-        : state.view !== "favorites";
-    button.classList.toggle("active", active);
-    if (active) button.setAttribute("aria-current", "page");
-    else button.removeAttribute("aria-current");
   });
   document
     .querySelectorAll("[data-sort-heading]")
@@ -531,7 +520,7 @@ function technicalSignalGuide() {
 function openDialog(type) {
   const content = document.querySelector("#dialog-content");
   if (type === "settings") {
-    content.innerHTML = `<h2 id="dialog-heading">讓指標符合你的觀察習慣</h2><p class="dialog-intro">調整後，圖表與觀察清單會一起重新計算。設定會保存在這個瀏覽器。</p><form id="settings-form"><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 儲存並重新計算</button></div></form>`;
+    content.innerHTML = `<h2 id="dialog-heading">讓指標符合你的觀察習慣</h2><p class="dialog-intro">調整後，自選總覽與市場觀察清單會一起重新計算。設定會保存在這個瀏覽器。</p><form id="settings-form"><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 儲存並重新計算</button></div></form>`;
   } else if (type === "signals") {
     content.innerHTML = `<h2 id="dialog-heading">KD 技術建議怎麼看？</h2>${technicalSignalGuide()}`;
   } else if (type === "source" && !isDemo) {

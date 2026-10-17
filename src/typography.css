@@ -95,7 +95,6 @@ tbody td {
 }
 
 /* Secondary copy: descriptions and labels have one shared reading size. */
-.panel-subtitle,
 .page-heading p,
 .watchlist-heading p,
 .metric-label,
@@ -134,7 +133,6 @@ tbody td {
   font-size: var(--text-secondary);
   line-height: var(--leading-reading);
 }
-.panel-subtitle,
 .metric-description,
 .date-control > span,
 .helper-text {

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import worker, { refreshStock, scheduledStock } from "../cloudflare/worker.js";
 import { fetchStock, normalizeHistory, stockKey, taipeiDate } from "../cloudflare/finmind.js";
 import { STOCK_CATALOG } from "../src/catalog.js";
@@ -28,14 +29,18 @@ test("150-symbol catalog is unique and includes existing stocks, OTC stock, and 
     assert.ok(STOCK_CATALOG.some((stock) => stock.symbol === symbol));
 });
 
-test("scheduled stock slots cover all 150 symbols once from Taipei 21:00 through 23:29", () => {
-  const slots = Array.from({ length: 150 }, (_, slot) => {
-    const hour = 13 + Math.floor(slot / 60);
-    const minute = slot % 60;
-    return scheduledStock(new Date(Date.UTC(2026, 9, 19, hour, minute)));
-  });
+test("Cron triggers exactly 150 stock slots once from Taipei 21:00 through 23:29", () => {
+  const config = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+  assert.deepEqual(config.triggers.crons, ["* 13-14 * * mon-fri", "0-29 15 * * mon-fri"]);
+  const scheduledTimes = [
+    ...[13, 14].flatMap((hour) => Array.from({ length: 60 }, (_, minute) => [hour, minute])),
+    ...Array.from({ length: 30 }, (_, minute) => [15, minute]),
+  ];
+  const slots = scheduledTimes.map(([hour, minute]) =>
+    scheduledStock(new Date(Date.UTC(2026, 9, 19, hour, minute))));
   assert.deepEqual(slots.map(({ symbol }) => symbol), STOCK_CATALOG.map(({ symbol }) => symbol));
-  assert.equal(scheduledStock(new Date("2026-10-19T15:30:00Z")), null);
+  for (let minute = 30; minute < 60; minute++)
+    assert.equal(scheduledStock(new Date(Date.UTC(2026, 9, 19, 15, minute))), null);
   assert.equal(scheduledStock(new Date("2026-10-19T12:59:00Z")), null);
 });
 
@@ -69,6 +74,13 @@ test("No-trade sessions with zero OHLC are skipped while partial zero rows remai
   assert.throws(() => normalizeHistory(symbol, [{ ...noTrade, close: 100 }], []), /OHLC|volume/);
 });
 
+test("Dealer component totals must remain safe integer share counts", () => {
+  const rows = flows().map((row) => ({ ...row }));
+  rows.find((row) => row.name === "Dealer_self").buy = Number.MAX_SAFE_INTEGER;
+  rows.find((row) => row.name === "Dealer_Hedging").buy = 1;
+  assert.throws(() => normalizeHistory(symbol, [price()], rows), /dealer share total/);
+});
+
 test("Dates follow Taiwan time across the UTC day boundary", () => {
   assert.equal(taipeiDate(new Date("2026-10-16T17:00:00Z")), "2026-10-17");
 });
@@ -97,6 +109,20 @@ test("All stocks share a complete selected day while earlier missing sessions re
   assert.ok(dataset.info.asOf < newest);
   assert.ok(dataset.dates.every((date) => date <= dataset.info.asOf));
   assert.equal(dataset.stocks.length, 150);
+});
+
+test("Cached stock snapshots reject malformed dates, prices, institutions and timestamps", () => {
+  const mutations = [
+    (payload) => { payload.stock.history[1].date = payload.stock.history[0].date; },
+    (payload) => { payload.stock.history[0].close = null; },
+    (payload) => { payload.stock.history[0].institutions[0].buy = -1; },
+    (payload) => { payload.updatedAt = "not-a-timestamp"; },
+  ];
+  for (const mutate of mutations) {
+    const payloads = structuredClone(STOCK_CATALOG.map((stock) => snapshot(stock)));
+    mutate(payloads[0]);
+    assert.throws(() => combineSnapshots(payloads), /Invalid stock snapshot/);
+  }
 });
 
 test("API loads fail explicitly without demo fallback", async () => {

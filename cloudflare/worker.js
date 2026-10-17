@@ -21,7 +21,7 @@ export function scheduledStock(scheduledTime) {
   const hour = scheduled.getUTCHours();
   if (hour < 13 || hour > 15) return null;
   const slot = (hour - 13) * 60 + scheduled.getUTCMinutes();
-  return STOCK_CATALOG[slot] ?? null;
+  return slot >= 0 && slot < STOCK_CATALOG.length ? STOCK_CATALOG[slot] : null;
 }
 
 export default {

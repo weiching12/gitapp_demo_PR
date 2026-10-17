@@ -80,12 +80,6 @@ button .icon {
 .neutral {
   color: #5c6d84;
 }
-.muted {
-  color: var(--muted);
-}
-.dark-text {
-  color: #263b59;
-}
 .sr-only {
   position: absolute;
   width: 1px;
@@ -253,12 +247,14 @@ button .icon {
   margin-left: var(--sidebar);
 }
 .topbar {
-  height: 72px;
+  min-height: 56px;
+  height: auto;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 34px;
+  padding: 12px 34px;
+  gap: 16px;
   background: #f9fafc;
 }
 .breadcrumb {
@@ -339,6 +335,8 @@ h1 {
   display: grid;
   grid-template-columns: 1fr;
   gap: 7px;
+  flex-shrink: 0;
+  max-width: 260px;
 }
 .date-control label {
   color: #73849d;
@@ -361,6 +359,7 @@ h1 {
 }
 .date-control > span {
   color: #8493a9;
+  max-width: 260px;
 }
 .icon-button {
   display: inline-grid;
@@ -385,15 +384,6 @@ h1 {
 .favorite-button.is-favorite .icon {
   fill: #d8c38a;
   stroke: #ae9559;
-}
-.market-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #62738c;
-}
-.market-label .muted {
-  margin-left: 3px;
 }
 .metrics {
   display: grid;
@@ -482,11 +472,6 @@ h1 {
   margin-top: 15px;
 }
 .metric-detail {
-  white-space: nowrap;
-}
-.metric-separator {
-  color: #b6c0cd;
-  margin: 0 1px;
 }
 .indicator-tag {
   color: #8d855f;
@@ -502,96 +487,16 @@ h1 {
 .quarter-card .metric-label {
   color: #5d6e86;
 }
-.position-arrow {
-  margin-left: auto;
-  opacity: 0.5;
-}
-.analysis-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2.3fr) minmax(265px, 1fr);
-  gap: 20px;
-  margin-bottom: 25px;
-  align-items: stretch;
-}
 .panel {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 8px;
   min-width: 0;
 }
-.panel-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 21px 17px;
-  gap: 12px;
-}
-.panel-heading h2 {
-  letter-spacing: 0.3px;
-  margin: 0 0 6px;
-}
-.panel-subtitle {
-  color: #8191a8;
-  letter-spacing: 0.3px;
-}
-.flow-panel .panel-heading {
-  padding-bottom: 13px;
-}
-.unit-label {
-  color: #8493a9;
-  white-space: nowrap;
-}
-.flow-total {
-  margin: 0 20px;
-  background: #f1f3f7;
-  border: 1px solid #dfe5ee;
-  border-radius: 5px;
-  padding: 15px 14px 13px;
-}
-.flow-total > span {
-  color: #6c7f99;
-  display: block;
-}
-.flow-total strong {
-  display: block;
-  letter-spacing: -0.7px;
-  font-variant-numeric: tabular-nums;
-}
-.flow-total small {
-  color: #6d809a;
-  letter-spacing: 0;
-}
-.flow-total > div {
-  display: flex;
-  justify-content: space-between;
-  color: #75869f;
-  padding-top: 6px;
-  border-top: 1px solid #d9e0ea;
-  gap: 10px;
-}
-.flow-key {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  color: #7a8ba2;
-  padding: 13px 21px 3px;
-}
-.flow-key span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.flow-key i {
-  width: 6px;
-  height: 6px;
-  border-radius: 1px;
-}
-.buy-key,
-.flow-bar.buy {
+.buy-key {
   background: #c4867a;
 }
-.sell-key,
-.flow-bar.sell {
+.sell-key {
   background: #6b9b89;
 }
 .institution {
@@ -609,42 +514,6 @@ h1 {
 }
 .institution-heading > span {
   font-variant-numeric: tabular-nums;
-}
-.flow-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 40px;
-  margin-top: 5px;
-  height: 9px;
-  position: relative;
-}
-.flow-bar {
-  display: block;
-  max-width: 100%;
-  height: 5px;
-  border-radius: 1px;
-  opacity: 0.8;
-}
-.flow-bar-row > span:last-child {
-  color: #72849d;
-  position: absolute;
-  right: 0;
-  font-variant-numeric: tabular-nums;
-}
-.flow-note {
-  margin: 15px 21px 16px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #8090a7;
-  white-space: nowrap;
-}
-.flow-note .icon {
-  width: 12px;
-  height: 12px;
 }
 .stocks-panel {
   overflow: hidden;
@@ -709,7 +578,8 @@ h1 {
   border: 1px solid #d7dfea;
   border-radius: 4px;
   padding: 7px 9px;
-  max-width: 200px;
+  max-width: 300px;
+  min-height: 44px;
   min-width: 120px;
   background: #fbfcfd;
 }
@@ -746,7 +616,8 @@ h1 {
   padding: 7px 21px 7px 8px;
   color: #70829c;
   background: #fff;
-  max-width: 125px;
+  max-width: 180px;
+  min-height: 44px;
 }
 .table-scroll {
   overflow-x: auto;
@@ -811,15 +682,6 @@ tbody td:nth-child(9) {
 }
 tbody tr:hover {
   background: #f6f8fa;
-}
-tbody tr.selected-row {
-  background: var(--accent-soft);
-}
-tbody tr.selected-row th {
-  position: relative;
-}
-tbody tr.selected-row td:first-child {
-  box-shadow: inset 3px 0 var(--accent);
 }
 tbody th {
   text-align: left;
@@ -886,7 +748,8 @@ tbody th {
   flex-direction: column;
   align-items: stretch;
   gap: 5px;
-  width: 38px;
+  width: auto;
+  min-width: 44px;
 }
 .k-cell i {
   display: block;
@@ -1094,7 +957,8 @@ dialog h2 {
 }
 .source-details > div {
   display: grid;
-  grid-template-columns: 112px 1fr;
+  grid-template-columns: minmax(80px, 112px) minmax(0, 1fr);
+  gap: 12px;
   border-bottom: 1px solid #e3e8f0;
   padding: 14px 0;
 }
@@ -1214,27 +1078,14 @@ dialog h2 {
     padding: 42px 42px 0;
   }
   .topbar {
-    padding: 0 42px;
+    padding: 12px 42px;
   }
   .metric-card {
     padding: 22px;
   }
-  .analysis-grid {
-    grid-template-columns: minmax(0, 2.45fr) minmax(300px, 1fr);
-  }
   .institution {
     padding-top: 16px;
     padding-bottom: 16px;
-  }
-  .flow-total {
-    padding-top: 20px;
-    padding-bottom: 20px;
-  }
-  .flow-key {
-    padding-top: 18px;
-  }
-  .flow-note {
-    margin-top: 19px;
   }
 }
 @media (max-width: 1250px) {
@@ -1263,7 +1114,7 @@ dialog h2 {
     margin-left: 14px;
   }
   .topbar {
-    padding: 0 24px;
+    padding: 12px 24px;
   }
   main {
     padding: 28px 24px 0;
@@ -1283,22 +1134,8 @@ dialog h2 {
   .metric-description {
     gap: 4px;
   }
-  .analysis-grid {
-    gap: 15px;
-    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
-  }
-  .panel-heading {
-    padding: 18px 17px 15px;
-  }
-  .flow-total {
-    margin: 0 17px;
-  }
   .institution {
     padding: 10px 17px;
-  }
-  .flow-note {
-    margin-left: 17px;
-    margin-right: 17px;
   }
   .table-toolbar {
     align-items: flex-start;
@@ -1306,9 +1143,6 @@ dialog h2 {
   }
   .search-controls {
     width: 100%;
-  }
-  .search-box {
-    max-width: 250px;
   }
 }
 @media (max-width: 1000px) {
@@ -1345,12 +1179,6 @@ dialog h2 {
   .sidebar-bottom .nav-item {
     margin: 0;
   }
-  .topbar {
-    height: 63px;
-  }
-  .analysis-grid {
-    grid-template-columns: minmax(0, 1.8fr) minmax(255px, 1fr);
-  }
   .metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1359,39 +1187,14 @@ dialog h2 {
   }
 }
 @media (max-width: 760px) {
-  .analysis-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .flow-panel .panel-heading {
-    padding: 20px;
-  }
-  .flow-total {
-    margin: 0 20px;
-    padding: 15px;
-  }
-  .flow-total > div {
-    justify-content: flex-start;
-    gap: 28px;
-  }
-  .flow-key {
-    padding-right: 20px;
-  }
   .institution {
     padding: 12px 20px;
-  }
-  .flow-note {
-    margin: 15px 20px 18px;
-  }
-  .flow-bar-row {
-    height: 10px;
-    padding-right: 60px;
   }
   .page-heading {
     gap: 20px;
     align-items: flex-start;
   }
   .date-control {
-    max-width: 160px;
     margin-top: 7px;
   }
   .date-control select {
@@ -1431,7 +1234,7 @@ dialog h2 {
     padding: 8px;
   }
   .search-box {
-    max-width: none;
+    max-width: 300px;
     flex: 1;
   }
   .search-controls {
@@ -1495,8 +1298,7 @@ dialog h2 {
     margin-right: 6px;
   }
   .topbar {
-    height: 43px;
-    padding: 0 18px;
+    padding: 12px 18px;
   }
   .breadcrumb {
     gap: 9px;
@@ -1533,23 +1335,12 @@ dialog h2 {
     letter-spacing: 1px;
   }
   .date-control {
-    max-width: 145px;
     margin-top: 2px;
     gap: 7px;
   }
   .date-control select {
     padding: 8px 15px 8px 8px;
     letter-spacing: 0;
-  }
-  .market-label {
-    gap: 0;
-  }
-  .market-label .status-dot {
-    width: 5px;
-    height: 5px;
-  }
-  .market-label .muted {
-    display: none;
   }
   .metrics {
     gap: 9px;
@@ -1580,38 +1371,11 @@ dialog h2 {
   .indicator-tag {
     padding: 4px 3px;
   }
-  .metric-separator {
-    margin: 0;
-  }
   .panel {
     border-radius: 6px;
   }
-  .panel-heading {
-    padding: 18px 14px 13px;
-  }
-  .analysis-grid {
-    gap: 17px;
-    margin-bottom: 17px;
-  }
-  .flow-panel .panel-heading {
-    padding: 18px 15px 13px;
-  }
-  .flow-total {
-    margin: 0 15px;
-    padding: 14px;
-  }
-  .flow-total > div {
-    gap: 23px;
-  }
-  .flow-key {
-    padding-right: 15px;
-    padding-top: 13px;
-  }
   .institution {
     padding: 11px 15px;
-  }
-  .flow-note {
-    margin: 13px 15px 16px;
   }
   .outline-button {
     padding: 7px 9px;
@@ -1644,7 +1408,6 @@ dialog h2 {
     display: none;
   }
   #sector-filter {
-    max-width: 95px;
     padding: 8px 14px 8px 6px;
   }
   .table-footer {
@@ -1684,7 +1447,7 @@ dialog h2 {
 .watchlist-heading {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
   margin-bottom: 19px;
 }
@@ -1755,6 +1518,7 @@ dialog h2 {
   border-radius: 6px;
   background: #f8fafc;
   border-color: #e9eef5;
+  overflow: visible;
 }
 .watch-card .metric-label {
   margin-bottom: 4px;
@@ -2016,7 +1780,7 @@ dialog.institution-dialog {
   margin-top: 18px;
 }
 .institution-dialog .watch-institutions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
 }
 .institution-dialog .watch-institution {
   min-width: 0;
@@ -2160,11 +1924,8 @@ dialog.institution-dialog {
   background: #fff;
 }
 .institution-overview-note {
-  margin: 0;
-  color: #64748b;
-}
-.institution-overview-note {
   margin: 14px 0 0;
+  color: #64748b;
 }
 .institution-window {
   display: flex;
@@ -2206,7 +1967,7 @@ dialog.institution-dialog {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
 }
 .overview-stock-code {
@@ -2259,7 +2020,7 @@ dialog.institution-dialog {
 .overview-metric dd {
   margin: 0;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .overview-metric .watch-streak {
   display: inline-block;
@@ -2360,7 +2121,7 @@ dialog.institution-dialog {
   }
   .sidebar nav .nav-item {
     width: 100%;
-    min-width: 44px;
+    min-width: 48px;
     height: auto;
     min-height: 48px;
     flex-direction: column;
@@ -2473,45 +2234,17 @@ dialog.institution-dialog {
 
 /* Layout follows the shared type scale; narrow screens wrap instead of shrinking copy. */
 .page-heading > div:first-child,
-.watchlist-heading > div,
-.panel-heading > div {
+.watchlist-heading > div {
   min-width: 0;
-}
-.date-control {
-  flex-shrink: 0;
-  max-width: 260px;
-}
-.date-control > span {
-  max-width: 260px;
-}
-.topbar {
-  min-height: 56px;
-  height: auto;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  gap: 16px;
 }
 .topbar-actions,
 .breadcrumb,
 .watchlist-heading,
-.panel-heading,
 .watch-signal {
   flex-wrap: wrap;
 }
-.watchlist-heading {
-  align-items: flex-start;
-}
 .watchlist-heading > div {
   flex: 1 1 230px;
-}
-.panel-subtitle {
-  display: block;
-}
-.metric-detail {
-  white-space: normal;
-}
-.watch-card .metric-card {
-  overflow: visible;
 }
 .watch-signal .signal-reason {
   flex: 1 1 160px;
@@ -2528,27 +2261,8 @@ dialog.institution-dialog {
 .icon-button {
   min-width: 44px;
 }
-.search-box {
-  min-height: 44px;
-  max-width: 300px;
-}
-#sector-filter {
-  max-width: 180px;
-  min-height: 44px;
-}
-.k-cell {
-  width: auto;
-  min-width: 44px;
-}
 .signal-cell .signal-reason {
   max-width: 300px;
-}
-.institution-dialog .watch-institutions {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-}
-.source-details > div {
-  grid-template-columns: minmax(80px, 112px) minmax(0, 1fr);
-  gap: 12px;
 }
 .source-details dd,
 .guide-item code {
@@ -2557,16 +2271,7 @@ dialog.institution-dialog {
 .form-field {
   flex-wrap: wrap;
 }
-.overview-metric dd {
-  overflow-wrap: normal;
-}
-.institution-overview-row > header {
-  gap: 8px;
-}
 @media (max-width: 1100px) {
-  .sidebar nav .nav-item {
-    min-width: 48px;
-  }
   .institution-overview-row {
     grid-template-columns: 1fr;
   }
@@ -2574,11 +2279,6 @@ dialog.institution-dialog {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-  }
-}
-@media (max-width: 360px) {
-  .sidebar nav .nav-item {
-    min-width: 44px;
   }
 }
 @media (max-width: 700px) {
@@ -2816,8 +2516,8 @@ dialog.institution-dialog {
   border-radius: 50%;
   background: #94a3b8;
 }
-.sector-marker.positive { background: #d76549; }
-.sector-marker.negative { background: #527eb8; }
+.sector-marker.up { background: var(--up); }
+.sector-marker.down { background: var(--down); }
 .sector-identity { min-width: 0; }
 .sector-identity h3 { margin: 0 0 7px; }
 .sector-identity p {
@@ -2848,8 +2548,8 @@ dialog.institution-dialog {
   border-radius: 999px;
   background: #94a3b8;
 }
-.sector-ranking .sector-total i.positive { background: #d76549; }
-.sector-ranking .sector-total i.negative { background: #527eb8; }
+.sector-ranking .sector-total i.up { background: var(--up); }
+.sector-ranking .sector-total i.down { background: var(--down); }
 
 @media (max-width: 700px) {
   .sector-ranking {

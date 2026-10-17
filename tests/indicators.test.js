@@ -6,6 +6,7 @@ import {
   getTechnicalSignal,
   getInstitutionalSummary,
   getDominantInstitution,
+  getDirectionalLeader,
   filterStocks,
 } from "../src/indicators.js";
 import { demoProvider } from "../src/data.js";
@@ -25,6 +26,20 @@ test("dominant institution follows the total net direction and handles ties", ()
     { names: ["外資", "投信"], direction: "sell" });
   assert.equal(getDominantInstitution(entries(100, -100, 0)), null);
   assert.equal(getDominantInstitution(entries(100, -100, 0).slice(0, 2)), null);
+});
+
+test("sector leaders follow aggregate buy or sell direction, independent of page sorting", () => {
+  const candidates = [
+    { stock: "mild-buyer", value: 12 },
+    { stock: "strong-buyer", value: 80 },
+    { stock: "mild-seller", value: -7 },
+    { stock: "strong-seller", value: -45 },
+    { stock: "missing", value: null },
+  ];
+  assert.deepEqual(getDirectionalLeader(candidates, 20), { stock: "strong-buyer", value: 80 });
+  assert.deepEqual(getDirectionalLeader(candidates, -20), { stock: "strong-seller", value: -45 });
+  assert.deepEqual(getDirectionalLeader(candidates, 0), { stock: "strong-buyer", value: 80 });
+  assert.deepEqual(getDirectionalLeader([{ stock: "missing", value: null }], null), { stock: null, value: null });
 });
 const bar = (close, date = "2026-10-01") => ({
   date,

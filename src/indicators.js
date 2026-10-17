@@ -54,13 +54,16 @@ export function analyzeHistory(history, settings = DEFAULT_SETTINGS) {
     };
   });
 }
+export function getInstitutionNet(institutions, name) {
+  const rows = Array.isArray(institutions)
+    ? institutions.filter((item) => item?.name === name) : [];
+  const item = rows[0];
+  return rows.length === 1 && [item.buy, item.sell].every((n) => Number.isFinite(n) && n >= 0)
+    ? item.buy - item.sell : null;
+}
+
 export function getInstitutionalNet(institutions) {
-  const values = ["外資", "投信", "自營商"].map((name) => {
-    const rows = institutions?.filter((item) => item.name === name) ?? [];
-    const item = rows[0];
-    return rows.length === 1 && [item.buy, item.sell].every((n) => Number.isFinite(n) && n >= 0)
-      ? item.buy - item.sell : null;
-  });
+  const values = ["外資", "投信", "自營商"].map((name) => getInstitutionNet(institutions, name));
   return values.every(Number.isFinite) ? values.reduce((sum, n) => sum + n, 0) : null;
 }
 
@@ -76,6 +79,18 @@ export function getDominantInstitution(institutions) {
     : Math.min(...values.map((item) => item.net));
   return { names: values.filter((item) => item.net === extreme).map((item) => item.name),
     direction: total > 0 ? "buy" : "sell" };
+}
+
+/** Pick the strongest same-direction stock for an aggregate sector flow. */
+export function getDirectionalLeader(candidates, total) {
+  let leader = null;
+  const direction = total < 0 ? 1 : -1;
+  for (const candidate of candidates) {
+    if (!Number.isFinite(candidate?.value)) continue;
+    if (!leader || (candidate.value - leader.value) * direction < 0)
+      leader = candidate;
+  }
+  return leader ?? { stock: null, value: null };
 }
 
 export function getSnapshot(stock, asOf, settings) {
@@ -99,13 +114,7 @@ export function getInstitutionalSummary(history) {
   const totals = [];
   for (const bar of history) {
     const daily = names.map((name) => {
-      const entries = Array.isArray(bar.institutions)
-        ? bar.institutions.filter((item) => item?.name === name)
-        : [];
-      const item = entries[0];
-      const net = entries.length === 1 &&
-        [item.buy, item.sell].every((n) => Number.isFinite(n) && n >= 0)
-        ? item.buy - item.sell : null;
+      const net = getInstitutionNet(bar.institutions, name);
       series[name].push(net);
       return net;
     });

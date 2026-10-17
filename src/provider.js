@@ -1,7 +1,19 @@
 import { STOCK_CATALOG } from "./catalog.js";
+import { getInstitutionNet, getInstitutionalNet } from "./indicators.js";
 
-const complete = (bar) => ["外資", "投信", "自營商"].every((name) =>
-  bar.institutions.some((item) => item.name === name));
+const complete = (bar) => getInstitutionalNet(bar.institutions) !== null;
+const validDate = (date) => typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+  Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
+
+function validHistory(history) {
+  return Array.isArray(history) && history.length > 0 && history.every((bar, index) =>
+    bar && validDate(bar.date) && (index === 0 || history[index - 1].date < bar.date) &&
+    [bar.open, bar.high, bar.low, bar.close].every((value) => Number.isFinite(value) && value > 0) &&
+    bar.high >= Math.max(bar.open, bar.close) && bar.low <= Math.min(bar.open, bar.close) &&
+    Number.isSafeInteger(bar.volume) && bar.volume >= 0 && Array.isArray(bar.institutions) &&
+    bar.institutions.every((item) => ["外資", "投信", "自營商"].includes(item?.name) &&
+      getInstitutionNet(bar.institutions, item.name) !== null));
+}
 
 export function combineSnapshots(snapshots) {
   if (snapshots.length !== STOCK_CATALOG.length) throw new Error("Incomplete stock universe");
@@ -9,7 +21,9 @@ export function combineSnapshots(snapshots) {
   for (const payload of snapshots) {
     const stock = payload?.stock;
     if (payload?.schemaVersion !== 1 || !STOCK_CATALOG.some((item) => item.symbol === stock?.symbol) ||
-        symbols.has(stock.symbol) || !Array.isArray(stock.history) || !stock.history.length)
+        symbols.has(stock.symbol) || !validHistory(stock.history) ||
+        !validDate(payload.asOf) ||
+        typeof payload.updatedAt !== "string" || !Number.isFinite(Date.parse(payload.updatedAt)))
       throw new Error("Invalid stock snapshot");
     symbols.add(stock.symbol);
   }
@@ -22,7 +36,7 @@ export function combineSnapshots(snapshots) {
   if (!asOf) throw new Error("No common complete trading date");
   return { stocks, dates: dates.filter((date) => date <= asOf), info: {
     mode: "finmind", label: "每日收盤資料", asOf,
-    updatedAt: snapshots.map((item) => item.updatedAt).sort()[0],
+    updatedAt: new Date(Math.min(...snapshots.map((item) => Date.parse(item.updatedAt)))).toISOString(),
     note: "資料來源：FinMind。股價為未還原日資料，非即時報價；外資不含外資自營商，自營商合計自行買賣與避險。所有標的共用最近一個價量與法人均完整的交易日。",
   } };
 }

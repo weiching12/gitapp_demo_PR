@@ -612,6 +612,26 @@ test("sector page aggregates institutional flows and sorts industries", async ({
     }
     return [...totals].sort((a, b) => b[1] - a[1]);
   };
+  const expectedLeader = (sector, days) => {
+    const members = stocks.filter((stock) => stock.sector === sector).map((stock) => {
+      const history = stock.history.filter((bar) => bar.date <= info.asOf).slice(-days);
+      const flows = Object.fromEntries(institutionalNames.map((name) => [name,
+        history.reduce((sum, bar) => {
+          const item = bar.institutions.find((institution) => institution.name === name);
+          return sum + item.buy - item.sell;
+        }, 0),
+      ]));
+      return { stock, flows, total: Object.values(flows).reduce((sum, value) => sum + value, 0) };
+    });
+    const sectorTotal = members.reduce((sum, member) => sum + member.total, 0);
+    const leader = members.reduce((best, member) =>
+      sectorTotal < 0 ? member.total < best.total ? member : best
+        : member.total > best.total ? member : best);
+    const extreme = leader.total > 0 ? Math.max(...Object.values(leader.flows))
+      : Math.min(...Object.values(leader.flows));
+    return { leader, institutions: institutionalNames.filter((name) => leader.flows[name] === extreme) };
+  };
+  let periodLeaderChanges = 0;
   for (const [key, days, label] of [["day", 1, "當日"], ["5", 5, "5 日"], ["20", 20, "20 日"]]) {
     await windows.getByRole("button", { name: label, exact: true }).click();
     const ranked = expected(days);
@@ -620,8 +640,17 @@ test("sector page aggregates institutional flows and sorts industries", async ({
     for (let index = 0; index < ranked.length; index++) {
       await expect(cards.nth(index)).toHaveAttribute("data-sector-name", ranked[index][0]);
       await expect(cards.nth(index).locator(".sector-total strong")).toHaveText(amountText(ranked[index][1]));
+      const { leader, institutions } = expectedLeader(ranked[index][0], days);
+      const note = await cards.nth(index).locator(".sector-identity p").innerText();
+      expect(note).toContain(`${leader.total > 0 ? "買最多" : leader.total < 0 ? "賣最多" : "買賣持平"} ${leader.stock.name}`);
+      if (leader.total !== 0) expect(note).toContain(institutions.join("、"));
+      if (days > 1) {
+        const current = expectedLeader(ranked[index][0], 1);
+        if (current.institutions.join("、") !== institutions.join("、")) periodLeaderChanges++;
+      }
     }
   }
+  expect(periodLeaderChanges).toBeGreaterThan(0);
   await page.locator('[data-sector-sort="net-asc"]').click();
   const ascending = expected(20).toReversed().map(([name]) => name);
   expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(ascending);

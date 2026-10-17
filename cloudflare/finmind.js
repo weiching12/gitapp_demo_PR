@@ -1,10 +1,10 @@
+import { getInstitutionalNet } from "../src/indicators.js";
+
 export const FINMIND_URL = "https://api.finmindtrade.com/api/v4/data";
 export const MANIFEST_KEY = "market:v1";
 export const stockKey = (symbol) => `stock:v1:${symbol}`;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-export const hasInstitutions = (bar) => ["外資", "投信", "自營商"].every(
-  (name) => bar.institutions?.some((item) => item.name === name),
-);
+export const hasInstitutions = (bar) => getInstitutionalNet(bar.institutions) !== null;
 
 export function taipeiDate(now = new Date()) {
   return new Date(now.getTime() + 8 * 3600000).toISOString().slice(0, 10);
@@ -65,7 +65,11 @@ export function normalizeHistory(symbol, prices, flows) {
     // Current listed-stock data has two dealer components. Foreign_Dealer_Self
     // is a separate statistic and is deliberately excluded from this total.
     const self = day.get("Dealer_self"), hedge = day.get("Dealer_Hedging");
-    if (self && hedge) institutions.push({ name: "自營商", buy: self.buy + hedge.buy, sell: self.sell + hedge.sell });
+    if (self && hedge) {
+      const buy = self.buy + hedge.buy, sell = self.sell + hedge.sell;
+      if (![buy, sell].every(Number.isSafeInteger)) throw new Error("Invalid dealer share total");
+      institutions.push({ name: "自營商", buy, sell });
+    }
     return { date: row.date, open: row.open, high: row.max, low: row.min,
       close: row.close, volume: row.Trading_Volume, institutions };
   }).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date));
