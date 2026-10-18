@@ -418,11 +418,11 @@ function renderSectorOverview() {
       value: stockInstitutionValue(stock, "total", state.sectorWindow),
     }));
     const { stock: leader, value: leaderValue } = getDirectionalLeader(candidates, sector.total);
-    const periodLabel = days === 1 ? "當日" : `${days} 日`;
+    const periodLabel = days === 1 ? "" : `${days} 日 `;
     const leaderChange = leader ? stockReturn(leader) : null;
     const leaderText = leaderValue === null ? "資料不足" : `TOP1·${leader.name}`;
     const barWidth = `${Math.max(4, Math.round((Math.abs(sector.total ?? 0) / maxAmount) * 100))}%`;
-    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.total)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel} <span>${esc(leaderText)}</span> <span class="${direction(leaderChange)}">${percent(leaderChange)}</span></p></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total"><strong class="${direction(sector.total)}">${institutionalAmount(sector.total)}</strong><i class="${direction(sector.total)}" style="--sector-bar:${barWidth}"></i></div></div></article>`;
+    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.total)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel}<span>${esc(leaderText)}</span> <span class="${direction(leaderChange)}">${percent(leaderChange)}</span></p></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total"><strong class="${direction(sector.total)}">${institutionalAmount(sector.total)}</strong><i class="${direction(sector.total)}" style="--sector-bar:${barWidth}"></i></div></div></article>`;
   }).join("");
   if (document.querySelector("#sector-dialog")?.open) renderSectorDialog(state.sectorName);
 }

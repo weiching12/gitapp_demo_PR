@@ -644,6 +644,7 @@ test("sector page aggregates institutional flows and sorts industries", async ({
       const leader = expectedLeader(ranked[index][0], days);
       const note = await cards.nth(index).locator(".sector-identity p").innerText();
       expect(note).toContain(`TOP1·${leader.stock.name}`);
+      if (key === "day") expect(note).not.toContain("當日");
       expect(note).not.toMatch(/檔|張|買最多|賣最多/);
       const history = leader.stock.history.filter((bar) => bar.date <= info.asOf);
       const change = days === 1 ? getSnapshot(leader.stock, info.asOf).latest.changePercent
