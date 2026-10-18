@@ -31,22 +31,21 @@ export function validateManifest(manifest) {
   return manifest;
 }
 
-export function combineChunks(manifest, chunks) {
-  validateManifest(manifest);
-  if (chunks.length !== manifest.chunks.length) throw new Error("Incomplete market chunks");
+function decodeChunk(manifest, chunk, index, expected) {
+  if (chunk?.schemaVersion !== 2 || chunk.generation !== manifest.generation || chunk.index !== index || !Array.isArray(chunk.stocks))
+    throw new Error("Mixed or invalid market generation");
   const compact = new Map();
-  for (const [index, chunk] of chunks.entries()) {
-    if (chunk?.schemaVersion !== 2 || chunk.generation !== manifest.generation || chunk.index !== index || !Array.isArray(chunk.stocks))
-      throw new Error("Mixed or invalid market generation");
-    for (const stock of chunk.stocks) {
-      if (Number(stock.symbol) % SHARD_COUNT !== index || compact.has(stock.symbol) || !validRows(stock.history, manifest.asOf))
-        throw new Error("Invalid stock history chunk");
-      compact.set(stock.symbol, stock.history);
-    }
+  for (const stock of chunk.stocks) {
+    if (Number(stock.symbol) % SHARD_COUNT !== index || compact.has(stock.symbol) || !validRows(stock.history, manifest.asOf))
+      throw new Error("Invalid stock history chunk");
+    compact.set(stock.symbol, stock.history);
   }
-  if (compact.size !== manifest.stocks.length || manifest.stocks.some((stock) => !compact.has(stock.symbol)))
+  if (compact.size !== expected.length || expected.some((stock) => !compact.has(stock.symbol)))
     throw new Error("Incomplete listed-company coverage");
-  const stocks = manifest.stocks.map((stock) => ({ ...expandStock(stock, compact.get(stock.symbol)), tradingDates: manifest.dates }));
+  return expected.map((stock) => ({ ...expandStock(stock, compact.get(stock.symbol)), tradingDates: manifest.dates }));
+}
+
+function marketDataset(manifest, stocks) {
   return { stocks, dates: manifest.dates, info: {
     mode: "twse", label: "每日收盤資料", asOf: manifest.asOf, updatedAt: manifest.updatedAt,
     coverage: manifest.coverage,
@@ -54,26 +53,56 @@ export function combineChunks(manifest, chunks) {
   } };
 }
 
-export async function loadApiDataset(fetcher = fetch) {
+export function combineChunks(manifest, chunks) {
+  validateManifest(manifest);
+  if (chunks.length !== manifest.chunks.length) throw new Error("Incomplete market chunks");
+  const decoded = new Map();
+  for (const [index, chunk] of chunks.entries())
+    for (const stock of decodeChunk(manifest, chunk, index, manifest.stocks.filter((stock) => Number(stock.symbol) % SHARD_COUNT === index)))
+      decoded.set(stock.symbol, stock);
+  return marketDataset(manifest, manifest.stocks.map((stock) => decoded.get(stock.symbol)));
+}
+
+export async function loadApiDataset(fetcher = fetch, { onManifest, onChunk, prioritySymbols = [] } = {}) {
+  const controller = new AbortController();
   const get = async (url) => {
-    const response = await fetcher(url);
+    const response = await fetcher(url, { signal: controller.signal });
     if (!response.ok) throw new Error("目前無法載入雲端股票資料，請稍後重試。");
     return response.json();
   };
   const manifest = validateManifest(await get("/api/market"));
-  const chunks = new Array(manifest.chunks.length);
-  let cursor = 0;
-  await Promise.all(Array.from({ length: 6 }, async () => {
-    while (cursor < chunks.length) {
-      const index = cursor++;
-      chunks[index] = await get(manifest.chunks[index]);
+  const dataset = marketDataset(manifest, manifest.stocks.map((stock) => ({ ...stock, history: [], tradingDates: manifest.dates })));
+  const positions = new Map(manifest.stocks.map((stock, index) => [stock.symbol, index]));
+  const priorities = new Set(prioritySymbols.filter((symbol) => positions.has(symbol)).map((symbol) => Number(symbol) % SHARD_COUNT));
+  const order = [...new Set([...priorities, ...manifest.chunks.map((_, index) => index)])];
+  const expected = Array.from({ length: SHARD_COUNT }, () => []);
+  for (const stock of manifest.stocks) expected[Number(stock.symbol) % SHARD_COUNT].push(stock);
+  await onManifest?.(dataset);
+  let cursor = 0, loaded = 0, completed = 0, stopped = false;
+  const workers = Array.from({ length: 6 }, async () => {
+    while (!stopped && cursor < order.length) {
+      const index = order[cursor++];
+      const chunk = await get(manifest.chunks[index]);
+      if (stopped) return;
+      const stocks = decodeChunk(manifest, chunk, index, expected[index]);
+      for (const stock of stocks) dataset.stocks[positions.get(stock.symbol)] = stock;
+      loaded += stocks.length;
+      completed++;
+      await onChunk?.({ loaded, total: manifest.stocks.length, completed, stocks });
     }
-  }));
-  return combineChunks(manifest, chunks);
+  });
+  try { await Promise.all(workers); }
+  catch (error) {
+    stopped = true;
+    controller.abort();
+    await Promise.allSettled(workers);
+    throw error;
+  }
+  return dataset;
 }
 
-export async function loadDataset() {
-  if (import.meta.env.VITE_DATA_MODE === "api") return loadApiDataset();
+export async function loadDataset(options) {
+  if (import.meta.env.VITE_DATA_MODE === "api") return loadApiDataset(fetch, options);
   const { demoProvider } = await import("./data.js");
   return demoProvider.load();
 }

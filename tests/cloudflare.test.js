@@ -136,6 +136,54 @@ test("browser loads one manifest and 128 compact chunks with at most six concurr
   await assert.rejects(loadApiDataset(async () => new Response(null, { status: 503 })), /雲端/);
 });
 
+test("progressive loading publishes validated stocks before a delayed shard and prioritizes favorites", async () => {
+  const { manifest, chunks } = datasetParts();
+  const blocked = shardOf("3026");
+  let release, firstStock, finished = false;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const first = new Promise((resolve) => { firstStock = resolve; });
+  const requested = [], counts = [];
+  let partial;
+  const result = loadApiDataset(async (url) => {
+    if (url === "/api/market") return Response.json(manifest);
+    const index = Number(url.split("/").at(-1));
+    requested.push(index);
+    if (index === blocked) await gate;
+    return Response.json(chunks[index]);
+  }, { prioritySymbols: ["2330"], onManifest: (dataset) => {
+    partial = dataset;
+    assert.equal(dataset.stocks.length, catalog.length);
+    assert.ok(dataset.stocks.every((stock) => stock.history.length === 0));
+  }, onChunk: ({ loaded, stocks }) => {
+    counts.push(loaded);
+    if (stocks.length) firstStock();
+  } }).then((dataset) => { finished = true; return dataset; });
+  await first;
+  assert.equal(finished, false);
+  assert.equal(requested[0], shardOf("2330"));
+  assert.ok(partial.stocks.find((stock) => stock.symbol === "2330").history.length > 0);
+  assert.equal(partial.stocks.find((stock) => stock.symbol === "3026").history.length, 0);
+  release();
+  assert.deepEqual(await result, combineChunks(manifest, chunks));
+  assert.ok(counts.every((count, index) => index === 0 || count >= counts[index - 1]));
+  assert.equal(counts.at(-1), catalog.length);
+});
+
+test("an invalid progressive shard is rejected before its stocks are published and stops further callbacks", async () => {
+  const { manifest, chunks } = datasetParts();
+  const bad = shardOf("2330");
+  chunks[bad].generation = "wrong-generation";
+  const published = [];
+  await assert.rejects(loadApiDataset(async (url) => Response.json(url === "/api/market"
+    ? manifest : chunks[Number(url.split("/").at(-1))]), {
+    prioritySymbols: ["2330"], onChunk: ({ stocks }) => published.push(...stocks.map((stock) => stock.symbol)),
+  }), /generation/);
+  assert.ok(!published.includes("2330"));
+  const count = published.length;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(published.length, count);
+});
+
 test("public API is cache-only, returns company snapshots and never contacts upstream", async () => {
   const { manifest, chunks } = datasetParts();
   const kv = memoryKV([[MANIFEST_KEY, JSON.stringify(manifest)], ...chunks.map((chunk, index) => [shardKey(manifest.generation, index), JSON.stringify(chunk)])]);

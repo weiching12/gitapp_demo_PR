@@ -83,7 +83,10 @@ const state = {
   settings: { ...DEFAULT_SETTINGS },
 };
 let dataset, snapshots, latestSnapshots;
-let latestSettingsKey;
+const latestCache = new Map(), historicalCache = new Map();
+const tableRowCache = new WeakMap();
+let loading = false, loadFailed = false, loadProgress = { loaded: 0, total: 0 };
+let pendingPaint, previousFavorites;
 let toastTimer;
 let isDemo;
 
@@ -159,6 +162,7 @@ function shell() {
           .join(
             "",
           )}</select><span id="date-hint">${isDemo ? "預設顯示前一交易日的模擬資料" : "最近一個價量與法人資料均完整的交易日"}</span></div></section>
+        <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
         <section id="watchlist" data-page-panel="favorites" aria-label="自選股票" hidden>
           <div class="overview-controls"><div class="overview-tabs" role="tablist" aria-label="自選總覽視角"><button id="watchlist-price-tab" role="tab" data-overview="price" aria-label="價量總覽" aria-controls="watchlist-grid" aria-selected="true" tabindex="0">${icon("grid")}<span class="overview-label-full">價量總覽</span><span class="overview-label-short">價量</span></button><button id="watchlist-institutions-tab" role="tab" data-overview="institutions" aria-label="法人總覽" aria-controls="institution-overview" aria-selected="false" tabindex="-1">${icon("chart")}<span class="overview-label-full">法人總覽</span><span class="overview-label-short">法人</span></button></div><div class="institution-window" role="group" aria-label="法人累計區間" hidden><button data-institution-window="day" aria-pressed="true">當日</button><button data-institution-window="5" aria-pressed="false">近 5 日</button><button data-institution-window="20" aria-pressed="false">近 20 日</button></div></div>
           <div id="watchlist-carousel-controls" class="watchlist-carousel-controls" data-carousel="price" aria-label="自選卡片導覽"><span id="watchlist-carousel-status" role="status"></span><div class="watchlist-carousel-actions"><select id="watchlist-carousel-jump" data-carousel-jump aria-label="快速選擇自選股票" hidden></select><button class="icon-button" data-carousel-step="-1" aria-label="上一檔自選股票">${icon("chevron")}</button><button class="icon-button" data-carousel-step="1" aria-label="下一檔自選股票">${icon("chevron")}</button></div></div>
@@ -208,17 +212,48 @@ function refreshData() {
     return snapshot;
   };
   const settingsKey = [state.settings.period, state.settings.kSmooth, state.settings.dSmooth].join(":");
-  if (!latestSnapshots || latestSettingsKey !== settingsKey) {
-    latestSnapshots = dataset.stocks.map((stock) => forDisplay(stock, dataset.info.asOf));
-    latestSettingsKey = settingsKey;
-  }
+  const cached = (date, cache) => dataset.stocks.map((stock) => {
+    const prior = cache.get(stock.symbol);
+    const key = `${date}:${settingsKey}`;
+    if (prior?.stock === stock && prior.key === key) return prior.snapshot;
+    const snapshot = forDisplay(stock, date);
+    cache.set(stock.symbol, { stock, key, snapshot });
+    return snapshot;
+  });
+  latestSnapshots = cached(dataset.info.asOf, latestCache);
   snapshots = state.date === dataset.info.asOf ? latestSnapshots
-    : dataset.stocks.map((stock) => forDisplay(stock, state.date));
+    : cached(state.date, historicalCache);
   renderWatchlist();
   renderTable();
   renderSectorOverview();
   renderPage();
+  renderLoadState();
   if (document.querySelector("#institution-dialog").open) renderInstitutionDialog();
+}
+
+function renderLoadState() {
+  const status = document.querySelector("#load-status");
+  status.hidden = !loading && !loadFailed;
+  status.querySelector("span").textContent = loadFailed
+    ? loadProgress.total ? `資料尚未完整載入，已取得 ${loadProgress.loaded}／${loadProgress.total} 檔。請重新載入再試一次。`
+      : "無法取得股票資料，請重新載入再試一次。"
+    : loadProgress.total ? `股票資料載入中 · ${loadProgress.loaded}／${loadProgress.total} 檔${state.page === "sectors" ? "；產業統計將於載入完成後顯示" : ""}`
+      : "正在取得股票資料…";
+  status.querySelector("button").hidden = !loadFailed;
+  for (const panel of document.querySelectorAll("[data-page-panel]")) panel.setAttribute("aria-busy", String(loading));
+}
+
+function scheduleRefresh() {
+  if (!pendingPaint) pendingPaint = new Promise((resolve, reject) => {
+    const flush = () => {
+      cancelAnimationFrame(frame); clearTimeout(timer); pendingPaint = null;
+      try { refreshData(); resolve(); } catch (error) { reject(error); }
+    };
+    const frame = requestAnimationFrame(flush);
+    // Background tabs may pause animation frames; keep ingestion resumable.
+    const timer = setTimeout(flush, 100);
+  });
+  return pendingPaint;
 }
 
 const pageCopy = {
@@ -236,9 +271,9 @@ function renderPage() {
   const sectors = state.page === "sectors";
   const dateSelect = document.querySelector("#trade-date");
   dateSelect.hidden = sectors;
-  dateSelect.disabled = sectors;
+  dateSelect.disabled = sectors || !dataset.dates.length;
   document.querySelector(".date-control label").hidden = sectors;
-  document.querySelector("#date-hint").textContent = sectors
+  document.querySelector("#date-hint").textContent = !dataset.info.asOf ? "正在取得資料交易日" : sectors
     ? `${isDemo ? "最新完整交易日" : "最新報表交易日"} ${dataset.info.asOf}`
     : isDemo ? "預設顯示前一交易日的模擬資料" : "最近一個已取得行情與法人報表的交易日";
   document.querySelectorAll("[data-page-panel]").forEach((panel) => {
@@ -250,6 +285,7 @@ function renderPage() {
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
+  renderLoadState();
 }
 
 function renderWatchlist() {
@@ -260,7 +296,9 @@ function renderWatchlist() {
     .map((symbol) => snapshots.find((stock) => stock.symbol === symbol))
     .filter((stock) => stock?.latest);
   document.querySelector("#favorite-count").textContent = state.favorites.length;
-  document.querySelector("#watchlist-empty").hidden = favorites.length > 0;
+  document.querySelector("#watchlist-empty").hidden = favorites.length > 0 || ((loading || loadFailed) && state.favorites.length > 0);
+  if (previousFavorites?.length === favorites.length && previousFavorites.every((stock, index) => stock === favorites[index])) return;
+  previousFavorites = favorites;
   if (state.institutionSymbol && !favorites.some((stock) => stock.symbol === state.institutionSymbol))
     document.querySelector("#institution-dialog").close();
   document.querySelector("#watchlist-grid").innerHTML = favorites.map((stock) => {
@@ -403,6 +441,10 @@ const sectorCoverage = ({ available, expected }) => available < expected
   ? `<p class="sector-coverage" data-sector-coverage>已統計 ${available}／${expected} 檔，部分資料缺漏</p>` : "";
 
 function renderSectorOverview() {
+  if (loading || loadFailed) {
+    document.querySelector("#sector-grid").replaceChildren();
+    return;
+  }
   const groups = new Map();
   for (const stock of latestSnapshots) {
     if (!groups.has(stock.sector)) groups.set(stock.sector, []);
@@ -553,17 +595,31 @@ function renderTable() {
       if (bv === null) return -1;
       return (av - bv) * state.sortDirection;
     });
-  document.querySelector("#stock-rows").innerHTML = visibleStocks
-    .map((stock) => {
+  const body = document.querySelector("#stock-rows");
+  const rows = new Map([...body.children].map((row) => [row.dataset.symbol, row]));
+  const visible = new Set(visibleStocks.map((stock) => stock.symbol));
+  for (const [symbol, row] of rows) if (!visible.has(symbol)) row.remove();
+  let cursor = body.firstElementChild;
+  visibleStocks.forEach((stock) => {
+    const favorite = state.favorites.includes(stock.symbol);
+    let row = rows.get(stock.symbol);
+    const cached = row && tableRowCache.get(row);
+    if (!cached || cached.stock !== stock || cached.favorite !== favorite) {
       const { latest: bar, signal } = stock;
-      const favorite = state.favorites.includes(stock.symbol);
       const leader = getDominantInstitution(bar.institutions);
       const leaderLabel = bar.institutionalNet === null ? "資料不足" : !leader ? "合計持平"
         : `${leader.names.join("、")}${leader.direction === "buy" ? "買超" : "賣超"}最多`;
-      return `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell"><span class="stock-close">${number(bar.close, 2)}</span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}"><span class="institution-net">${bar.institutionalNet === null ? "—" : signed(bar.institutionalNet / 1000, 0)}</span><small class="institution-leader">${leaderLabel}</small></td></tr>`;
-    })
-    .join("");
-  document.querySelector("#table-empty").hidden = visibleStocks.length !== 0;
+      const html = `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell"><span class="stock-close">${number(bar.close, 2)}</span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}"><span class="institution-net">${bar.institutionalNet === null ? "—" : signed(bar.institutionalNet / 1000, 0)}</span><small class="institution-leader">${leaderLabel}</small></td></tr>`;
+      const holder = document.createElement("tbody");
+      holder.innerHTML = html;
+      if (row) row.replaceChildren(...holder.firstElementChild.childNodes);
+      else row = holder.firstElementChild;
+      tableRowCache.set(row, { stock, favorite });
+    }
+    if (row === cursor) cursor = cursor.nextElementSibling;
+    else body.insertBefore(row, cursor);
+  });
+  document.querySelector("#table-empty").hidden = visibleStocks.length !== 0 || loading || loadFailed;
   document.querySelector("#favorite-count").textContent =
     state.favorites.length;
   document.querySelector("#table-summary").textContent =
@@ -607,6 +663,8 @@ function openDialog(type) {
     content.innerHTML = `<h2 id="dialog-heading">讓指標符合你的觀察習慣</h2><p class="dialog-intro">調整後，自選總覽與市場觀察清單會一起重新計算。設定會保存在這個瀏覽器。</p><form id="settings-form"><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 儲存並重新計算</button></div></form>`;
   } else if (type === "signals") {
     content.innerHTML = `<h2 id="dialog-heading">KD 技術建議怎麼看？</h2>${technicalSignalGuide()}`;
+  } else if (type === "source" && !isDemo && !dataset.info.updatedAt) {
+    content.innerHTML = '<h2 id="dialog-heading">資料說明</h2><p>正在取得資料來源與市場範圍，請稍候。</p>';
   } else if (type === "source" && !isDemo) {
     const checkedAt = new Date(dataset.info.updatedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
     content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由臺灣證券交易所取得上市公司名錄、每日收盤行情及三大法人買賣超日報，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${dataset.stocks.length} 家上市公司（依官方名錄，含存託憑證）；不含上櫃與 ETF</dd></div><div><dt>市場報表交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>整批資料發布時間</dt><dd>${esc(checkedAt)}（台灣時間）；未提供行情的公司不列入當日排行，缺少法人明細時顯示資料不足</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>平日台灣時間 21:00 開始取得全市場報表，再分批更新快取；失敗間隔 30 分鐘重試，23:59 結束。全部完成後才發布，錯誤時保留上一份資料</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
@@ -667,6 +725,8 @@ function syncTableFavorite(symbol) {
   button.classList.toggle("is-favorite", favorite);
   button.setAttribute("aria-pressed", favorite);
   button.setAttribute("aria-label", `${favorite ? "移除" : "加入"}${stock.name}自選`);
+  const cached = tableRowCache.get(button.closest("tr"));
+  if (cached) cached.favorite = favorite;
 }
 
 function bindEvents() {
@@ -688,6 +748,7 @@ function bindEvents() {
     }
     const button = event.target.closest("button");
     if (!button) return;
+    if (button.id === "reload-data") { window.location.reload(); return; }
     if (button.dataset.dialog) openDialog(button.dataset.dialog);
     if (button.dataset.overview) {
       state.overview = button.dataset.overview;
@@ -904,21 +965,51 @@ function bindEvents() {
 }
 
 async function init() {
-  dataset = await loadDataset();
-  isDemo = dataset.info.mode === "demo";
-  state.date = dataset.info.asOf;
   readPreferences();
-  state.favorites = [...new Set(state.favorites)].filter((symbol) =>
-    dataset.stocks.some((stock) => stock.symbol === symbol),
-  );
-  shell();
+  const apiMode = import.meta.env.VITE_DATA_MODE === "api";
+  const prepare = () => {
+    state.date = dataset.info.asOf;
+    state.favorites = [...new Set(state.favorites)].filter((symbol) => dataset.stocks.some((stock) => stock.symbol === symbol));
+  };
+  if (apiMode) {
+    loading = true; isDemo = false;
+    dataset = { stocks: [], dates: [], info: { mode: "twse", label: "資料載入中", asOf: "" } };
+    snapshots = []; latestSnapshots = [];
+    shell(); bindEvents(); refreshData();
+  }
+  dataset = await loadDataset({ prioritySymbols: state.favorites,
+    onManifest: async (next) => {
+      dataset = next;
+      prepare();
+      loadProgress = { loaded: 0, total: dataset.stocks.length };
+      document.querySelector(".demo-badge").innerHTML = `<span></span>${esc(dataset.info.label)}`;
+      document.querySelector("#trade-date").innerHTML = dataset.dates.slice(-30).reverse()
+        .map((date) => `<option value="${date}">${date.replaceAll("-", " / ")}</option>`).join("");
+      document.querySelector("#sector-filter").innerHTML = '<option value="all">全部產業</option>' +
+        [...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("");
+      await scheduleRefresh();
+    },
+    onChunk: async ({ loaded, total }) => {
+      loadProgress = { loaded, total };
+      await scheduleRefresh();
+    },
+  });
+  loading = false;
+  if (!apiMode) {
+    isDemo = dataset.info.mode === "demo";
+    prepare(); shell(); bindEvents();
+  }
   refreshData();
-  bindEvents();
   savePreferences();
 }
 
 init().catch((error) => {
   console.error("Unable to initialize stock dashboard", error);
+  if (document.querySelector("#load-status")) {
+    loading = false; loadFailed = true;
+    renderLoadState(); renderTable(); renderSectorOverview();
+    return;
+  }
   document.querySelector("#app").innerHTML =
     '<main class="load-error"><h1>暫時無法載入資料</h1><p>請重新整理頁面再試一次。</p></main>';
 });

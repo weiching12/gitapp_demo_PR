@@ -2625,6 +2625,16 @@ dialog.institution-dialog {
   overflow-wrap: anywhere;
 }
 .sector-card > .sector-coverage { margin: 0 14px 8px; }
+.initial-load { padding: 32px; color: var(--muted); }
+.load-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: var(--muted);
+}
+.load-status[hidden], #reload-data[hidden] { display: none; }
 
 @media (max-width: 700px) {
   .sector-ranking {
