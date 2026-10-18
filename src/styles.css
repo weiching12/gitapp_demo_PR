@@ -1471,7 +1471,7 @@ dialog h2 {
   display: flex;
   flex-direction: column;
   scroll-margin-top: 82px;
-  padding: 16px;
+  padding: 15px;
   border: 1px solid var(--border);
   border-top: 3px solid #9bb8ed;
   border-radius: 10px;
@@ -2374,7 +2374,7 @@ dialog.institution-dialog {
     margin-top: 2px;
   }
   .watch-card .metrics {
-    grid-auto-rows: auto;
+    grid-auto-rows: 1fr;
     gap: 4px;
     margin-bottom: 4px;
   }
@@ -2385,13 +2385,13 @@ dialog.institution-dialog {
   }
   .watch-card .metric-label {
     margin: 0;
-    font-size: 15px;
+    font-size: var(--text-secondary);
     line-height: 21px;
   }
   .watch-card .metric-description {
     margin: 0;
     align-content: end;
-    font-size: 14px;
+    font-size: var(--text-secondary);
     line-height: 18px;
   }
   .watch-card .metric-value {
@@ -2399,10 +2399,10 @@ dialog.institution-dialog {
     align-content: start;
     min-height: 0;
     row-gap: 2px;
-    font-size: 22px;
+    font-size: var(--text-section);
   }
   .watch-card .metric-number {
-    font-size: 22px;
+    font-size: var(--text-section);
   }
   .watch-card .metric-value .change-chip,
   .watch-card .metric-value .indicator-tag {
@@ -2410,6 +2410,8 @@ dialog.institution-dialog {
     font-size: 12px;
     line-height: 18px;
   }
+  .watch-card .metric-value .change-chip { font-size: var(--text-title); }
+  .watch-card .quarter-card .metric-number { font-size: var(--text-title); }
   .watch-card .watch-signal {
     min-height: 0;
     padding: 0;
@@ -2471,9 +2473,12 @@ dialog.institution-dialog {
   .date-control {
     max-width: none;
     margin-top: 0;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 180px);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 150px);
     align-items: center;
-    gap: 6px 12px;
+    gap: 4px 8px;
+  }
+  .date-control select {
+    padding: 6px 22px 6px 8px;
   }
   .date-control > span {
     max-width: none;
@@ -2616,15 +2621,15 @@ dialog.institution-dialog {
 
 @media (max-width: 700px) {
   .sector-ranking {
-    padding: 0 12px 16px;
+    padding: 0 8px 12px;
   }
   .sector-ranking .sector-total strong { font-size: 14px; }
+  .sector-identity h3 { font-size: var(--text-body); white-space: nowrap; }
+  .sector-change { font-size: var(--text-title); }
 }
 
 @media (max-width: 430px) {
   .sector-ranking .sector-rank { font-size: 12px; }
-  .sector-identity h3 { font-size: 15px; white-space: nowrap; }
-  .sector-change { font-size: 13px; }
 }
 
 .sector-toolbar {
@@ -2677,36 +2682,55 @@ dialog.institution-dialog {
 
 @media (max-width: 700px) {
   .sector-toolbar {
-    gap: 8px;
-    margin-bottom: 4px;
-    padding: 10px 12px;
+    gap: 6px;
+    margin-bottom: 2px;
+    padding: 6px 8px;
   }
   .sector-sort-control,
-  .sector-period-control { gap: 6px; }
+  .sector-period-control { gap: 4px; }
+  .sector-sort-tabs,
+  .sector-period {
+    gap: 2px;
+    padding: 1px;
+    border-radius: 6px;
+  }
   .sector-sort-tabs button,
   .sector-period button {
-    min-width: 44px;
-    padding-inline: 7px;
+    min-width: 40px;
+    min-height: 34px;
+    padding: 3px 6px;
   }
   .sector-ranking-head { display: none; }
   .sector-main {
     grid-template-columns: 18px 8px minmax(0, 1fr) 86px;
     grid-template-rows: auto auto;
-    gap: 4px 7px;
-    min-height: 82px;
-    padding: 12px 8px;
+    gap: 3px 6px;
+    min-height: 64px;
+    padding: 6px;
   }
+  .sector-identity h3 { margin-bottom: 0; }
   .sector-ranking .sector-rank,
   .sector-marker { grid-row: 1 / span 2; align-self: center; }
-  .sector-identity { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  .sector-identity { display: contents; }
+  .sector-identity h3 { grid-column: 3; grid-row: 1; align-self: baseline; }
   .sector-identity p {
+    grid-column: 3;
+    grid-row: 2;
+    align-self: start;
     overflow: visible;
     text-overflow: clip;
     white-space: normal;
-    line-height: 1.45;
+    line-height: 1.35;
   }
-  .sector-change { grid-column: 4; grid-row: 1; align-self: end; }
-  .sector-ranking .sector-total { grid-column: 4; grid-row: 2; align-self: start; }
+  .sector-identity p span { color: inherit; font-size: inherit; }
+  .sector-ranking .sector-total {
+    display: block;
+    grid-column: 4;
+    grid-row: 1;
+    align-self: baseline;
+  }
+  .sector-ranking .sector-total i { display: none; }
+  .sector-change { grid-column: 4; grid-row: 2; align-self: start; }
 }
 
 @media (max-width: 430px) {
@@ -2714,14 +2738,16 @@ dialog.institution-dialog {
   .sector-period-control > span { display: none; }
   .sector-sort-control,
   .sector-period-control { min-width: 0; }
-  .sector-sort-tabs,
-  .sector-period { width: 100%; }
-  .sector-sort-tabs button,
-  .sector-period button { flex: 1; }
   .sector-main {
     grid-template-columns: 17px 8px minmax(0, 1fr) 82px;
     padding-inline: 4px;
   }
+}
+
+@media (max-width: 360px) {
+  .sector-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .sector-sort-control,
+  .sector-period-control { width: 100%; }
 }
 
 /* Clickable sector details: summary first, constituent stocks below. */

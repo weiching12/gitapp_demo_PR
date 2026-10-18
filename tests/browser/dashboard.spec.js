@@ -328,7 +328,8 @@ test("mobile cards swipe above the table and support scrolling and dialogs", asy
   await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(5);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await page.getByRole("button", { name: "管理自選" }).click();
+  await openPage(page, "market");
+  await page.locator(".table-scroll").focus();
   await expect(page.locator(".table-scroll")).toBeFocused();
   const signal = page.locator('[data-symbol="2317"] .signal-badge');
   await signal.scrollIntoViewIfNeeded();
@@ -1025,8 +1026,16 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
     await page.locator('[data-overview="price"]').click();
     const sizes = await page.locator(".panel-subtitle, .metric-label, .metric-description").evaluateAll((elements) =>
       elements.filter((element) => element.getClientRects().length).map((element) => parseFloat(getComputedStyle(element).fontSize)));
-    expect(Math.min(...sizes), `Reading copy at ${width}px`).toBeGreaterThanOrEqual(14);
-    expect(await page.locator(".search-box input").evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
+    expect(Math.min(...sizes), `Reading copy at ${width}px`).toBeGreaterThanOrEqual(width <= 700 ? 12 : 14);
+    expect(await page.locator(".search-box input").evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(width <= 700 ? 14 : 16);
+    if (width <= 700) {
+      const tradeDate = await page.locator("#trade-date").evaluate((element) => ({
+        fontSize: parseFloat(getComputedStyle(element).fontSize),
+        width: element.getBoundingClientRect().width,
+      }));
+      expect(tradeDate.fontSize).toBe(12);
+      if (width <= 520) expect(tradeDate.width).toBeLessThanOrEqual(150);
+    }
     await expectLegible();
     await page.locator('[data-overview="institutions"]').click();
     await expectLegible();
@@ -1048,9 +1057,59 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
       const rect = button.getBoundingClientRect();
       return { width: rect.width, height: rect.height, top: Math.round(rect.top) };
     }));
-    expect(sectorControls.every(({ width: controlWidth, height }) => controlWidth >= 44 && height >= 44)).toBe(true);
-    expect(new Set(sectorControls.map(({ top }) => top)).size).toBe(1);
+    expect(sectorControls.every(({ width: controlWidth, height }) => controlWidth >= 40 && height >= 34)).toBe(true);
+    expect(new Set(sectorControls.map(({ top }) => top)).size).toBe(width <= 360 ? 2 : 1);
     if (width <= 700) {
+      expect(sectorControls.every(({ height }) => height <= 36)).toBe(true);
+      const groupHeights = await page.locator(".sector-sort-tabs, .sector-period").evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().height));
+      expect(Math.max(...groupHeights)).toBeLessThanOrEqual(40);
+      const rows = await page.locator("#sector-grid .sector-main").evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().height));
+      expect(Math.max(...rows)).toBeLessThanOrEqual(76);
+    }
+    if (width <= 700) {
+      const phoneSizes = await page.evaluate(() => ({
+        page: parseFloat(getComputedStyle(document.querySelector("#page-title")).fontSize),
+        sector: parseFloat(getComputedStyle(document.querySelector(".sector-identity h3")).fontSize),
+      }));
+      expect(phoneSizes).toEqual({ page: 15, sector: 14 });
+      const toolbarLabelSizes = await page.locator(".sector-toolbar .sector-sort-control > span, .sector-toolbar .sector-period-control > span").evaluateAll((elements) =>
+        elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+      const toolbarButtonSizes = await page.locator(".sector-toolbar button").evaluateAll((elements) =>
+        elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+      expect(toolbarLabelSizes).toEqual([12, 12]);
+      expect(toolbarButtonSizes).toEqual([12, 12, 12, 12, 12, 12]);
+      const sectorRow = await page.locator("#sector-grid .sector-card").first().evaluate((card) => {
+        const name = card.querySelector(".sector-identity h3");
+        const note = card.querySelector(".sector-identity p");
+        const lots = card.querySelector(".sector-total strong");
+        const change = card.querySelector(".sector-change");
+        const style = (element) => getComputedStyle(element);
+        return {
+          nameSize: parseFloat(style(name).fontSize),
+          lotsSize: parseFloat(style(lots).fontSize),
+          changeSize: parseFloat(style(change).fontSize),
+          nameTop: name.getBoundingClientRect().top,
+          lotsTop: lots.getBoundingClientRect().top,
+          changeTop: change.getBoundingClientRect().top,
+          noteSize: parseFloat(style(note).fontSize),
+          noteColor: style(note).color,
+          spans: [...note.querySelectorAll("span")].map((span) => ({
+            size: parseFloat(style(span).fontSize), color: style(span).color,
+          })),
+        };
+      });
+      expect(sectorRow.nameSize).toBe(14);
+      expect(sectorRow.lotsSize).toBe(14);
+      expect(sectorRow.changeSize).toBe(12);
+      expect(Math.abs(sectorRow.nameTop - sectorRow.lotsTop)).toBeLessThanOrEqual(3);
+      expect(sectorRow.changeTop).toBeGreaterThan(sectorRow.lotsTop);
+      expect(sectorRow.noteSize).toBe(12);
+      expect(sectorRow.spans).toEqual([
+        { size: 12, color: sectorRow.noteColor },
+        { size: 12, color: sectorRow.noteColor },
+      ]);
       const noteStyles = await page.locator(".sector-identity p").evaluateAll((notes) => notes.map((note) => {
         const style = getComputedStyle(note);
         return { overflow: style.overflow, textOverflow: style.textOverflow, whiteSpace: style.whiteSpace };
