@@ -103,7 +103,6 @@ tbody td {
 .overview-metric dt,
 .sector-sort-control,
 .date-control label,
-.table-scroll-hint,
 .signal-note,
 .signal-note button,
 .signal-badge,
@@ -133,7 +132,6 @@ tbody td {
   line-height: var(--leading-reading);
 }
 .metric-description,
-.date-control > span,
 .helper-text {
   color: var(--muted);
 }
@@ -174,7 +172,6 @@ thead th button,
 .count-pill,
 .breadcrumb,
 .demo-badge,
-.date-control > span,
 .metric-label > span,
 .metric-value small,
 .watch-symbol > span,

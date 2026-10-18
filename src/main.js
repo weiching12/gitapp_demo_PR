@@ -23,6 +23,7 @@ const icons = {
     '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',
   book: '<path d="M12 5v15M3 4c4-1 6-1 9 1 3-2 5-2 9-1v15c-4-1-6-1-9 1-3-2-5-2-9-1Z"/>',
   chevron: '<path d="m9 5 7 7-7 7"/>',
+  sort: '<path class="sort-up" d="m8 9 4-4 4 4"/><path class="sort-down" d="m8 15 4 4 4-4"/>',
   calendar:
     '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
@@ -152,7 +153,7 @@ function shell() {
     <div class="workspace">
       <header class="topbar"><div class="breadcrumb">研究工作台 ${icon("chevron")} <span id="breadcrumb-current">市場觀察清單</span></div><div class="topbar-actions"><span class="demo-badge"><span></span>${esc(dataset.info.label)}</span></div></header>
       <main id="main" tabindex="-1">
-        <section class="page-heading"><div><div class="eyebrow" id="page-eyebrow">TAIWAN STOCK EXPLORER</div><h1 id="page-title">市場觀察清單<span class="heading-dot">.</span></h1><p id="page-description">比較全部標的的價量、技術指標與法人籌碼。</p></div><div class="date-control"><label for="trade-date">${icon("calendar")} 資料交易日</label><select id="trade-date" aria-describedby="date-hint">${dataset.dates
+        <section class="page-heading"><div><div class="eyebrow" id="page-eyebrow">TAIWAN STOCK EXPLORER</div><h1 id="page-title">市場觀察清單<span class="heading-dot">.</span></h1><p id="page-description">比較全部標的的價量、技術指標與法人籌碼。</p></div><div class="date-control"><label for="trade-date">${icon("calendar")} 資料交易日</label><select id="trade-date">${dataset.dates
           .slice(-30)
           .reverse()
           .map(
@@ -161,7 +162,7 @@ function shell() {
           )
           .join(
             "",
-          )}</select><span id="date-hint">${isDemo ? "預設顯示前一交易日的模擬資料" : "最近一個價量與法人資料均完整的交易日"}</span></div></section>
+          )}</select></div></section>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
         <section id="watchlist" data-page-panel="favorites" aria-label="自選股票" hidden>
           <div class="overview-controls"><div class="overview-tabs" role="tablist" aria-label="自選總覽視角"><button id="watchlist-price-tab" role="tab" data-overview="price" aria-label="價量總覽" aria-controls="watchlist-grid" aria-selected="true" tabindex="0">${icon("grid")}<span class="overview-label-full">價量總覽</span><span class="overview-label-short">價量</span></button><button id="watchlist-institutions-tab" role="tab" data-overview="institutions" aria-label="法人總覽" aria-controls="institution-overview" aria-selected="false" tabindex="-1">${icon("chart")}<span class="overview-label-full">法人總覽</span><span class="overview-label-short">法人</span></button></div><div class="institution-window" role="group" aria-label="法人累計區間" hidden><button data-institution-window="day" aria-pressed="true">當日</button><button data-institution-window="5" aria-pressed="false">近 5 日</button><button data-institution-window="20" aria-pressed="false">近 20 日</button></div></div>
@@ -173,7 +174,7 @@ function shell() {
         <section class="panel stocks-panel" data-page-panel="market" aria-label="市場觀察股票表格">
           <div class="table-toolbar"><div class="filter-tabs" role="group" aria-label="清單篩選"><button data-view="all" class="active">全部標的</button><button data-view="favorites">我的自選</button><button data-view="above">站上季線</button><button data-view="oversold" aria-label="K 值低於 20">K值低於20</button></div><div class="search-controls"><label class="search-box">${icon("search")}<input id="stock-search" type="search" placeholder="搜尋代碼或名稱" aria-label="搜尋股票代碼或名稱" autocomplete="off"/><kbd>/</kbd></label><select id="sector-filter" aria-label="產業篩選"><option value="all">全部產業</option>${[...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("")}</select></div></div>
           <div class="signal-note">${icon("info")}<span>依資料日 KD 交叉與 MA20 趨勢判讀；${isDemo ? "模擬資料技術提示" : "技術提示僅供觀察"}，需搭配風險控管。</span><button class="text-button" data-dialog="signals">判讀規則 ${icon("chevron")}</button></div>
-          <p class="table-scroll-hint">左右滑動可看完整數據，收藏與股票名稱固定顯示。</p><div class="table-scroll" tabindex="0" role="region" aria-label="股票觀察清單，可左右捲動"><table><caption class="sr-only">${isDemo ? "模擬股票行情" : "股票收盤行情"}、KD 技術建議與三大法人買賣超。日漲跌幅與前一交易日收盤價比較，成交量位於收盤價下方，以張表示。點選星號可加入或移除上方自選總覽。</caption><colgroup><col class="favorite-column"/><col class="stock-column"/><col class="price-column"/><col class="change-column"/><col class="kd-column"/><col class="signal-column"/><col class="position-column"/><col class="net-column"/></colgroup><thead><tr><th scope="col"><span class="sr-only">自選</span></th><th scope="col">股票</th>${[
+          <div class="table-scroll" tabindex="0" role="region" aria-label="股票觀察清單，可左右捲動"><table><caption class="sr-only">${isDemo ? "模擬股票行情" : "股票收盤行情"}、KD 技術建議與三大法人買賣超。日漲跌幅與前一交易日收盤價比較，成交量位於收盤價下方，以張表示。點選星號可加入或移除上方自選總覽。</caption><colgroup><col class="favorite-column"/><col class="stock-column"/><col class="price-column"/><col class="change-column"/><col class="kd-column"/><col class="signal-column"/><col class="position-column"/><col class="net-column"/></colgroup><thead><tr><th scope="col"><span class="sr-only">自選</span></th><th scope="col">股票</th>${[
             ["close", "收盤價"],
             ["changePercent", "日漲跌幅"],
             ["k", "K 值"],
@@ -182,7 +183,7 @@ function shell() {
           ]
             .map(
               ([key, label]) =>
-                `<th scope="col" data-sort-heading="${key}" aria-sort="none"><button data-sort="${key}">${label} <span aria-hidden="true">↕</span></button></th>${key === "k" ? '<th scope="col" class="signal-heading">KD 技術建議</th>' : ""}`,
+                `<th scope="col" data-sort-heading="${key}" aria-sort="none"><button data-sort="${key}">${label} ${icon("sort", "sort-icon")}</button></th>${key === "k" ? '<th scope="col" class="signal-heading">KD 技術建議</th>' : ""}`,
             )
             .join(
               "",
@@ -273,9 +274,8 @@ function renderPage() {
   dateSelect.hidden = sectors;
   dateSelect.disabled = sectors || !dataset.dates.length;
   document.querySelector(".date-control label").hidden = sectors;
-  document.querySelector("#date-hint").textContent = !dataset.info.asOf ? "正在取得資料交易日" : sectors
-    ? `${isDemo ? "最新完整交易日" : "最新報表交易日"} ${dataset.info.asOf}`
-    : isDemo ? "預設顯示前一交易日的模擬資料" : "最近一個已取得行情與法人報表的交易日";
+  document.querySelector(".date-control").hidden = sectors;
+  document.querySelector(".page-heading").classList.toggle("without-date", sectors);
   document.querySelectorAll("[data-page-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.pagePanel !== state.page;
   });

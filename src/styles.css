@@ -356,10 +356,7 @@ h1 {
   letter-spacing: 0.3px;
   font-variant-numeric: tabular-nums;
 }
-.date-control > span {
-  color: #8493a9;
-  max-width: 260px;
-}
+.date-control[hidden] { display: none; }
 .icon-button {
   display: inline-grid;
   place-items: center;
@@ -632,20 +629,32 @@ h1 {
   white-space: nowrap;
 }
 .table-scroll thead {
-  background: #f6f8fa;
+  background: #fff;
 }
 .table-scroll thead th {
+  background: #fff;
   color: #7a8ba2;
   height: 40px;
-  border-bottom: 1px solid var(--border);
+  border: 0;
 }
 .table-scroll thead th button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
   color: inherit;
   padding: 8px 0;
 }
-.table-scroll thead th button span {
+.table-scroll thead .sort-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
   color: #a0acbd;
 }
+.table-scroll thead th[aria-sort="ascending"] .sort-icon,
+.table-scroll thead th[aria-sort="descending"] .sort-icon { color: inherit; }
+.table-scroll thead th[aria-sort="ascending"] .sort-down,
+.table-scroll thead th[aria-sort="descending"] .sort-up { opacity: 0.3; }
 .table-scroll thead th[aria-sort="descending"] button,
 .table-scroll thead th[aria-sort="ascending"] button {
   color: #475466;
@@ -2031,13 +2040,6 @@ dialog.institution-dialog {
   display: inline-block;
   margin-top: 6px;
 }
-.table-scroll-hint {
-  display: none;
-  margin: 0;
-  padding: 9px 14px;
-  border-top: 1px solid var(--border);
-  color: #64748b;
-}
 .favorite-button,
 .outline-button {
   min-height: 44px;
@@ -2072,7 +2074,8 @@ dialog.institution-dialog {
 .table-scroll thead th:first-child,
 .table-scroll thead th:nth-child(2) {
   z-index: 3;
-  background: #f6f8fa;
+  background: #fff;
+  box-shadow: none;
 }
 .table-scroll tbody tr:hover > td:first-child,
 .table-scroll tbody tr:hover > th {
@@ -2166,7 +2169,6 @@ dialog.institution-dialog {
   #sector-filter,
   .date-control select,
   .search-box { min-height: 44px; }
-  .table-scroll-hint { display: block; }
 }
 @media (max-width: 700px) {
   .institution-overview { padding: 0; border: 0; background: transparent; }
@@ -2472,26 +2474,33 @@ dialog.institution-dialog {
   .stock-volume { white-space: normal; }
   .table-scroll .change-chip { padding: 4px; }
   .page-heading {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 20px;
-  }
-  .page-heading p {
-    max-width: none;
-  }
-  .date-control {
-    max-width: none;
-    margin-top: 0;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 150px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 142px;
     align-items: center;
     gap: 4px 8px;
   }
+  .page-heading > div:first-child { display: contents; }
+  .page-heading .eyebrow { grid-column: 1; grid-row: 1; margin: 0; }
+  .page-heading h1 { grid-column: 1; grid-row: 2; margin: 0; }
+  .page-heading.without-date { grid-template-columns: minmax(0, 1fr); }
+  .page-heading p {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    max-width: none;
+    margin-top: 4px;
+  }
+  .date-control {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    max-width: none;
+    margin-top: 0;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    gap: 4px;
+  }
+  .date-control label { justify-content: flex-end; }
   .date-control select {
     padding: 6px 22px 6px 8px;
-  }
-  .date-control > span {
-    max-width: none;
-    grid-column: 1 / -1;
   }
   .watch-card {
     padding: 8px;
@@ -2517,12 +2526,11 @@ dialog.institution-dialog {
     display: none;
   }
   .signal-note {
-    flex-wrap: wrap;
+    justify-content: flex-end;
+    padding: 6px 12px;
   }
-  .signal-note > span {
-    min-width: 0;
-    flex: 1 1 180px;
-  }
+  .signal-note > span,
+  .signal-note > .icon { display: none; }
   .signal-note .text-button {
     margin-left: auto;
   }

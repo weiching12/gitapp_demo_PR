@@ -758,13 +758,51 @@ test("mobile sector details close after a deliberate downward pull on the handle
   expect(await card.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
 });
 
+test("market headings use clean sort icons and compact phone date controls", async ({ page }, testInfo) => {
+  await openPage(page, "market");
+  await expect(page.locator(".table-scroll-hint, #date-hint")).toHaveCount(0);
+  await expect(page.locator("#trade-date")).not.toHaveAttribute("aria-describedby", "date-hint");
+  await expect(page.locator(".table-scroll [data-sort] svg.sort-icon")).toHaveCount(5);
+  await expect(page.locator(".table-scroll thead")).not.toContainText("↕");
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const headers = await page.locator(".table-scroll thead th").evaluateAll((elements) => elements.map((element) => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, borders: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth], shadow: style.boxShadow };
+    }));
+    expect(headers.every((header) => header.background === "rgb(255, 255, 255)" && header.borders.every((border) => border === "0px") && header.shadow === "none")).toBe(true);
+    const note = page.locator(".signal-note > span");
+    if (width <= 700) {
+      await expect(note).toBeHidden();
+      const placement = await page.evaluate(() => {
+        const title = document.querySelector("#page-title").getBoundingClientRect();
+        const date = document.querySelector("#trade-date").getBoundingClientRect();
+        return { gap: date.left - title.right, overlap: Math.min(title.bottom, date.bottom) - Math.max(title.top, date.top), titleHeight: title.height };
+      });
+      expect(placement.gap).toBeGreaterThanOrEqual(4);
+      expect(placement.overlap).toBeGreaterThan(10);
+      expect(placement.titleHeight).toBeLessThanOrEqual(24);
+    } else await expect(note).toBeVisible();
+    await expect(page.locator('.signal-note [data-dialog="signals"]')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    if (width === 390) await page.screenshot({ path: testInfo.outputPath("market-heading-390.png") });
+  }
+  const heading = page.locator('[data-sort-heading="close"]');
+  await heading.locator("button").click();
+  await expect(heading).toHaveAttribute("aria-sort", "descending");
+  await expect(heading.locator(".sort-up")).toHaveCSS("opacity", "0.3");
+  await heading.locator("button").press("Enter");
+  await expect(heading).toHaveAttribute("aria-sort", "ascending");
+  await expect(heading.locator(".sort-down")).toHaveCSS("opacity", "0.3");
+});
+
 test("sector data stays on the latest complete date while other pages retain their selected date", async ({ page }) => {
   const { info } = await demoProvider.load();
   await openPage(page, "sectors");
   const latest = await page.locator("#sector-grid").innerText();
   await expect(page.locator("#trade-date")).toBeHidden();
   await expect(page.locator("#trade-date")).toBeDisabled();
-  await expect(page.locator("#date-hint")).toHaveText(`最新完整交易日 ${info.asOf}`);
+  await expect(page.locator("#date-hint")).toHaveCount(0);
   await openPage(page, "market");
   await page.locator("#trade-date").selectOption("2026-09-08");
   await openPage(page, "sectors");
@@ -1111,8 +1149,8 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
     await closeInstitutionDetails(page);
     await openPage(page, "sectors");
     await expectLegible("#sector-page");
-    const trailingBlank = await page.evaluate(() => document.documentElement.scrollHeight -
-      (document.querySelector(".page-footer").getBoundingClientRect().bottom + window.scrollY));
+    const trailingBlank = await page.evaluate(() => document.documentElement.scrollHeight - Math.max(window.innerHeight,
+      document.querySelector(".page-footer").getBoundingClientRect().bottom + window.scrollY));
     expect(trailingBlank).toBeLessThanOrEqual(2);
     const sectorControls = await page.locator("[data-sector-sort], [data-sector-window]").evaluateAll((buttons) => buttons.map((button) => {
       const rect = button.getBoundingClientRect();

@@ -65,6 +65,16 @@ test("full-market phone controls, filters, sector and institution details retain
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.locator('[data-page="market"]').click();
+    await expect(page.locator(".table-scroll-hint, #date-hint")).toHaveCount(0);
+    await expect(page.locator(".table-scroll [data-sort] .sort-icon")).toHaveCount(5);
+    if (width <= 700) {
+      await expect(page.locator(".signal-note > span")).toBeHidden();
+      expect(await page.evaluate(() => {
+        const title = document.querySelector("#page-title").getBoundingClientRect();
+        const date = document.querySelector("#trade-date").getBoundingClientRect();
+        return date.left >= title.right && Math.min(title.bottom, date.bottom) > Math.max(title.top, date.top);
+      })).toBe(true);
+    }
     await page.locator('[data-view="oversold"]').click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     await page.locator('[data-view="all"]').click();
