@@ -630,7 +630,14 @@ function renderTable() {
   document.querySelector("#table-empty").hidden = visibleStocks.length !== 0 || loading || loadFailed;
   document.querySelector("#favorite-count").textContent =
     state.favorites.length;
-  document.querySelector("#table-load-trigger").hidden = renderedStocks.length >= visibleStocks.length;
+  const trigger = document.querySelector("#table-load-trigger");
+  trigger.hidden = renderedStocks.length >= visibleStocks.length;
+  // A tall viewport may still contain the trigger after one batch. Recheck its
+  // position after layout instead of waiting for it to leave and re-enter view.
+  if (tableObserver) {
+    tableObserver.unobserve(trigger);
+    if (!trigger.hidden) tableObserver.observe(trigger);
+  }
   document.querySelector("#table-summary").textContent =
     `顯示 ${renderedStocks.length} / ${visibleStocks.length} 檔${isDemo ? "示範" : "觀察"}標的 · ${state.date}`;
   document.querySelectorAll("[data-view]").forEach((button) => {
@@ -751,6 +758,18 @@ function syncTableFavorite(symbol) {
 
 function bindEvents() {
   observeTableBatches();
+  const phoneLayout = matchMedia("(max-width: 700px)");
+  const searchControls = document.querySelector(".search-controls");
+  const arrangeSearchControls = () => {
+    const first = phoneLayout.matches ? document.querySelector("#sector-filter")
+      : document.querySelector(".search-box");
+    if (searchControls.firstElementChild === first) return;
+    const focused = document.activeElement;
+    searchControls.prepend(first);
+    if (first.contains(focused)) focused.focus({ preventScroll: true });
+  };
+  arrangeSearchControls();
+  phoneLayout.addEventListener("change", arrangeSearchControls);
   let touchInteraction = false;
   document.addEventListener("pointerdown", (event) => { touchInteraction = event.pointerType === "touch"; }, { capture: true, passive: true });
   document.addEventListener("touchstart", () => { touchInteraction = true; }, { capture: true, passive: true });

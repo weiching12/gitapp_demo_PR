@@ -73,6 +73,23 @@ test("full-market phone controls, filters, sector and institution details retain
     await page.locator('[data-page="market"]').click();
     await expect(page.locator(".table-scroll-hint, #date-hint")).toHaveCount(0);
     await expect(page.locator(".table-scroll [data-sort] .sort-icon")).toHaveCount(5);
+    const tableIssues = await page.locator(".table-scroll").evaluate((table) => {
+      const issues = [];
+      const heading = table.querySelector(".signal-heading").getBoundingClientRect();
+      const cell = table.querySelector(".signal-cell").getBoundingClientRect();
+      if (Math.abs(heading.left - cell.left) > 1 || Math.abs(heading.width - cell.width) > 1)
+        issues.push("technical signal header and cells do not align");
+      for (const price of table.querySelectorAll(".price-cell")) {
+        const bounds = price.getBoundingClientRect();
+        for (const element of price.querySelectorAll(".stock-close, .mobile-change")) {
+          const rect = element.getBoundingClientRect();
+          if (rect.width && (rect.left < bounds.left - 1 || rect.right > bounds.right + 1))
+            issues.push("price or change extends outside the cell");
+        }
+      }
+      return issues;
+    });
+    expect(tableIssues, `Market columns at ${width}px`).toEqual([]);
     if (width <= 700) {
       await expect(page.locator(".signal-note > span")).toBeHidden();
       expect(await page.evaluate(() => {
