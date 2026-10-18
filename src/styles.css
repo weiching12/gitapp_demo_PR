@@ -2175,26 +2175,30 @@ dialog.institution-dialog {
     flex-direction: row;
     align-items: center;
     gap: 6px;
-    margin-bottom: 12px;
+    margin-bottom: 6px;
+    padding: 6px 8px;
+    border-block: 1px solid var(--border);
+    background: #fff;
   }
   .overview-controls.institutional-active {
     position: sticky;
     top: 72px;
     z-index: 6;
-    background: #fff;
-    padding: 6px 0;
     box-shadow: 0 4px 12px #172f500d;
   }
   .overview-tabs {
     flex-shrink: 0;
     gap: 2px;
-    padding: 0;
-    border: 0;
-    background: transparent;
+    padding: 1px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #f6f8fb;
   }
   .overview-tabs [role="tab"] {
-    min-width: 44px;
-    border-radius: 8px;
+    min-width: 40px;
+    min-height: 34px;
+    padding: 3px 6px;
+    border-radius: 5px;
   }
   .overview-tabs .icon,
   .overview-label-full {
@@ -2212,10 +2216,16 @@ dialog.institution-dialog {
     max-width: 100%;
     margin: 0 0 0 auto;
     gap: 2px;
+    padding: 1px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #f6f8fb;
   }
   .institution-window button {
-    min-width: 44px;
-    padding-inline: 4px;
+    min-width: 40px;
+    min-height: 34px;
+    padding: 3px 6px;
+    border-radius: 5px;
     white-space: nowrap;
   }
   .institution-overview-note { margin: 2px 12px 0; }
@@ -2681,6 +2691,36 @@ dialog.institution-dialog {
 }
 
 @media (max-width: 700px) {
+  .table-toolbar {
+    gap: 6px;
+    padding: 6px 8px;
+    border-top: 1px solid var(--border);
+  }
+  .filter-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 2px;
+    padding: 1px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #f6f8fb;
+  }
+  .filter-tabs button {
+    min-height: 34px;
+    padding: 3px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+  .search-controls { gap: 6px; }
+  .search-box,
+  #sector-filter {
+    height: 34px;
+    min-height: 34px;
+    border-radius: 5px;
+  }
+  .search-box { padding: 3px 6px; }
+  #sector-filter { padding: 3px 18px 3px 6px; }
   .sector-toolbar {
     gap: 6px;
     margin-bottom: 2px;

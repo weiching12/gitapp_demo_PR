@@ -779,14 +779,25 @@ test("mobile market filters share one row and equal-size search controls", async
       };
       return {
         filters: [...document.querySelectorAll(".filter-tabs button")].map(node => node.getBoundingClientRect().y),
+        filterButtons: [...document.querySelectorAll(".filter-tabs button")].map((node) => ({
+          height: node.getBoundingClientRect().height,
+          fontSize: parseFloat(getComputedStyle(node).fontSize),
+        })),
         search: rect(".search-box"), sector: rect("#sector-filter"),
+        searchFontSize: parseFloat(getComputedStyle(document.querySelector("#stock-search")).fontSize),
+        sectorFontSize: parseFloat(getComputedStyle(document.querySelector("#sector-filter")).fontSize),
+        toolbarPadding: parseFloat(getComputedStyle(document.querySelector(".table-toolbar")).paddingTop),
         scrollWidth: document.documentElement.scrollWidth,
       };
     });
     expect(new Set(controls.filters).size).toBe(1);
     expect(Math.abs(controls.search.width - controls.sector.width)).toBeLessThanOrEqual(1);
     expect(controls.search.height).toBe(controls.sector.height);
-    expect(controls.search.height).toBeGreaterThanOrEqual(44);
+    expect(controls.search.height).toBe(34);
+    expect(controls.filterButtons.every(({ height, fontSize }) => height >= 34 && height <= 36 && fontSize === 12)).toBe(true);
+    expect(controls.searchFontSize).toBe(12);
+    expect(controls.sectorFontSize).toBe(12);
+    expect(controls.toolbarPadding).toBe(6);
     expect(controls.scrollWidth).toBeLessThanOrEqual(width);
   }
 });
@@ -944,12 +955,15 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
         expect(navLabels[index].left).toBeGreaterThanOrEqual(navLabels[index - 1].right);
       }
     }
-    const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite]').evaluateAll((controls) => controls.flatMap((element) => {
+    const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite]').evaluateAll((controls, viewportWidth) => controls.flatMap((element) => {
       const rect = element.getBoundingClientRect();
-      return rect.width && rect.height && (rect.width < 44 || rect.height < 44)
+      const compact = viewportWidth <= 700 && element.matches('[role="tab"], .search-box, #sector-filter, .filter-tabs button');
+      const minWidth = compact ? 40 : 44;
+      const minHeight = compact ? 34 : 44;
+      return rect.width && rect.height && (rect.width < minWidth || rect.height < minHeight)
         ? [{ control: element.getAttribute("aria-label") || element.textContent.trim(), width: rect.width, height: rect.height }]
         : [];
-    }));
+    }), width);
     expect(undersized, `Small touch targets at ${width}px`).toEqual([]);
     // The implicit label's padding is part of the search field's touch target.
     await page.locator(".search-box").click({ position: { x: 2, y: 2 } });
@@ -1027,7 +1041,7 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
     const sizes = await page.locator(".panel-subtitle, .metric-label, .metric-description").evaluateAll((elements) =>
       elements.filter((element) => element.getClientRects().length).map((element) => parseFloat(getComputedStyle(element).fontSize)));
     expect(Math.min(...sizes), `Reading copy at ${width}px`).toBeGreaterThanOrEqual(width <= 700 ? 12 : 14);
-    expect(await page.locator(".search-box input").evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(width <= 700 ? 14 : 16);
+    expect(await page.locator(".search-box input").evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(width <= 700 ? 12 : 16);
     if (width <= 700) {
       const tradeDate = await page.locator("#trade-date").evaluate((element) => ({
         fontSize: parseFloat(getComputedStyle(element).fontSize),
@@ -1038,6 +1052,19 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
     }
     await expectLegible();
     await page.locator('[data-overview="institutions"]').click();
+    if (width <= 700) {
+      const overviewToolbar = await page.locator(".overview-controls.institutional-active").evaluate((toolbar) => ({
+        padding: parseFloat(getComputedStyle(toolbar).paddingTop),
+        groups: [...toolbar.querySelectorAll(".overview-tabs, .institution-window")].map((group) => group.getBoundingClientRect().height),
+        buttons: [...toolbar.querySelectorAll("button")].map((button) => ({
+          height: button.getBoundingClientRect().height,
+          fontSize: parseFloat(getComputedStyle(button).fontSize),
+        })),
+      }));
+      expect(overviewToolbar.padding).toBe(6);
+      expect(overviewToolbar.groups.every((height) => height <= 40)).toBe(true);
+      expect(overviewToolbar.buttons.every(({ height, fontSize }) => height >= 34 && height <= 36 && fontSize === 12)).toBe(true);
+    }
     await expectLegible();
     for (const name of ["source", "methodology", "settings"]) {
       await page.locator(`.sidebar [data-dialog="${name}"]`).click();
