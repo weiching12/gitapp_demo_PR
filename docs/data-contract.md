@@ -1,20 +1,20 @@
 # 正式資料串接介面
 
-已加入 FinMind 日資料 adapter、Cloudflare KV 讀取與每日排程。一般本機啟動保留示範資料；Cloudflare 正式模式使用真實資料，部署步驟見 [cloudflare.md](cloudflare.md)。
+已加入 TWSE 全市場日報 adapter、Cloudflare KV 分組快取與每日排程。一般本機啟動保留示範資料；Cloudflare 正式模式使用全部上市公司名錄與真實資料，部署步驟見 [cloudflare.md](cloudflare.md)。
 
 `src/provider.js` 的 `loadDataset()` 選擇來源；`loadApiDataset()` 與 `src/data.js` 的 `demoProvider.load()` 共用資料格式，回傳下列結構：
 
 ```js
 {
   info: {
-    mode: 'demo', // 正式資料使用 'finmind'
+    mode: 'demo', // 正式資料使用 'twse'
     label: '示範資料',
-    asOf: '2026-10-16', // 以 Asia/Taipei 的實際完整交易日為準
+    asOf: '2026-10-16', // 最近已取得行情及法人市場報表的交易日
     note: '資料來源、更新時間及限制'
   },
-  dates: ['2026-10-15', '2026-10-16'], // 實際有完整資料的交易日，舊到新
+  dates: ['2026-10-15', '2026-10-16'], // 實際市場報表交易日，舊到新；個股仍可能缺漏
   stocks: [{
-    symbol: '2330', // 字串，0050、00878 必須保留開頭的 0
+    symbol: '2330', // 代碼以字串保存，亦支援六碼存託憑證
     name: '台積電',
     sector: '半導體',
     market: '上市',
@@ -40,7 +40,8 @@
 ## 計算約定
 
 - 歷史資料必須依日期由舊到新排列，不能有同一股票重複日期。
-- `asOf` 不直接以昨天的日曆日期推定；取所有標的均有行情且法人資料完整的最近共同交易日。
+- `asOf` 取同一天的市場行情與法人報表日期，不以日曆推定；休市、未發布、HTTP 錯誤分別處理。新上市、停牌與來源缺列不再要求全體股票具有相同歷史，避免整個市場日期被一檔股票卡住。
+- 全部公司均保留在名錄；沒有當日 OHLC 的公司不列入當日排行，不能用過期價格冒充當日行情。新增公司可有空歷史，資料不足顯示資料不足。法人缺列不補零；缺少市場交易日也會中斷法人累計與連續日數。
 - `getSnapshot()` 先截斷到選定資料日，再計算所有指標，避免讀取未來資料。
 - MA5、MA20、MA60 分別取最近 5、20、60 個交易日的收盤價平均，包含當日。資料不足時回傳 `null`。
 - 預設 KD (9,3,3)，第一個完整 9 日窗口才開始遞推。前值 K、D 為 50；全平盤窗口 RSV 採 50。修改平滑係數時使用 `(n - 1) / n` 與 `1 / n`。
@@ -75,4 +76,8 @@
 
 ## 目前實作
 
-FinMind API 回應驗證、缺漏值、載入錯誤、KV 快取與排程均已實作。Token 放在 Cloudflare Worker Secret，不進入瀏覽器或 `VITE_*` 變數。示範模式標示模擬資料；正式模式使用共同完整交易日，並在資料說明視窗標示 FinMind 與未還原價格口徑。正式模式沒有模擬資料 fallback。
+TWSE API 回應驗證、欄名映射、日期與單位檢查、缺漏值、KV 快取與排程均已實作，不需行情 Token。正式模式沒有模擬資料 fallback。
+
+傳輸與儲存使用 `schemaVersion: 2`：`/api/market` 提供公司名錄、實際交易日、`coverage` 與 128 個不可變分組網址，前端最多六個並行請求。每個分組包含 `generation`、`index`、`stocks: [{symbol, history}]`，歷史每列為 `[date, open, high, low, close, volume, foreignBuy, foreignSell, trustBuy, trustSell, dealerBuy, dealerSell]`；法人缺漏為 `null`，前端展開成上列統一格式，均線／KD 計算不變。前端檢查分組版本與公司涵蓋率，拒絕混版或缺組資料。
+
+排程先寫新版本的全部分組，等 KV 傳播後再切換索引。舊版本仍保留供載入中的使用者使用；開始下一代時刪除更舊版本。API 全部只讀快取，瀏覽次數不增加對 TWSE 的請求。`/api/stocks/代碼` 保留單檔展開格式作查核用途，前端不再逐股下載。

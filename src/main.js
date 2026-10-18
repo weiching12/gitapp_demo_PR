@@ -81,6 +81,7 @@ const state = {
   settings: { ...DEFAULT_SETTINGS },
 };
 let dataset, snapshots, latestSnapshots;
+let latestSettingsKey;
 let toastTimer;
 let isDemo;
 
@@ -197,9 +198,20 @@ function shell() {
 }
 
 function refreshData() {
-  latestSnapshots = dataset.stocks.map((stock) => getSnapshot(stock, dataset.info.asOf, state.settings));
+  const forDisplay = (stock, date) => {
+    const snapshot = getSnapshot(stock, date, state.settings);
+    // Indicators/streaks use the complete source history. The view only needs
+    // the current row plus 20 prior rows for sector returns, saving phone memory.
+    snapshot.history = snapshot.history.slice(-21);
+    return snapshot;
+  };
+  const settingsKey = [state.settings.period, state.settings.kSmooth, state.settings.dSmooth].join(":");
+  if (!latestSnapshots || latestSettingsKey !== settingsKey) {
+    latestSnapshots = dataset.stocks.map((stock) => forDisplay(stock, dataset.info.asOf));
+    latestSettingsKey = settingsKey;
+  }
   snapshots = state.date === dataset.info.asOf ? latestSnapshots
-    : dataset.stocks.map((stock) => getSnapshot(stock, state.date, state.settings));
+    : dataset.stocks.map((stock) => forDisplay(stock, state.date));
   renderWatchlist();
   renderTable();
   renderSectorOverview();
@@ -225,8 +237,8 @@ function renderPage() {
   dateSelect.disabled = sectors;
   document.querySelector(".date-control label").hidden = sectors;
   document.querySelector("#date-hint").textContent = sectors
-    ? `最新完整交易日 ${dataset.info.asOf}`
-    : isDemo ? "預設顯示前一交易日的模擬資料" : "最近一個價量與法人資料均完整的交易日";
+    ? `${isDemo ? "最新完整交易日" : "最新報表交易日"} ${dataset.info.asOf}`
+    : isDemo ? "預設顯示前一交易日的模擬資料" : "最近一個已取得行情與法人報表的交易日";
   document.querySelectorAll("[data-page-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.pagePanel !== state.page;
   });
@@ -408,7 +420,8 @@ function renderSectorOverview() {
   const days = state.sectorWindow === "day" ? 1 : Number(state.sectorWindow);
   const stockReturn = (stock) => {
     if (days === 1) return stock.latest.changePercent;
-    const previous = stock.history.at(-(days + 1));
+    const previousDate = dataset.dates.at(-(days + 1));
+    const previous = stock.history.find((bar) => bar.date === previousDate);
     return previous && Number.isFinite(previous.close) && previous.close !== 0
       ? ((stock.latest.close - previous.close) / previous.close) * 100 : null;
   };
@@ -468,7 +481,7 @@ function renderSectorDialog(name) {
   });
 
   document.querySelector("#sector-dialog-heading").textContent = name;
-  document.querySelector("#sector-dialog-meta").textContent = `最新完整交易日 ${dataset.info.asOf}`;
+  document.querySelector("#sector-dialog-meta").textContent = `${isDemo ? "最新完整交易日" : "最新報表交易日"} ${dataset.info.asOf}`;
   document.querySelector("#sector-dialog-content").innerHTML = `
     <section class="sector-detail-summary" aria-labelledby="sector-summary-heading">
       <div class="sector-detail-heading"><div><h3 id="sector-summary-heading">法人淨買賣超</h3><p>當日與近 5／20 個交易日累計，單位：張</p></div></div>
@@ -605,7 +618,7 @@ function openDialog(type) {
     content.innerHTML = `<h2 id="dialog-heading">KD 技術建議怎麼看？</h2>${technicalSignalGuide()}`;
   } else if (type === "source" && !isDemo) {
     const checkedAt = new Date(dataset.info.updatedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
-    content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由 FinMind 取得上市、上櫃股票與 ETF 的日行情及三大法人資料，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${dataset.stocks.length} 檔上市、上櫃股票與 ETF；非全市場</dd></div><div><dt>共同完整資料日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>各檔更新檢查時間下限</dt><dd>${esc(checkedAt)}（台灣時間）；檢查成功不代表當日資料已發布</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>平日台灣時間 21:00–23:29 分批更新；錯誤時保留上一份成功資料，請以資料交易日判斷新舊</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
+    content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由臺灣證券交易所取得上市公司名錄、每日收盤行情及三大法人買賣超日報，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${dataset.stocks.length} 家上市公司（依官方名錄，含存託憑證）；不含上櫃與 ETF</dd></div><div><dt>市場報表交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>整批資料發布時間</dt><dd>${esc(checkedAt)}（台灣時間）；未提供行情的公司不列入當日排行，缺少法人明細時顯示資料不足</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>平日台灣時間 21:00 開始取得全市場報表，再分批更新快取；失敗間隔 30 分鐘重試，23:59 結束。全部完成後才發布，錯誤時保留上一份資料</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
   } else if (type === "source") {
     content.innerHTML = `<h2 id="dialog-heading">資料透明，觀察才有依據。</h2><p class="dialog-intro">這是可操作的前端示範版，目前沒有連接交易所或即時行情服務。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>14 檔台灣上市、上櫃股票與 ETF 範例</dd></div><div><dt>示範資料截止日</dt><dd>${dataset.info.asOf}（固定資料，不會自動更新）</dd></div><div><dt>買賣量定義</dt><dd>外資、投信、自營商買進與賣出股數；畫面換算成張</dd></div><div><dt>指標計算方式</dt><dd>由模擬 OHLC 歷史資料在瀏覽器計算，並非硬填指標數值</dd></div><div><dt>下一階段</dt><dd>確認正式行情與三大法人資料來源，接上 API，再設定 Cloudflare 部署。</dd></div></dl><p class="helper-text">正式資料需涵蓋交易日曆、除權息還原與法人分類定義。此版資料未經還原，不能用於實際交易。</p>`;
   } else {

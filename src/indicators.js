@@ -98,12 +98,18 @@ export function getSnapshot(stock, asOf, settings) {
     stock.history.filter((bar) => bar.date <= asOf),
     settings,
   );
+  const current = history.at(-1)?.date === asOf;
+  // Never rank a suspended/unpriced company using its last traded day's price.
+  const byDate = new Map(history.map((bar) => [bar.date, bar]));
+  const institutionHistory = stock.tradingDates
+    ? stock.tradingDates.filter((date) => date <= asOf).map((date) => byDate.get(date) ?? { institutions: [] })
+    : history;
   return {
     ...stock,
     history,
-    latest: history.at(-1) ?? null,
-    signal: getTechnicalSignal(history),
-    institutionalSummary: getInstitutionalSummary(history),
+    latest: current ? history.at(-1) : null,
+    signal: getTechnicalSignal(current ? history : []),
+    institutionalSummary: getInstitutionalSummary(institutionHistory),
   };
 }
 

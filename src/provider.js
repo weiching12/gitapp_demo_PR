@@ -1,55 +1,75 @@
-import { STOCK_CATALOG } from "./catalog.js";
-import { getInstitutionNet, getInstitutionalNet } from "./indicators.js";
+import { expandStock, SHARD_COUNT, HISTORY_LIMIT } from "./market-codec.js";
 
-const complete = (bar) => getInstitutionalNet(bar.institutions) !== null;
 const validDate = (date) => typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
   Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
+const orderedDates = (dates) => Array.isArray(dates) && dates.length > 0 &&
+  dates.every((date, index) => validDate(date) && (index === 0 || dates[index - 1] < date));
 
-function validHistory(history) {
-  return Array.isArray(history) && history.length > 0 && history.every((bar, index) =>
-    bar && validDate(bar.date) && (index === 0 || history[index - 1].date < bar.date) &&
-    [bar.open, bar.high, bar.low, bar.close].every((value) => Number.isFinite(value) && value > 0) &&
-    bar.high >= Math.max(bar.open, bar.close) && bar.low <= Math.min(bar.open, bar.close) &&
-    Number.isSafeInteger(bar.volume) && bar.volume >= 0 && Array.isArray(bar.institutions) &&
-    bar.institutions.every((item) => ["外資", "投信", "自營商"].includes(item?.name) &&
-      getInstitutionNet(bar.institutions, item.name) !== null));
+function validRows(rows, asOf) {
+  return Array.isArray(rows) && rows.length <= HISTORY_LIMIT && rows.every((row, index) =>
+    Array.isArray(row) && row.length === 12 && validDate(row[0]) && row[0] <= asOf &&
+    (index === 0 || rows[index - 1][0] < row[0]) &&
+    row.slice(1, 5).every((value) => Number.isFinite(value) && value > 0) &&
+    row[2] >= Math.max(row[1], row[4]) && row[3] <= Math.min(row[1], row[4]) &&
+    Number.isSafeInteger(row[5]) && row[5] >= 0 &&
+    row.slice(6).every((value) => value === null || (Number.isSafeInteger(value) && value >= 0)));
 }
 
-export function combineSnapshots(snapshots) {
-  if (snapshots.length !== STOCK_CATALOG.length) throw new Error("Incomplete stock universe");
-  const symbols = new Set();
-  for (const payload of snapshots) {
-    const stock = payload?.stock;
-    if (payload?.schemaVersion !== 1 || !STOCK_CATALOG.some((item) => item.symbol === stock?.symbol) ||
-        symbols.has(stock.symbol) || !validHistory(stock.history) ||
-        !validDate(payload.asOf) ||
-        typeof payload.updatedAt !== "string" || !Number.isFinite(Date.parse(payload.updatedAt)))
-      throw new Error("Invalid stock snapshot");
-    symbols.add(stock.symbol);
+export function validateManifest(manifest) {
+  if (manifest?.schemaVersion !== 2 || manifest.source !== "twse" ||
+    !/^[a-z0-9-]{1,64}$/.test(manifest.generation) || !orderedDates(manifest.dates) ||
+    manifest.asOf !== manifest.dates.at(-1) || !Number.isFinite(Date.parse(manifest.updatedAt)) ||
+    !Array.isArray(manifest.stocks) || !manifest.stocks.length || !Array.isArray(manifest.chunks) ||
+    manifest.chunks.length !== SHARD_COUNT || manifest.chunks.some((url, i) => url !== `/api/market/${manifest.generation}/${i}`))
+    throw new Error("Invalid TWSE market manifest");
+  const seen = new Set();
+  for (const stock of manifest.stocks) {
+    if (!/^\d{4,6}$/.test(stock?.symbol) || !stock.name || !stock.sector || stock.market !== "上市" ||
+      !validDate(stock.listedOn) || seen.has(stock.symbol)) throw new Error("Invalid listed-company identity");
+    seen.add(stock.symbol);
   }
-  const stocks = snapshots.map((item) => item.stock);
-  const sharedDates = stocks.slice(1).map((stock) => new Set(stock.history.map((bar) => bar.date)));
-  const dates = stocks[0].history.map((bar) => bar.date)
-    .filter((date) => sharedDates.every((set) => set.has(date)));
-  const completeDates = stocks.map((stock) => new Set(stock.history.filter(complete).map((bar) => bar.date)));
-  const asOf = dates.findLast((date) => completeDates.every((set) => set.has(date)));
-  if (!asOf) throw new Error("No common complete trading date");
-  return { stocks, dates: dates.filter((date) => date <= asOf), info: {
-    mode: "finmind", label: "每日收盤資料", asOf,
-    updatedAt: new Date(Math.min(...snapshots.map((item) => Date.parse(item.updatedAt)))).toISOString(),
-    note: "資料來源：FinMind。股價為未還原日資料，非即時報價；外資不含外資自營商，自營商合計自行買賣與避險。所有標的共用最近一個價量與法人均完整的交易日。",
+  return manifest;
+}
+
+export function combineChunks(manifest, chunks) {
+  validateManifest(manifest);
+  if (chunks.length !== manifest.chunks.length) throw new Error("Incomplete market chunks");
+  const compact = new Map();
+  for (const [index, chunk] of chunks.entries()) {
+    if (chunk?.schemaVersion !== 2 || chunk.generation !== manifest.generation || chunk.index !== index || !Array.isArray(chunk.stocks))
+      throw new Error("Mixed or invalid market generation");
+    for (const stock of chunk.stocks) {
+      if (Number(stock.symbol) % SHARD_COUNT !== index || compact.has(stock.symbol) || !validRows(stock.history, manifest.asOf))
+        throw new Error("Invalid stock history chunk");
+      compact.set(stock.symbol, stock.history);
+    }
+  }
+  if (compact.size !== manifest.stocks.length || manifest.stocks.some((stock) => !compact.has(stock.symbol)))
+    throw new Error("Incomplete listed-company coverage");
+  const stocks = manifest.stocks.map((stock) => ({ ...expandStock(stock, compact.get(stock.symbol)), tradingDates: manifest.dates }));
+  return { stocks, dates: manifest.dates, info: {
+    mode: "twse", label: "每日收盤資料", asOf: manifest.asOf, updatedAt: manifest.updatedAt,
+    coverage: manifest.coverage,
+    note: "資料來源：臺灣證券交易所。上市公司名錄、每日收盤行情與三大法人買賣超日報；價格未還原、非即時報價。外資不含外資自營商，自營商合計自行買賣與避險。未提供行情或法人明細時保留缺漏，不補零。",
   } };
 }
 
 export async function loadApiDataset(fetcher = fetch) {
-  const snapshots = await Promise.all(STOCK_CATALOG.map(async ({ symbol }) => {
-    const response = await fetcher(`/api/stocks/${symbol}`);
+  const get = async (url) => {
+    const response = await fetcher(url);
     if (!response.ok) throw new Error("目前無法載入雲端股票資料，請稍後重試。");
-    const data = await response.json();
-    if (data.stock?.symbol !== symbol) throw new Error("Stock identity mismatch");
-    return data;
+    return response.json();
+  };
+  const manifest = validateManifest(await get("/api/market"));
+  const chunks = new Array(manifest.chunks.length);
+  let cursor = 0;
+  await Promise.all(Array.from({ length: 6 }, async () => {
+    while (cursor < chunks.length) {
+      const index = cursor++;
+      chunks[index] = await get(manifest.chunks[index]);
+    }
   }));
-  return combineSnapshots(snapshots);
+  return combineChunks(manifest, chunks);
 }
 
 export async function loadDataset() {

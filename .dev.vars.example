@@ -1,4 +1,1 @@
-# Registered FinMind token. Required for scheduled Cloudflare updates.
-# Copy to .dev.vars locally, or run scripts/set-finmind-token.ps1 on Windows.
-# Never put this token in VITE_* variables or commit .dev.vars.
-# FINMIND_TOKEN=your_token_here
+# TWSE public reports require no API token or paid subscription.

@@ -13,7 +13,8 @@
     "build:cloudflare": "vite build --mode cloudflare --configLoader runner",
     "dev:cloudflare": "npm run build:cloudflare && wrangler dev --port 8787",
     "deploy": "npm run build:cloudflare && wrangler deploy",
-    "seed": "node --env-file-if-exists=.dev.vars scripts/seed-market.js"
+    "seed": "node scripts/seed-market.js",
+    "verify:market": "node scripts/verify-market.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
