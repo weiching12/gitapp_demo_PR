@@ -83,3 +83,66 @@ test("full-market phone controls, filters, sector and institution details retain
     await page.keyboard.press("Escape");
   }
 });
+
+test("partial sector totals disclose window coverage and keep missing constituent data unknown", async ({ page, request }, testInfo) => {
+  test.setTimeout(60000);
+  const manifest = await (await request.get("/api/market")).json();
+  const replies = [];
+  page.on("response", (response) => {
+    if (/^\/api\/market\/[^/]+\/\d+$/.test(new URL(response.url()).pathname)) replies.push(response.json());
+  });
+  await page.goto("/");
+  await expect(page.locator("#stock-rows tr")).toHaveCount(manifest.coverage.traded, { timeout: 30000 });
+  const chunks = await Promise.all(replies);
+  const histories = new Map(chunks.flatMap((chunk) => chunk.stocks).map((stock) => [stock.symbol, new Map(stock.history.map((row) => [row[0], row]))]));
+  const amount = (shares, unit = false) => shares === null ? "資料不足"
+    : `${shares > 0 ? "+" : ""}${(shares / 1000).toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(shares / 1000) ? 0 : 2, maximumFractionDigits: Number.isInteger(shares / 1000) ? 0 : 2 })}${unit ? " 張" : ""}`;
+  const expected = (sector, days) => {
+    const stocks = manifest.stocks.filter((stock) => stock.sector === sector);
+    const dates = manifest.dates.slice(-days);
+    const rows = stocks.map((stock) => dates.map((date) => histories.get(stock.symbol).get(date)))
+      .filter((rows) => rows.length === days && rows.every((row) => row && row.slice(6).every(Number.isFinite)));
+    const net = (offset) => rows.length ? rows.reduce((total, history) => total + history.reduce((sum, row) => sum + row[offset] - row[offset + 1], 0), 0) : null;
+    const parts = [6, 8, 10].map(net);
+    return { total: rows.length ? parts.reduce((a, b) => a + b, 0) : null, parts, available: rows.length, expected: stocks.length };
+  };
+  const unpriced = manifest.stocks.find((stock) => manifest.coverage.inactive.includes(stock.symbol));
+  const sectors = [...new Set(["電子零組件業", unpriced?.sector].filter(Boolean))];
+  await page.locator('[data-page="sectors"]').click();
+  for (const sector of sectors) {
+    for (const [key, days] of [["day", 1], ["5", 5], ["20", 20]]) {
+      const result = expected(sector, days);
+      await page.locator(`[data-sector-window="${key}"]`).click();
+      const card = page.locator(`[data-sector-details="${sector}"]`);
+      await expect(card.locator(".sector-total strong")).toHaveText(amount(result.total, true));
+      if (result.available < result.expected)
+        await expect(card.locator("[data-sector-coverage]")).toHaveText(`已統計 ${result.available}／${result.expected} 檔，部分資料缺漏`);
+      else await expect(card.locator("[data-sector-coverage]")).toHaveCount(0);
+    }
+    await page.locator(`[data-sector-details="${sector}"]`).click();
+    for (const [key, days] of [["day", 1], ["5", 5], ["20", 20]]) {
+      const result = expected(sector, days);
+      const summary = page.locator(`#sector-dialog [data-sector-period="${key}"]`);
+      await expect(summary.locator('[data-sector-summary="total"]')).toHaveText(amount(result.total));
+      for (const [i, name] of ["外資", "投信", "自營商"].entries())
+        await expect(summary.locator(`[data-sector-summary="${name}"]`)).toHaveText(amount(result.parts[i]));
+      if (result.available < result.expected)
+        await expect(summary.locator("[data-sector-coverage]")).toContainText(`${result.available}／${result.expected}`);
+    }
+    if (sector === unpriced?.sector) {
+      const row = page.locator(`[data-sector-stock="${unpriced.symbol}"]`);
+      await expect(row.locator(".sector-stock-close")).toHaveText("—");
+      await expect(row.locator('[data-sector-net="day"] strong')).toHaveText("資料不足");
+    }
+    if (sector === "電子零組件業") {
+      if (manifest.coverage.missingInstitutions.includes("4943"))
+        await expect(page.locator('[data-sector-stock="4943"] [data-sector-net="day"] strong')).toHaveText("資料不足");
+      for (const width of [320, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        expect(await page.locator("#sector-dialog").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+        if (width === 390) await page.screenshot({ path: testInfo.outputPath("partial-sector-390.png") });
+      }
+    }
+    await page.keyboard.press("Escape");
+  }
+});

@@ -8,6 +8,8 @@ import {
   getDominantInstitution,
   getDirectionalLeader,
   getInstitutionNet,
+  getStockInstitutionValue as stockInstitutionValue,
+  getSectorInstitutionSummary,
 } from "./indicators.js";
 
 const icons = {
@@ -397,26 +399,15 @@ function updateInstitutionOverviewWindow() {
   });
 }
 
-function stockInstitutionValue(stock, name, window) {
-  if (window === "day") {
-    if (name === "total") return stock.latest.institutionalNet;
-    return getInstitutionNet(stock.latest.institutions, name);
-  }
-  const key = `net${window}`;
-  return name === "total" ? stock.institutionalSummary.total[key]
-    : stock.institutionalSummary.institutions[name][key];
-}
+const sectorCoverage = ({ available, expected }) => available < expected
+  ? `<p class="sector-coverage" data-sector-coverage>已統計 ${available}／${expected} 檔，部分資料缺漏</p>` : "";
 
 function renderSectorOverview() {
   const groups = new Map();
-  for (const stock of latestSnapshots.filter((item) => item.latest)) {
+  for (const stock of latestSnapshots) {
     if (!groups.has(stock.sector)) groups.set(stock.sector, []);
     groups.get(stock.sector).push(stock);
   }
-  const sum = (stocks, name) => {
-    const values = stocks.map((stock) => stockInstitutionValue(stock, name, state.sectorWindow));
-    return values.every(Number.isFinite) ? values.reduce((total, value) => total + value, 0) : null;
-  };
   const days = state.sectorWindow === "day" ? 1 : Number(state.sectorWindow);
   const stockReturn = (stock) => {
     if (days === 1) return stock.latest.changePercent;
@@ -426,12 +417,15 @@ function renderSectorOverview() {
       ? ((stock.latest.close - previous.close) / previous.close) * 100 : null;
   };
   const sectors = [...groups].map(([name, stocks]) => {
-    const returns = stocks.map(stockReturn).filter(Number.isFinite);
+    const priced = stocks.filter((stock) => stock.latest);
+    const returns = priced.map(stockReturn).filter(Number.isFinite);
+    const summary = getSectorInstitutionSummary(stocks, state.sectorWindow);
     return {
       name,
       stocks,
-      total: sum(stocks, "total"),
-      change: returns.length === stocks.length
+      summary,
+      total: summary.total,
+      change: priced.length && returns.length === priced.length
         ? returns.reduce((total, value) => total + value, 0) / returns.length : null,
     };
   });
@@ -458,19 +452,15 @@ function renderSectorOverview() {
     const leaderChange = leader ? stockReturn(leader) : null;
     const leaderText = leaderValue === null ? "資料不足" : `TOP1·${leader.name}`;
     const barWidth = `${Math.max(4, Math.round((Math.abs(sector.total ?? 0) / maxAmount) * 100))}%`;
-    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.total)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel}<span>${esc(leaderText)}</span> <span class="${direction(leaderChange)}">${percent(leaderChange)}</span></p></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total"><strong class="${direction(sector.total)}">${institutionalAmount(sector.total)}</strong><i class="${direction(sector.total)}" style="--sector-bar:${barWidth}"></i></div></div></article>`;
+    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.total)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel}<span>${esc(leaderText)}</span> <span class="${direction(leaderChange)}">${percent(leaderChange)}</span></p></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total"><strong class="${direction(sector.total)}">${institutionalAmount(sector.total)}</strong><i class="${direction(sector.total)}" style="--sector-bar:${barWidth}"></i></div></div>${sectorCoverage(sector.summary)}</article>`;
   }).join("");
   if (document.querySelector("#sector-dialog")?.open) renderSectorDialog(state.sectorName);
 }
 
 function renderSectorDialog(name) {
-  const stocks = latestSnapshots.filter((stock) => stock.sector === name && stock.latest);
+  const stocks = latestSnapshots.filter((stock) => stock.sector === name);
   if (!stocks.length) return;
   const periods = [["day", "當日"], ["5", "5 日"], ["20", "20 日"]];
-  const sum = (institution, window) => {
-    const values = stocks.map((stock) => stockInstitutionValue(stock, institution, window));
-    return values.every(Number.isFinite) ? values.reduce((total, value) => total + value, 0) : null;
-  };
   const members = stocks.map((stock) => ({
     stock,
     net: stockInstitutionValue(stock, "total", "day"),
@@ -486,9 +476,10 @@ function renderSectorDialog(name) {
     <section class="sector-detail-summary" aria-labelledby="sector-summary-heading">
       <div class="sector-detail-heading"><div><h3 id="sector-summary-heading">法人淨買賣超</h3><p>當日與近 5／20 個交易日累計，單位：張</p></div></div>
       <div class="sector-summary-grid">${periods.map(([key, label]) => {
-        const total = sum("total", key);
-        return `<article class="sector-summary-period" data-sector-period="${key}" aria-label="${label}法人買賣超"><header><h4>${label}</h4><strong class="${direction(total)}" data-sector-summary="total">${institutionalAmount(total, false)}</strong></header><dl>${["外資", "投信", "自營商"].map((institution) => {
-          const value = sum(institution, key);
+        const summary = getSectorInstitutionSummary(stocks, key);
+        const total = summary.total;
+        return `<article class="sector-summary-period" data-sector-period="${key}" aria-label="${label}法人買賣超"><header><h4>${label}</h4><strong class="${direction(total)}" data-sector-summary="total">${institutionalAmount(total, false)}</strong></header>${sectorCoverage(summary)}<dl>${["外資", "投信", "自營商"].map((institution) => {
+          const value = summary[institution];
           return `<div><dt>${institution}</dt><dd class="${direction(value)}" data-sector-summary="${institution}">${institutionalAmount(value, false)}</dd></div>`;
         }).join("")}</dl></article>`;
       }).join("")}</div>
@@ -496,7 +487,7 @@ function renderSectorDialog(name) {
     <section class="sector-stock-section" aria-labelledby="sector-stock-heading">
       <div class="sector-detail-heading"><div><h3 id="sector-stock-heading">產業個股</h3><p>依當日買賣超排序，單位：張</p></div></div>
       <div class="sector-stock-scroll" tabindex="0" role="region" aria-label="${esc(name)}個股股價與法人買賣超">
-        <table class="sector-stock-table"><caption class="sr-only">${esc(name)}各股最新收盤價、日漲跌幅及當日、5 日、20 日法人淨買賣超，單位：張</caption><colgroup><col class="sector-stock-name-column"><col class="sector-stock-price-column">${periods.map(() => '<col class="sector-stock-net-column">').join("")}</colgroup><thead><tr><th scope="col">股票</th><th scope="col">收盤價／日漲跌</th>${periods.map(([, label]) => `<th scope="col">${label}買賣超</th>`).join("")}</tr></thead><tbody>${members.map(({ stock }) => `<tr data-sector-stock="${stock.symbol}"><th scope="row"><span class="sector-stock-name"><strong>${esc(stock.name)}</strong><small>${stock.symbol}</small></span></th><td class="sector-stock-price"><span class="sector-stock-close">${number(stock.latest.close, 2)}</span><small class="sector-stock-change ${direction(stock.latest.changePercent)}">${percent(stock.latest.changePercent)}</small></td>${periods.map(([key, label]) => {
+        <table class="sector-stock-table"><caption class="sr-only">${esc(name)}各股最新收盤價、日漲跌幅及當日、5 日、20 日法人淨買賣超，單位：張</caption><colgroup><col class="sector-stock-name-column"><col class="sector-stock-price-column">${periods.map(() => '<col class="sector-stock-net-column">').join("")}</colgroup><thead><tr><th scope="col">股票</th><th scope="col">收盤價／日漲跌</th>${periods.map(([, label]) => `<th scope="col">${label}買賣超</th>`).join("")}</tr></thead><tbody>${members.map(({ stock }) => `<tr data-sector-stock="${stock.symbol}"><th scope="row"><span class="sector-stock-name"><strong>${esc(stock.name)}</strong><small>${stock.symbol}</small></span></th><td class="sector-stock-price"><span class="sector-stock-close">${number(stock.latest?.close, 2)}</span><small class="sector-stock-change ${direction(stock.latest?.changePercent)}">${percent(stock.latest?.changePercent)}</small></td>${periods.map(([key, label]) => {
           const value = stockInstitutionValue(stock, "total", key);
           return `<td class="sector-stock-net ${direction(value)}" data-sector-net="${key}"><span class="sector-stock-period-label" aria-hidden="true">${label}</span><strong>${institutionalAmount(value, false)}</strong></td>`;
         }).join("")}</tr>`).join("")}</tbody></table>

@@ -7,6 +7,7 @@ import {
   getInstitutionalSummary,
   getDominantInstitution,
   getDirectionalLeader,
+  getSectorInstitutionSummary,
   filterStocks,
 } from "../src/indicators.js";
 import { demoProvider } from "../src/data.js";
@@ -53,6 +54,50 @@ const bar = (close, date = "2026-10-01") => ({
     { name: "投信", buy: 0, sell: 0 },
     { name: "自營商", buy: 0, sell: 0 },
   ],
+});
+
+test("sector partial sums keep one shared cohort, include real zero and count unpriced members", () => {
+  const history = Array.from({ length: 20 }, (_, i) => bar(20, `2026-09-${String(i + 1).padStart(2, "0")}`));
+  const snapshot = (rows) => getSnapshot({ history: rows, tradingDates: history.map((row) => row.date) }, "2026-09-20");
+  const complete = snapshot(history);
+  const partialRows = structuredClone(history);
+  partialRows.at(-1).institutions.pop();
+  const partial = snapshot(partialRows);
+  const unpriced = snapshot(history.slice(0, -1));
+  const zero = snapshot(history.map((row) => ({ ...row, institutions: row.institutions.map((item) => ({ ...item, buy: 0, sell: 0 })) })));
+  const summary = getSectorInstitutionSummary([complete, partial, unpriced, zero], "day");
+  assert.deepEqual(summary, { available: 2, expected: 4, total: 2000, 外資: 2000, 投信: 0, 自營商: 0 });
+  assert.equal(partial.latest.institutionalNet, null);
+  assert.equal(unpriced.latest, null);
+});
+
+test("sector windows exclude an entire incomplete stock window without treating missing days as zero", () => {
+  const history = Array.from({ length: 20 }, (_, i) => bar(20, `2026-09-${String(i + 1).padStart(2, "0")}`));
+  const snapshot = (rows) => getSnapshot({ history: rows, tradingDates: history.map((row) => row.date) }, "2026-09-20");
+  const complete = snapshot(history);
+  const gapRows = structuredClone(history);
+  gapRows[18].institutions = [];
+  const gap = snapshot(gapRows);
+  assert.equal(getSectorInstitutionSummary([complete, gap], "day").available, 2);
+  for (const [window, count] of [["5", 5], ["20", 20]]) {
+    const summary = getSectorInstitutionSummary([complete, gap], window);
+    assert.equal(summary.available, 1);
+    assert.equal(summary.expected, 2);
+    assert.equal(summary.total, count * 2000);
+    assert.equal(summary.total, summary.外資 + summary.投信 + summary.自營商);
+    assert.equal(gap.institutionalSummary.total[`net${window}`], null);
+  }
+});
+
+test("sectors with no available values remain unknown, while fully observed zero is zero", () => {
+  const missing = { latest: null };
+  for (const window of ["day", "5", "20"]) {
+    assert.deepEqual(getSectorInstitutionSummary([missing], window),
+      { available: 0, expected: 1, total: null, 外資: null, 投信: null, 自營商: null });
+    assert.equal(getSectorInstitutionSummary([], window).total, null);
+  }
+  const zero = getSnapshot({ history: [{ ...bar(20), institutions: bar(20).institutions.map((row) => ({ ...row, buy: 0, sell: 0 })) }] }, "2026-10-01");
+  assert.equal(getSectorInstitutionSummary([zero], "day").total, 0);
 });
 
 test("KD starts at 50 after a complete RSV window, then follows the recursive formula", () => {

@@ -113,6 +113,27 @@ export function getSnapshot(stock, asOf, settings) {
   };
 }
 
+export function getStockInstitutionValue(stock, name, window) {
+  if (window === "day") return name === "total"
+    ? stock.latest?.institutionalNet ?? null
+    : getInstitutionNet(stock.latest?.institutions, name);
+  const summary = stock.institutionalSummary;
+  return (name === "total" ? summary?.total : summary?.institutions?.[name])?.[`net${window}`] ?? null;
+}
+
+/** Use one complete-stock cohort for the total and all three institutions.
+ * Missing sessions stay unknown; a stock contributes only its full window.
+ */
+export function getSectorInstitutionSummary(stocks, window) {
+  const names = ["total", "外資", "投信", "自營商"];
+  const rows = stocks.map((stock) => names.map((name) => getStockInstitutionValue(stock, name, window)))
+    .filter((values) => values.every(Number.isFinite));
+  return { available: rows.length, expected: stocks.length,
+    ...Object.fromEntries(names.map((name, index) => [name,
+      rows.length ? rows.reduce((sum, values) => sum + values[index], 0) : null])),
+  };
+}
+
 /** Totals stay in shares; rolling windows include the selected session. */
 export function getInstitutionalSummary(history) {
   const names = ["外資", "投信", "自營商"];

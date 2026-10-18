@@ -225,6 +225,7 @@ thead th button,
 .sidebar-note p {
   font-size: var(--text-body);
 }
+.sector-coverage { font-size: var(--text-meta); }
 @media (max-width: 700px) {
   :root {
     --text-page: 0.9375rem;

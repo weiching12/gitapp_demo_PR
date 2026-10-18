@@ -2618,6 +2618,13 @@ dialog.institution-dialog {
 }
 .sector-ranking .sector-total i.up { background: var(--up); }
 .sector-ranking .sector-total i.down { background: var(--down); }
+.sector-coverage {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.sector-card > .sector-coverage { margin: 0 14px 8px; }
 
 @media (max-width: 700px) {
   .sector-ranking {
