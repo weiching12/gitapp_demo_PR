@@ -2707,6 +2707,8 @@ dialog.institution-dialog {
     background: #f6f8fb;
   }
   .filter-tabs button {
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 34px;
     padding: 3px;
     border-radius: 5px;

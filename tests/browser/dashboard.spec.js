@@ -807,6 +807,29 @@ test("mobile market filters share one row and equal-size search controls", async
   }
 });
 
+test("market filter buttons retain their width and the page fits after selecting low K", async ({ page }) => {
+  for (const width of [320, 390, 600]) {
+    await page.setViewportSize({ width, height: 844 });
+    let originalButtons;
+    for (const view of ["all", "oversold", "favorites", "above", "all"]) {
+      await page.locator(`[data-view="${view}"]`).click();
+      const layout = await page.evaluate(() => ({
+        viewport: innerWidth,
+        page: document.documentElement.scrollWidth,
+        buttons: [...document.querySelectorAll(".filter-tabs button")].map((button) => ({
+          width: button.getBoundingClientRect().width,
+          height: button.getBoundingClientRect().height,
+        })),
+      }));
+      expect(layout.page).toBeLessThanOrEqual(layout.viewport);
+      expect(layout.buttons.every(({ width: buttonWidth, height }) =>
+        Math.abs(buttonWidth - layout.buttons[0].width) <= 1 && height >= 34 && height <= 36)).toBe(true);
+      if (originalButtons) expect(layout.buttons).toEqual(originalButtons);
+      else originalButtons = layout.buttons;
+    }
+  }
+});
+
 for (const width of [320, 390, 520, 768, 1440]) test(`sector details fit the viewport at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 844 });
   await openPage(page, "sectors");
