@@ -60,7 +60,11 @@ test("all favorites show compact metrics with institutional details available se
   await expect(page.locator("#stocks-heading")).toHaveCount(0);
   await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(5);
+  await expect(page.locator("#watchlist")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(page.locator("#watchlist")).toHaveCSS("border-radius", "10px");
   await expect(page.locator("#stock-rows tr")).toHaveCount(14);
+  await expect(page.locator("#table-load-trigger")).toBeHidden();
+  await expect(page.locator("#table-summary")).toContainText("顯示 14 / 14 檔");
   await expect(page.locator("#price-chart, #export-csv, #selected-title")).toHaveCount(0);
   await expect(cardFor(page, "2454")).toHaveCount(0);
   await expect(page.locator(".watch-card .watch-flow")).toHaveCount(0);
@@ -222,6 +226,14 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
       return errors;
     });
     expect(issues, `Mobile market table at ${width}px`).toEqual([]);
+    const nameStyles = await page.evaluate(() => {
+      const read = (selector) => {
+        const style = getComputedStyle(document.querySelector(selector));
+        return { color: style.color, fontSize: style.fontSize, fontWeight: style.fontWeight, lineHeight: style.lineHeight };
+      };
+      return { market: read(".stock-name strong"), sector: read(".sector-identity h3") };
+    });
+    expect(nameStyles.market).toEqual(nameStyles.sector);
   }
 });
 
@@ -324,7 +336,7 @@ test("desktop overview screenshot and keyboard search shortcut", async ({ page }
   await page.screenshot({ path: testInfo.outputPath("watchlist-desktop.png"), fullPage: true });
 });
 
-test("mobile cards swipe above the table and support scrolling and dialogs", async ({ page }, testInfo) => {
+test("mobile cards swipe above the table and support table scrolling", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(5);
@@ -335,15 +347,11 @@ test("mobile cards swipe above the table and support scrolling and dialogs", asy
   const signal = page.locator('[data-symbol="2317"] .signal-badge');
   await signal.scrollIntoViewIfNeeded();
   await expect(signal).toBeInViewport();
-  await page.getByRole("button", { name: "判讀規則" }).click();
-  await expect(page.getByRole("dialog")).toContainText("低檔黃金交叉");
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: testInfo.outputPath("watchlist-mobile.png"), fullPage: true });
 });
 
-test("phone carousel supports swipe, buttons and quick selection with many favorites", async ({ page }) => {
+test("phone price carousel supports swipe without redundant navigation controls", async ({ page }) => {
   const { stocks } = await demoProvider.load();
   await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })),
     stocks.map((stock) => stock.symbol));
@@ -352,10 +360,15 @@ test("phone carousel supports swipe, buttons and quick selection with many favor
   await page.reload();
   await openPage(page, "favorites");
   const grid = page.locator("#watchlist-grid");
-  const status = page.locator("#watchlist-carousel-status");
+  const controls = page.locator("#watchlist-carousel-controls");
   await expect(page.locator(".watch-card")).toHaveCount(14);
-  await expect(status).toContainText("第 1／14 檔");
-  await expect(page.locator("#watchlist-carousel-jump")).toBeVisible();
+  await expect(controls).toBeHidden();
+  const toolbarStyles = await page.evaluate(() => {
+    const toolbar = getComputedStyle(document.querySelector(".overview-controls"));
+    const tabs = getComputedStyle(document.querySelector(".overview-tabs"));
+    return { borderTop: toolbar.borderTopWidth, borderBottom: toolbar.borderBottomWidth, tabsBackground: tabs.backgroundColor };
+  });
+  expect(toolbarStyles).toEqual({ borderTop: "0px", borderBottom: "0px", tabsBackground: "rgb(255, 255, 255)" });
   const layout = await grid.evaluate((element) => ({
     height: element.getBoundingClientRect().height,
     visibleWidth: element.clientWidth,
@@ -365,16 +378,11 @@ test("phone carousel supports swipe, buttons and quick selection with many favor
   expect(layout.height).toBeLessThan(600);
   expect(layout.scrollWidth).toBeGreaterThan(layout.visibleWidth);
   expect(layout.firstWidth).toBeLessThan(layout.visibleWidth);
-  await page.locator('#watchlist-carousel-controls [data-carousel-step="1"]').click();
-  await expect(status).toContainText("第 2／14 檔");
-  await page.locator('#watchlist-carousel-controls [data-carousel-step="-1"]').click();
-  await expect(status).toContainText("第 1／14 檔");
+  await grid.evaluate((element) => { element.scrollLeft = element.querySelectorAll(".watch-card")[1].offsetLeft; });
+  await settleLayout(page);
+  expect(await grid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
   await grid.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
-  await expect(status).toContainText("第 14／14 檔");
-  await expect(page.locator('#watchlist-carousel-controls [data-carousel-step="1"]')).toBeDisabled();
-  await page.locator("#watchlist-carousel-jump").selectOption("2317");
-  await expect(status).toContainText("第 2／14 檔");
-  await expect(page.locator("#watchlist-carousel-jump")).toHaveValue("2317");
+  await expect(page.locator(".watch-card").last()).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 844 });
@@ -774,6 +782,7 @@ test("market headings use clean sort icons and compact phone date controls", asy
     const note = page.locator(".signal-note > span");
     if (width <= 700) {
       await expect(note).toBeHidden();
+      await expect(page.locator(".signal-note")).toBeHidden();
       const placement = await page.evaluate(() => {
         const title = document.querySelector("#page-title").getBoundingClientRect();
         const date = document.querySelector("#trade-date").getBoundingClientRect();
@@ -782,8 +791,10 @@ test("market headings use clean sort icons and compact phone date controls", asy
       expect(placement.gap).toBeGreaterThanOrEqual(4);
       expect(placement.overlap).toBeGreaterThan(10);
       expect(placement.titleHeight).toBeLessThanOrEqual(24);
-    } else await expect(note).toBeVisible();
-    await expect(page.locator('.signal-note [data-dialog="signals"]')).toBeVisible();
+    } else {
+      await expect(note).toBeVisible();
+      await expect(page.locator('.signal-note [data-dialog="signals"]')).toBeVisible();
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     if (width === 390) await page.screenshot({ path: testInfo.outputPath("market-heading-390.png") });
   }
@@ -818,7 +829,7 @@ test("sector data stays on the latest complete date while other pages retain the
   await expect(page.locator("#manage-favorites, .watchlist-heading")).toHaveCount(0);
 });
 
-test("mobile market filters share one row and equal-size search controls", async ({ page }) => {
+test("mobile market filters share one row with a compact sector control", async ({ page }) => {
   for (const width of [320, 390, 600]) {
     await page.setViewportSize({ width, height: 844 });
     const controls = await page.evaluate(() => {
@@ -827,6 +838,11 @@ test("mobile market filters share one row and equal-size search controls", async
         return { x, y, width, height };
       };
       return {
+        topbarDisplay: getComputedStyle(document.querySelector(".topbar")).display,
+        titleFontSize: parseFloat(getComputedStyle(document.querySelector("#page-title")).fontSize),
+        descriptionDisplay: getComputedStyle(document.querySelector("#page-description")).display,
+        signalNoteDisplay: getComputedStyle(document.querySelector(".signal-note")).display,
+        filterBackground: getComputedStyle(document.querySelector('[aria-label="清單篩選"]')).backgroundColor,
         filters: [...document.querySelectorAll(".filter-tabs button")].map(node => node.getBoundingClientRect().y),
         filterButtons: [...document.querySelectorAll(".filter-tabs button")].map((node) => ({
           height: node.getBoundingClientRect().height,
@@ -839,9 +855,16 @@ test("mobile market filters share one row and equal-size search controls", async
         scrollWidth: document.documentElement.scrollWidth,
       };
     });
+    expect(controls.topbarDisplay).toBe("none");
+    expect(controls.titleFontSize).toBe(17);
+    expect(controls.descriptionDisplay).toBe("none");
+    expect(controls.signalNoteDisplay).toBe("none");
+    expect(controls.filterBackground).toBe("rgb(255, 255, 255)");
     expect(new Set(controls.filters).size).toBe(1);
-    expect(Math.abs(controls.search.width - controls.sector.width)).toBeLessThanOrEqual(1);
+    expect(controls.sector.width).toBeLessThan(controls.search.width);
+    expect(controls.sector.width / controls.search.width).toBeLessThanOrEqual(0.65);
     expect(controls.search.height).toBe(controls.sector.height);
+    expect(controls.sector.x).toBeLessThan(controls.search.x);
     expect(controls.search.height).toBe(34);
     expect(controls.filterButtons.every(({ height, fontSize }) => height >= 34 && height <= 36 && fontSize === 12)).toBe(true);
     expect(controls.searchFontSize).toBe(12);
@@ -855,7 +878,7 @@ test("market filter buttons retain their width and the page fits after selecting
   for (const width of [320, 390, 600]) {
     await page.setViewportSize({ width, height: 844 });
     let originalButtons;
-    for (const view of ["all", "oversold", "favorites", "above", "all"]) {
+    for (const view of ["all", "oversold", "favorites", "above", "below", "all"]) {
       await page.locator(`[data-view="${view}"]`).click();
       const layout = await page.evaluate(() => ({
         viewport: innerWidth,
@@ -870,6 +893,12 @@ test("market filter buttons retain their width and the page fits after selecting
         Math.abs(buttonWidth - layout.buttons[0].width) <= 1 && height >= 34 && height <= 36)).toBe(true);
       if (originalButtons) expect(layout.buttons).toEqual(originalButtons);
       else originalButtons = layout.buttons;
+      if (view === "below") {
+        const deviations = await page.locator("#stock-rows .deviation").evaluateAll((elements) =>
+          elements.map((element) => Number(element.textContent.replace("%", ""))));
+        expect(deviations.length).toBeGreaterThan(0);
+        expect(deviations.every((value) => value < 0)).toBe(true);
+      }
     }
   }
 });
@@ -1172,7 +1201,7 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
         page: parseFloat(getComputedStyle(document.querySelector("#page-title")).fontSize),
         sector: parseFloat(getComputedStyle(document.querySelector(".sector-identity h3")).fontSize),
       }));
-      expect(phoneSizes).toEqual({ page: 15, sector: 14 });
+      expect(phoneSizes).toEqual({ page: 17, sector: 14 });
       const toolbarLabelSizes = await page.locator(".sector-toolbar .sector-sort-control > span, .sector-toolbar .sector-period-control > span").evaluateAll((elements) =>
         elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
       const toolbarButtonSizes = await page.locator(".sector-toolbar button").evaluateAll((elements) =>
@@ -1228,13 +1257,13 @@ test("phone institutional rows align values and keep interval switching availabl
   for (const width of [320, 390, 520, 700]) {
     await page.setViewportSize({ width, height: 844 });
     await page.locator('[data-overview="institutions"]').click();
+    await expect(page.locator("#watchlist")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(page.locator("#watchlist")).toHaveCSS("padding", "8px 0px 12px");
     await page.locator('[data-institution-window="20"]').click();
     await expect(page.locator(".institution-overview-row")).toHaveCount(14);
     const carousel = page.locator("#institution-overview-rows");
     const controls = page.locator("#institution-carousel-controls");
-    await expect(controls).toBeVisible();
-    await expect(controls.locator('[role="status"]')).toContainText("第 1／14 檔");
-    await expect(controls.locator("[data-carousel-jump]")).toBeVisible();
+    await expect(controls).toBeHidden();
     const dimensions = await carousel.evaluate((element) => ({
       height: element.getBoundingClientRect().height,
       visibleWidth: element.clientWidth,
@@ -1242,12 +1271,33 @@ test("phone institutional rows align values and keep interval switching availabl
     }));
     expect(dimensions.height).toBeLessThan(500);
     expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.visibleWidth);
-    await controls.locator('[data-carousel-step="1"]').click();
-    await expect(controls.locator('[role="status"]')).toContainText("第 2／14 檔");
-    await controls.locator("[data-carousel-jump]").selectOption("6488");
-    await expect(controls.locator('[role="status"]')).toContainText("第 14／14 檔");
+    const cardStyles = await page.evaluate(() => {
+      const read = (selector) => {
+        const element = document.querySelector(selector);
+        const style = getComputedStyle(element);
+        return {
+          width: element.getBoundingClientRect().width,
+          flexBasis: style.flexBasis,
+          padding: style.padding,
+          borderTopWidth: style.borderTopWidth,
+          borderTopColor: style.borderTopColor,
+          borderRadius: style.borderRadius,
+          background: style.backgroundColor,
+        };
+      };
+      return { price: read(".watch-card"), institutions: read(".institution-overview-row") };
+    });
+    expect(cardStyles.institutions.width).toBeGreaterThan(0);
+    expect(cardStyles.institutions.width).toBeLessThanOrEqual(374);
+    const { width: priceWidth, ...priceAppearance } = cardStyles.price;
+    const { width: institutionWidth, ...institutionAppearance } = cardStyles.institutions;
+    expect(institutionAppearance).toEqual(priceAppearance);
+    await carousel.evaluate((element) => { element.scrollLeft = element.querySelectorAll(".institution-overview-row")[1].offsetLeft; });
+    await settleLayout(page);
+    expect(await carousel.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+    await carousel.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+    await expect(page.locator(".institution-overview-row").last()).toBeInViewport();
     await page.locator('[data-institution-window="5"]').click();
-    await expect(controls.locator('[role="status"]')).toContainText("第 14／14 檔");
     const report = await page.locator(".institution-overview-row").evaluateAll((rows) => rows.flatMap((row) => {
       const issues = [];
       const fields = [...row.querySelectorAll(".overview-metric")];
@@ -1267,7 +1317,7 @@ test("phone institutional rows align values and keep interval switching availabl
     await page.locator('[data-institution-window="day"]').click();
     await expect(page.locator('[data-institution-window="day"]')).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator('[data-institution-window="day"]')).toBeFocused();
-    await controls.locator("[data-carousel-jump]").selectOption("2330");
+    await carousel.evaluate((element) => { element.scrollLeft = 0; });
   }
 });
 
@@ -1280,8 +1330,11 @@ test("phone institution interval changes preserve the current card and scroll po
     await page.setViewportSize({ width, height: 600 });
     await openPage(page, "favorites");
     await page.locator('[data-overview="institutions"]').click();
-    await page.locator('#institution-carousel-controls [data-carousel-jump]').selectOption(stocks[10].symbol);
-    await expect(page.locator('#institution-carousel-controls [role="status"]')).toContainText('第 11／14 檔');
+    await expect(page.locator('#institution-carousel-controls')).toBeHidden();
+    await page.locator('#institution-overview-rows').evaluate((element) => {
+      element.scrollLeft = element.querySelectorAll('.institution-overview-row')[10].offsetLeft;
+    });
+    await settleLayout(page);
     await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
     await settleLayout(page);
     const row = await page.locator('.institution-overview-row').nth(10).elementHandle();
@@ -1299,7 +1352,6 @@ test("phone institution interval changes preserve the current card and scroll po
       expect(Math.abs(after.scrollY - before.scrollY)).toBeLessThanOrEqual(1);
       expect(Math.abs(after.carouselLeft - before.carouselLeft)).toBeLessThanOrEqual(1);
       expect(Math.abs(after.toolbarTop - before.toolbarTop)).toBeLessThanOrEqual(1);
-      await expect(page.locator('#institution-carousel-controls [role="status"]')).toContainText('第 11／14 檔');
       await expect(page.locator(`[data-institution-window="${key}"]`)).toHaveAttribute('aria-pressed', 'true');
     }
   }

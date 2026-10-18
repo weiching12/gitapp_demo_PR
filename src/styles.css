@@ -620,6 +620,9 @@ h1 {
   scrollbar-width: thin;
   scrollbar-color: #bec6d1 #f2f4f8;
 }
+.table-load-trigger {
+  height: 1px;
+}
 .table-scroll table {
   border-collapse: collapse;
   width: 100%;
@@ -1451,6 +1454,10 @@ dialog h2 {
 }
 #watchlist {
   margin-bottom: 30px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
   container: watchlist / inline-size;
 }
 .watchlist-grid {
@@ -2171,6 +2178,18 @@ dialog.institution-dialog {
   .search-box { min-height: 44px; }
 }
 @media (max-width: 700px) {
+  #watchlist {
+    padding: 8px 0 12px;
+    border-radius: 8px;
+  }
+  .topbar,
+  .page-heading p,
+  .signal-note {
+    display: none;
+  }
+  #page-title {
+    font-size: 17px;
+  }
   .institution-overview { padding: 0; border: 0; background: transparent; }
   .overview-controls {
     flex-direction: row;
@@ -2178,7 +2197,7 @@ dialog.institution-dialog {
     gap: 6px;
     margin-bottom: 6px;
     padding: 6px 8px;
-    border-block: 1px solid var(--border);
+    border-block: 0;
     background: #fff;
   }
   .overview-controls.institutional-active {
@@ -2193,7 +2212,7 @@ dialog.institution-dialog {
     padding: 1px;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: #f6f8fb;
+    background: #fff;
   }
   .overview-tabs [role="tab"] {
     min-width: 40px;
@@ -2233,8 +2252,8 @@ dialog.institution-dialog {
   .institution-overview-row { grid-template-columns: 1fr; gap: 12px; padding: 14px; background: #fff; }
   .institution-overview-row > header { display: flex; justify-content: space-between; align-items: center; }
   .institution-overview-row > header > div { display: flex; flex-direction: column; min-width: 0; }
-  .institution-overview-row h4 { margin: 0; }
-  .overview-stock-code { order: 1; margin-top: 4px; }
+  .institution-overview-row h4 { margin: 2px 0 0; }
+  .overview-stock-code { order: initial; margin-top: 0; }
   .overview-detail-button { flex-shrink: 0; border: 1px solid #dce6f6; background: #f2f6ff; }
   .institution-overview-metrics { display: flex; flex-direction: column; gap: 0; }
   .overview-metric:not(.overview-total) {
@@ -2335,6 +2354,10 @@ dialog.institution-dialog {
     color: var(--muted);
     font-size: var(--text-secondary);
   }
+  #watchlist-carousel-controls,
+  #institution-carousel-controls {
+    display: none;
+  }
   .watchlist-carousel-actions {
     display: flex;
     align-items: center;
@@ -2362,6 +2385,7 @@ dialog.institution-dialog {
     scroll-snap-type: x mandatory;
     scroll-padding-inline: 12px;
     padding: 2px 12px 12px;
+    padding-right: max(12px, calc(100% - 386px));
     scrollbar-width: none;
   }
   #institution-carousel-controls {
@@ -2377,6 +2401,16 @@ dialog.institution-dialog {
   .watchlist-grid .watch-card {
     /* Two metric columns need about 170px each, plus the gap and card padding. */
     flex-basis: min(calc(100% - 12px), 374px);
+  }
+  .institution-overview-rows .institution-overview-row {
+    flex-basis: min(calc(100% - 12px), 374px);
+    padding: 8px;
+    border-top: 3px solid #9bb8ed;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .institution-overview-row > header {
+    margin-bottom: 6px;
   }
   .watch-card-heading {
     margin-bottom: 6px;
@@ -2470,6 +2504,9 @@ dialog.institution-dialog {
   .table-scroll .stock-name strong {
     white-space: normal;
     overflow-wrap: anywhere;
+    color: var(--ink);
+    font-weight: 600;
+    line-height: var(--leading-heading);
   }
   .stock-volume { white-space: normal; }
   .table-scroll .change-chip { padding: 4px; }
@@ -2513,7 +2550,7 @@ dialog.institution-dialog {
   }
   .search-controls {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(92px, 3fr) minmax(0, 5fr);
     width: 100%;
   }
   .search-box,
@@ -2718,7 +2755,7 @@ dialog.institution-dialog {
     padding: 1px;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: #f6f8fb;
+    background: #fff;
   }
   .filter-tabs button {
     flex: 1 1 0;
@@ -2729,6 +2766,8 @@ dialog.institution-dialog {
     white-space: nowrap;
   }
   .search-controls { gap: 6px; }
+  #sector-filter { order: 1; }
+  .search-box { order: 2; }
   .search-box,
   #sector-filter {
     height: 34px;

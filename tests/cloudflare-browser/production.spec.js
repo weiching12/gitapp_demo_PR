@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { getSnapshot } from "../../src/indicators.js";
 
-test("TWSE full listed-company API renders current-day prices with no per-stock browser requests", async ({ page, request }) => {
+test("TWSE full listed-company API renders current-day prices in viewport batches with no per-stock browser requests", async ({ page, request }) => {
   const manifest = await (await request.get("/api/market")).json();
   expect(manifest.source).toBe("twse");
   expect(manifest.stocks.length).toBeGreaterThanOrEqual(1000);
@@ -9,7 +9,13 @@ test("TWSE full listed-company API renders current-day prices with no per-stock 
   page.on("request", (request) => urls.push(request.url()));
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
-  await expect(page.locator("#stock-rows tr")).toHaveCount(manifest.coverage.traded, { timeout: 30000 });
+  await expect(page.locator("#load-status")).toBeHidden({ timeout: 30000 });
+  const initialRows = await page.locator("#stock-rows tr").count();
+  expect(initialRows).toBeGreaterThan(0);
+  expect(initialRows).toBeLessThanOrEqual(30);
+  await expect(page.locator("#table-summary")).toContainText(`/ ${manifest.coverage.traded} 檔`);
+  await page.locator("#table-load-trigger").scrollIntoViewIfNeeded();
+  await expect.poll(() => page.locator("#stock-rows tr").count()).toBeGreaterThan(initialRows);
   await expect(page.locator(".demo-badge")).toHaveText("每日收盤資料");
   await expect(page.locator(".watch-card")).toHaveCount(3);
   expect(urls.filter((url) => /\/api\/stocks\//.test(url))).toEqual([]);
@@ -102,7 +108,7 @@ test("partial sector totals disclose window coverage and keep missing constituen
     if (/^\/api\/market\/[^/]+\/\d+$/.test(new URL(response.url()).pathname)) replies.push(response.json());
   });
   await page.goto("/");
-  await expect(page.locator("#stock-rows tr")).toHaveCount(manifest.coverage.traded, { timeout: 30000 });
+  await expect(page.locator("#load-status")).toBeHidden({ timeout: 30000 });
   const chunks = await Promise.all(replies);
   const histories = new Map(chunks.flatMap((chunk) => chunk.stocks).map((stock) => [stock.symbol, new Map(stock.history.map((row) => [row[0], row]))]));
   const amount = (shares, unit = false) => shares === null ? "資料不足"

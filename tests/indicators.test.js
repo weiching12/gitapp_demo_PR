@@ -201,6 +201,7 @@ test("search, sector, favorites and indicator filters combine correctly", () => 
     0,
   );
   assert.equal(filterStocks(stocks, { view: "above" }).length, 1);
+  assert.equal(filterStocks(stocks, { view: "below" }).length, 1);
   assert.equal(filterStocks(stocks, { view: "oversold" }).length, 1);
 });
 

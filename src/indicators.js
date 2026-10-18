@@ -243,6 +243,7 @@ export function filterStocks(
     if (sector !== "all" && stock.sector !== sector) return false;
     if (view === "favorites" && !favorites.includes(stock.symbol)) return false;
     if (view === "above" && !(stock.latest.deviation > 0)) return false;
+    if (view === "below" && !(stock.latest.deviation < 0)) return false;
     if (
       view === "oversold" &&
       !(stock.latest.k !== null && stock.latest.k < 20)

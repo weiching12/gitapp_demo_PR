@@ -86,8 +86,10 @@ const state = {
 let dataset, snapshots, latestSnapshots;
 const latestCache = new Map(), historicalCache = new Map();
 const tableRowCache = new WeakMap();
+const TABLE_BATCH_SIZE = 30;
 let loading = false, loadFailed = false, loadProgress = { loaded: 0, total: 0 };
 let pendingPaint, previousFavorites;
+let tableVisibleLimit = TABLE_BATCH_SIZE, tableViewKey = "", tableObserver;
 let toastTimer;
 let isDemo;
 
@@ -172,7 +174,7 @@ function shell() {
           <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>到市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div>
         </section>
         <section class="panel stocks-panel" data-page-panel="market" aria-label="市場觀察股票表格">
-          <div class="table-toolbar"><div class="filter-tabs" role="group" aria-label="清單篩選"><button data-view="all" class="active">全部標的</button><button data-view="favorites">我的自選</button><button data-view="above">站上季線</button><button data-view="oversold" aria-label="K 值低於 20">K值低於20</button></div><div class="search-controls"><label class="search-box">${icon("search")}<input id="stock-search" type="search" placeholder="搜尋代碼或名稱" aria-label="搜尋股票代碼或名稱" autocomplete="off"/><kbd>/</kbd></label><select id="sector-filter" aria-label="產業篩選"><option value="all">全部產業</option>${[...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("")}</select></div></div>
+          <div class="table-toolbar"><div class="filter-tabs" role="group" aria-label="清單篩選"><button data-view="all" class="active">全部標的</button><button data-view="favorites">我的自選</button><button data-view="above">站上季線</button><button data-view="below">季線之下</button><button data-view="oversold" aria-label="K 值低於 20">K值低於20</button></div><div class="search-controls"><label class="search-box">${icon("search")}<input id="stock-search" type="search" placeholder="搜尋代碼或名稱" aria-label="搜尋股票代碼或名稱" autocomplete="off"/><kbd>/</kbd></label><select id="sector-filter" aria-label="產業篩選"><option value="all">全部產業</option>${[...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("")}</select></div></div>
           <div class="signal-note">${icon("info")}<span>依資料日 KD 交叉與 MA20 趨勢判讀；${isDemo ? "模擬資料技術提示" : "技術提示僅供觀察"}，需搭配風險控管。</span><button class="text-button" data-dialog="signals">判讀規則 ${icon("chevron")}</button></div>
           <div class="table-scroll" tabindex="0" role="region" aria-label="股票觀察清單，可左右捲動"><table><caption class="sr-only">${isDemo ? "模擬股票行情" : "股票收盤行情"}、KD 技術建議與三大法人買賣超。日漲跌幅與前一交易日收盤價比較，成交量位於收盤價下方，以張表示。點選星號可加入或移除上方自選總覽。</caption><colgroup><col class="favorite-column"/><col class="stock-column"/><col class="price-column"/><col class="change-column"/><col class="kd-column"/><col class="signal-column"/><col class="position-column"/><col class="net-column"/></colgroup><thead><tr><th scope="col"><span class="sr-only">自選</span></th><th scope="col">股票</th>${[
             ["close", "收盤價"],
@@ -187,7 +189,7 @@ function shell() {
             )
             .join(
               "",
-            )}</tr></thead><tbody id="stock-rows"></tbody></table></div><div id="table-empty" class="empty-state" hidden>${icon("search")}<h3>沒有符合條件的股票</h3><p>試試其他關鍵字，或清除篩選條件。</p><button class="outline-button" id="reset-filters">清除篩選</button></div><div class="table-footer"><span id="table-summary"></span><span>點選星號，即時更新我的自選 ${icon("star")}</span></div>
+            )}</tr></thead><tbody id="stock-rows"></tbody></table></div><div id="table-load-trigger" class="table-load-trigger" aria-hidden="true" hidden></div><div id="table-empty" class="empty-state" hidden>${icon("search")}<h3>沒有符合條件的股票</h3><p>試試其他關鍵字，或清除篩選條件。</p><button class="outline-button" id="reset-filters">清除篩選</button></div><div class="table-footer"><span id="table-summary"></span><span>點選星號，即時更新我的自選 ${icon("star")}</span></div>
         </section>
         <section id="sector-page" class="sector-page" data-page-panel="sectors" aria-label="法人買株排行榜" hidden>
           <div class="sector-toolbar"><div class="sector-sort-control"><span>排行方式</span><div class="sector-sort-tabs" role="group" aria-label="排行方式"><button data-sector-sort="name-asc" aria-pressed="true">產業</button><button data-sector-sort="net-desc" aria-pressed="false">買超</button><button data-sector-sort="net-asc" aria-pressed="false">賣超</button></div></div><div class="sector-period-control"><span>時間範圍</span><div class="sector-period" role="group" aria-label="法人買株累計區間"><button data-sector-window="day" aria-pressed="true">當日</button><button data-sector-window="5" aria-pressed="false">5 日</button><button data-sector-window="20" aria-pressed="false">20 日</button></div></div></div>
@@ -595,12 +597,18 @@ function renderTable() {
       if (bv === null) return -1;
       return (av - bv) * state.sortDirection;
     });
+  const nextViewKey = [state.date, state.view, state.sector, state.query, state.sort, state.sortDirection].join("|");
+  if (nextViewKey !== tableViewKey) {
+    tableViewKey = nextViewKey;
+    tableVisibleLimit = TABLE_BATCH_SIZE;
+  }
+  const renderedStocks = visibleStocks.slice(0, tableVisibleLimit);
   const body = document.querySelector("#stock-rows");
   const rows = new Map([...body.children].map((row) => [row.dataset.symbol, row]));
-  const visible = new Set(visibleStocks.map((stock) => stock.symbol));
+  const visible = new Set(renderedStocks.map((stock) => stock.symbol));
   for (const [symbol, row] of rows) if (!visible.has(symbol)) row.remove();
   let cursor = body.firstElementChild;
-  visibleStocks.forEach((stock) => {
+  renderedStocks.forEach((stock) => {
     const favorite = state.favorites.includes(stock.symbol);
     let row = rows.get(stock.symbol);
     const cached = row && tableRowCache.get(row);
@@ -622,8 +630,9 @@ function renderTable() {
   document.querySelector("#table-empty").hidden = visibleStocks.length !== 0 || loading || loadFailed;
   document.querySelector("#favorite-count").textContent =
     state.favorites.length;
+  document.querySelector("#table-load-trigger").hidden = renderedStocks.length >= visibleStocks.length;
   document.querySelector("#table-summary").textContent =
-    `顯示 ${visibleStocks.length} / ${snapshots.length} 檔${isDemo ? "示範" : "觀察"}標的 · ${state.date}`;
+    `顯示 ${renderedStocks.length} / ${visibleStocks.length} 檔${isDemo ? "示範" : "觀察"}標的 · ${state.date}`;
   document.querySelectorAll("[data-view]").forEach((button) => {
     const active = button.dataset.view === state.view;
     button.classList.toggle("active", active);
@@ -641,6 +650,17 @@ function renderTable() {
           : "none",
       ),
     );
+}
+
+function observeTableBatches() {
+  tableObserver?.disconnect();
+  const trigger = document.querySelector("#table-load-trigger");
+  tableObserver = new IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting) || trigger.hidden) return;
+    tableVisibleLimit += TABLE_BATCH_SIZE;
+    renderTable();
+  }, { rootMargin: "600px 0px" });
+  tableObserver.observe(trigger);
 }
 
 function technicalSignalGuide() {
@@ -730,6 +750,7 @@ function syncTableFavorite(symbol) {
 }
 
 function bindEvents() {
+  observeTableBatches();
   let touchInteraction = false;
   document.addEventListener("pointerdown", (event) => { touchInteraction = event.pointerType === "touch"; }, { capture: true, passive: true });
   document.addEventListener("touchstart", () => { touchInteraction = true; }, { capture: true, passive: true });
