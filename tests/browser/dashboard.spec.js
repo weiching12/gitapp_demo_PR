@@ -750,6 +750,12 @@ test("mobile sector details close after a deliberate downward pull on the handle
   await card.click();
   await handle.press("Enter");
   await expect(dialog).not.toBeVisible();
+  await card.press("Enter");
+  await expect(handle).toBeFocused();
+  expect(await handle.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(card).toBeFocused();
+  expect(await card.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
 });
 
 test("sector data stays on the latest complete date while other pages retain their selected date", async ({ page }) => {
@@ -1269,7 +1275,10 @@ test("touch closes ranking details without leaving a focus ring", async ({ brows
   const card = page.locator("#sector-grid .sector-card").first();
   await card.tap();
   await expect(page.locator("#sector-dialog")).toBeVisible();
-  await page.locator(".sector-dialog-handle").tap();
+  const handle = page.locator(".sector-dialog-handle");
+  await expect(handle).not.toBeFocused();
+  expect(await handle.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
+  await handle.tap();
   await expect(page.locator("#sector-dialog")).not.toBeVisible();
   await expect(card).not.toBeFocused();
   expect(await card.evaluate((element) => element.matches(":focus-visible"))).toBe(false);

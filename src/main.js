@@ -491,14 +491,15 @@ function renderSectorDialog(name) {
     </section>`;
 }
 
-function openSectorDialog(name) {
+function openSectorDialog(name, focusHandle = true) {
   state.sectorName = name;
   renderSectorDialog(name);
   const dialog = document.querySelector("#sector-dialog");
   if (!dialog.open) dialog.showModal();
   dialog.scrollTop = 0;
-  dialog.querySelector(matchMedia("(max-width: 520px)").matches ? ".sector-dialog-handle" : "#close-sector-dialog")
-    .focus({ preventScroll: true });
+  const focusTarget = dialog.querySelector(matchMedia("(max-width: 520px)").matches ? ".sector-dialog-handle" : "#close-sector-dialog");
+  if (focusHandle) focusTarget.focus({ preventScroll: true });
+  else if (document.activeElement === focusTarget) focusTarget.blur();
 }
 
 
@@ -678,7 +679,7 @@ function bindEvents() {
   document.addEventListener("click", (event) => {
     const sectorCard = event.target.closest("#sector-grid [data-sector-details]");
     if (sectorCard) {
-      openSectorDialog(sectorCard.dataset.sectorDetails);
+      openSectorDialog(sectorCard.dataset.sectorDetails, !touchInteraction);
       return;
     }
     const button = event.target.closest("button");
