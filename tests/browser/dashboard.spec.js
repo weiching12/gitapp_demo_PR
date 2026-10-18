@@ -581,8 +581,10 @@ test("institutional overview compares every favorite using independent day, 5 an
           }, 0);
           total += sum;
           await expect(row.locator(`[data-overview-net="${name}"]`)).toHaveText(amountText(sum));
+          await expect(row.locator(`[data-overview-net="${name}"]`)).toHaveClass(sum > 0 ? "up" : sum < 0 ? "down" : "neutral");
         }
         await expect(row.locator('[data-overview-net="total"]')).toHaveText(amountText(total));
+        await expect(row.locator('[data-overview-net="total"]')).toHaveClass(total > 0 ? "up" : total < 0 ? "down" : "neutral");
         await expect(row.locator(".overview-total-context")).toHaveCount(0);
         for (const name of ["外資", "投信"])
           await expect(row.locator(`[data-overview-streak="${name}"]`)).toHaveText(streakText(history, name));
@@ -1196,5 +1198,39 @@ test("phone institutional rows align values and keep interval switching availabl
     await expect(page.locator('[data-institution-window="day"]')).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator('[data-institution-window="day"]')).toBeFocused();
     await controls.locator("[data-carousel-jump]").selectOption("2330");
+  }
+});
+
+test("phone institution interval changes preserve the current card and scroll position", async ({ page }) => {
+  const { stocks } = await demoProvider.load();
+  await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })), stocks.map((stock) => stock.symbol));
+  await page.reload();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 600 });
+    await openPage(page, "favorites");
+    await page.locator('[data-overview="institutions"]').click();
+    await page.locator('#institution-carousel-controls [data-carousel-jump]').selectOption(stocks[10].symbol);
+    await expect(page.locator('#institution-carousel-controls [role="status"]')).toContainText('第 11／14 檔');
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
+    await settleLayout(page);
+    const row = await page.locator('.institution-overview-row').nth(10).elementHandle();
+    const position = () => page.evaluate(() => ({
+      scrollY,
+      carouselLeft: document.querySelector('#institution-overview-rows').scrollLeft,
+      toolbarTop: document.querySelector('.overview-controls').getBoundingClientRect().top,
+    }));
+    for (const key of ["5", "20", "day", "5"]) {
+      const before = await position();
+      await page.locator(`[data-institution-window="${key}"]`).click();
+      await settleLayout(page);
+      const after = await position();
+      expect(await row.evaluate((element) => element.isConnected)).toBe(true);
+      expect(Math.abs(after.scrollY - before.scrollY)).toBeLessThanOrEqual(1);
+      expect(Math.abs(after.carouselLeft - before.carouselLeft)).toBeLessThanOrEqual(1);
+      expect(Math.abs(after.toolbarTop - before.toolbarTop)).toBeLessThanOrEqual(1);
+      await expect(page.locator('#institution-carousel-controls [role="status"]')).toContainText('第 11／14 檔');
+      await expect(page.locator(`[data-institution-window="${key}"]`)).toHaveAttribute('aria-pressed', 'true');
+    }
   }
 });

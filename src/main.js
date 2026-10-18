@@ -362,6 +362,29 @@ function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
   updateCarouselControls("institutions");
 }
 
+function updateInstitutionOverviewWindow() {
+  const day = state.institutionWindow === "day";
+  const stocksBySymbol = new Map(snapshots.map((stock) => [stock.symbol, stock]));
+  document.querySelectorAll("[data-institution-window]").forEach((button) =>
+    button.setAttribute("aria-pressed", button.dataset.institutionWindow === state.institutionWindow));
+  document.querySelectorAll("#institution-overview-rows .institution-overview-row").forEach((row) => {
+    const stock = stocksBySymbol.get(row.dataset.overviewSymbol);
+    if (!stock?.latest) return;
+    const values = {
+      total: day ? stock.latest.institutionalNet : stock.institutionalSummary.total[`net${state.institutionWindow}`],
+    };
+    for (const name of ["外資", "投信", "自營商"])
+      values[name] = day ? getInstitutionNet(stock.latest.institutions, name)
+        : stock.institutionalSummary.institutions[name][`net${state.institutionWindow}`];
+    row.querySelectorAll("[data-overview-net]").forEach((amount) => {
+      const value = values[amount.dataset.overviewNet];
+      amount.textContent = institutionalAmount(value);
+      amount.classList.remove("up", "down", "neutral");
+      amount.classList.add(direction(value));
+    });
+  });
+}
+
 function stockInstitutionValue(stock, name, window) {
   if (window === "day") {
     if (name === "total") return stock.latest.institutionalNet;
@@ -669,7 +692,7 @@ function bindEvents() {
     }
     if (button.dataset.institutionWindow) {
       state.institutionWindow = button.dataset.institutionWindow;
-      renderInstitutionOverview();
+      updateInstitutionOverviewWindow();
     }
     if (button.dataset.sectorWindow) {
       state.sectorWindow = button.dataset.sectorWindow;
