@@ -713,6 +713,10 @@ h1 {
 .stock-volume {
   display: block;
 }
+.close-label-mobile,
+.mobile-change {
+  display: none;
+}
 .stock-volume {
   margin-top: 4px;
   color: var(--muted);
@@ -2468,13 +2472,17 @@ dialog.institution-dialog {
   }
   .table-scroll table {
     table-layout: fixed;
-    width: calc(var(--table-favorite-width) + var(--table-stock-width) + 92px + 80px + 72px + 210px + 112px + var(--table-net-width));
+    width: calc(var(--table-favorite-width) + var(--table-stock-width) + 116px + 72px + 210px + 112px + var(--table-net-width));
     min-width: 0;
   }
   .favorite-column { width: var(--table-favorite-width); }
   .stock-column { width: var(--table-stock-width); }
-  .price-column { width: 92px; }
-  .change-column { width: 80px; }
+  .price-column { width: 116px; }
+  .change-column {
+    display: none;
+  }
+  .table-scroll thead th[data-sort-heading="changePercent"],
+  .table-scroll tbody .change-cell { display: none; }
   .kd-column { width: 72px; }
   .signal-column { width: 210px; }
   .position-column { width: 112px; }
@@ -2510,6 +2518,21 @@ dialog.institution-dialog {
   }
   .stock-volume { white-space: normal; }
   .table-scroll .change-chip { padding: 4px; }
+  .close-label-desktop { display: none; }
+  .close-label-mobile { display: inline; }
+  .stock-price-line {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+  .price-cell .mobile-change {
+    display: inline-flex;
+    padding: 2px 4px;
+    font-size: var(--text-meta);
+    font-weight: 400;
+    line-height: var(--leading-control);
+  }
   .page-heading {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 142px;

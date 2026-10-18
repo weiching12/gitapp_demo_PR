@@ -182,6 +182,8 @@ test("table filters and sorting keep the full favorites overview unchanged", asy
 test("mobile table keeps prices and daily changes visible with volume beneath each close", async ({ page }) => {
   const { stocks, info } = await demoProvider.load();
   await expect(page.locator('[data-sort-heading="changePercent"]')).toHaveText(/日漲跌幅/);
+  await expect(page.locator('[data-sort-heading="changePercent"]')).toBeVisible();
+  await expect(page.locator(".mobile-change").first()).toBeHidden();
   await expect(page.locator('[data-sort-heading="changePercent"]')).not.toContainText("較前交易日");
   await expect(page.locator('[data-sort-heading="volume"]')).toHaveCount(0);
   // Monday also compares with the previous trading session, rather than Sunday or five sessions ago.
@@ -199,6 +201,31 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
   }
   for (const width of [320, 360, 390, 520, 700]) {
     await page.setViewportSize({ width, height: 844 });
+    await expect(page.locator('[data-sort-heading="changePercent"]')).toBeHidden();
+    const columns = await page.locator('.table-scroll').evaluate((table) => {
+      const header = table.querySelector('.signal-heading').getBoundingClientRect();
+      const cell = table.querySelector('.signal-cell').getBoundingClientRect();
+      return { headerWidth: header.width, cellWidth: cell.width, offset: header.left - cell.left };
+    });
+    expect(columns.headerWidth).toBeCloseTo(210, 0);
+    expect(columns.cellWidth).toBeCloseTo(210, 0);
+    expect(columns.offset).toBeCloseTo(0, 0);
+    await expect(page.locator('[data-sort-heading="close"]')).toContainText("收盤／漲跌");
+    await expect(page.locator('#stock-rows tr').first().locator(".mobile-change")).toBeVisible();
+    const mergedChange = await page.locator('#stock-rows tr').first().evaluate((row) => {
+      const volume = getComputedStyle(row.querySelector(".stock-volume"));
+      const change = getComputedStyle(row.querySelector(".mobile-change"));
+      return {
+        oldColumnWidth: row.querySelector(".change-cell").getBoundingClientRect().width,
+        fontSize: [change.fontSize, volume.fontSize],
+        fontWeight: [change.fontWeight, volume.fontWeight],
+        lineHeight: [change.lineHeight, volume.lineHeight],
+      };
+    });
+    expect(mergedChange.oldColumnWidth).toBe(0);
+    expect(new Set(mergedChange.fontSize).size).toBe(1);
+    expect(new Set(mergedChange.fontWeight).size).toBe(1);
+    expect(new Set(mergedChange.lineHeight).size).toBe(1);
     await page.locator(".table-scroll").evaluate((element) => { element.scrollLeft = 0; });
     const issues = await page.locator(".table-scroll").evaluate((element) => {
       const rightEdge = element.getBoundingClientRect().right;
@@ -210,7 +237,7 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
         const cells = [...row.children];
         if (cells[1].getBoundingClientRect().right - cells[0].getBoundingClientRect().left > 132.1)
           errors.push("pinned columns consume too much space");
-        for (const text of row.querySelectorAll(".stock-close, .stock-volume, .change-cell .change-chip")) {
+        for (const text of row.querySelectorAll(".stock-close, .stock-volume, .mobile-change")) {
           const range = document.createRange(); range.selectNodeContents(text);
           for (const rect of range.getClientRects()) if (rect.right > rightEdge + 1) errors.push("price, volume or daily change is outside the viewport");
         }
