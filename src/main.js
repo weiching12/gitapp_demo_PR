@@ -637,14 +637,15 @@ function rememberMarketPosition(button, removing) {
     left: document.querySelector(".table-scroll").scrollLeft };
 }
 
-function restoreMarketPosition(position) {
+function restoreMarketPosition(position, restoreFocus = true) {
   const selector = position.symbol ? `#stock-rows tr[data-symbol="${position.symbol}"]` : ".stocks-panel";
   const target = document.querySelector(selector);
   if (!target) return;
   const focusTarget = target.querySelector("[data-favorite]") ?? document.querySelector('[data-view="favorites"]');
-  focusTarget.focus({ preventScroll: true });
+  if (restoreFocus) focusTarget.focus({ preventScroll: true });
+  else if (document.activeElement === focusTarget) focusTarget.blur();
   const restore = () => {
-    if (document.activeElement !== focusTarget) return;
+    if (restoreFocus && document.activeElement !== focusTarget) return;
     document.querySelector(".table-scroll").scrollLeft = position.left;
     window.scrollBy({ top: target.getBoundingClientRect().top - position.top, behavior: "instant" });
   };
@@ -664,6 +665,10 @@ function syncTableFavorite(symbol) {
 }
 
 function bindEvents() {
+  let touchInteraction = false;
+  document.addEventListener("pointerdown", (event) => { touchInteraction = event.pointerType === "touch"; }, { capture: true, passive: true });
+  document.addEventListener("touchstart", () => { touchInteraction = true; }, { capture: true, passive: true });
+  document.addEventListener("keydown", () => { touchInteraction = false; }, true);
   document.addEventListener("keydown", (event) => {
     const card = event.target.closest?.("#sector-grid [data-sector-details]");
     if (!card || (event.key !== "Enter" && event.key !== " ")) return;
@@ -726,12 +731,12 @@ function bindEvents() {
       renderWatchlist();
       if (state.view === "favorites") renderTable();
       else syncTableFavorite(symbol);
-      if (position) restoreMarketPosition(position);
+      if (position) restoreMarketPosition(position, !touchInteraction);
       else {
         const scope = wasInOverview ? "#watchlist" : "#stock-rows";
         const focusTarget = document.querySelector(`${scope} [data-favorite="${symbol}"]`) ||
           document.querySelector(wasInOverview ? '#watchlist .overview-tabs [aria-selected="true"]' : '[data-view="favorites"]');
-        focusTarget.focus({ preventScroll: true });
+        if (!touchInteraction) focusTarget.focus({ preventScroll: true });
       }
       toast(
         wasFavorite ? `已將 ${symbol} 移出自選` : `已將 ${symbol} 加入自選`,
@@ -836,7 +841,10 @@ function bindEvents() {
     state.institutionSymbol = null;
     const scope = state.overview === "institutions" ? "#institution-overview" : "#watchlist-grid";
     const trigger = document.querySelector(`${scope} [data-institution-details="${symbol}"]`);
-    (trigger ?? document.querySelector('#watchlist .overview-tabs [aria-selected="true"]')).focus({ preventScroll: true });
+    const focusTarget = trigger ?? document.querySelector('#watchlist .overview-tabs [aria-selected="true"]');
+    if (touchInteraction) {
+      if (document.activeElement === focusTarget) focusTarget.blur();
+    } else focusTarget?.focus({ preventScroll: true });
   });
   const sectorDialog = document.querySelector("#sector-dialog");
   const sectorHandle = sectorDialog.querySelector(".sector-dialog-handle");
@@ -884,7 +892,9 @@ function bindEvents() {
     state.sectorName = null;
     const trigger = [...document.querySelectorAll("#sector-grid [data-sector-details]")]
       .find((card) => card.dataset.sectorDetails === name);
-    trigger?.focus({ preventScroll: true });
+    if (touchInteraction) {
+      if (document.activeElement === trigger) trigger.blur();
+    } else trigger?.focus({ preventScroll: true });
   });
 }
 

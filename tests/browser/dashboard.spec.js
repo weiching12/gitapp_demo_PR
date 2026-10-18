@@ -116,6 +116,7 @@ test("institutional details identify the selected stock and support keyboard, Es
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expect(firstButton).toBeFocused();
+  expect(await firstButton.evaluate((button) => button.matches(":focus-visible"))).toBe(true);
 
   const secondButton = detailsButtonFor(page, "6488");
   await expect(secondButton).toHaveAccessibleName("查看環球晶三大法人動向");
@@ -714,6 +715,8 @@ test("sector details show period totals and each constituent stock price and net
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
+  await expect(refreshedCard).toBeFocused();
+  expect(await refreshedCard.evaluate((card) => card.matches(":focus-visible"))).toBe(true);
 });
 
 test("mobile sector details close after a deliberate downward pull on the handle", async ({ page }) => {
@@ -1233,4 +1236,33 @@ test("phone institution interval changes preserve the current card and scroll po
       await expect(page.locator(`[data-institution-window="${key}"]`)).toHaveAttribute('aria-pressed', 'true');
     }
   }
+});
+
+test("touch closes ranking details without leaving a focus ring", async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: "http://127.0.0.1:5173", viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  await page.goto("/");
+  await page.locator('[data-page="sectors"]').tap();
+  const card = page.locator("#sector-grid .sector-card").first();
+  await card.tap();
+  await expect(page.locator("#sector-dialog")).toBeVisible();
+  await page.locator(".sector-dialog-handle").tap();
+  await expect(page.locator("#sector-dialog")).not.toBeVisible();
+  await expect(card).not.toBeFocused();
+  expect(await card.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
+  await page.locator('[data-page="favorites"]').tap();
+  await page.locator('[data-overview="institutions"]').tap();
+  const details = page.locator('#institution-overview [data-institution-details="2330"]');
+  await details.tap();
+  await expect(page.locator('#institution-dialog')).toBeVisible();
+  await page.locator('#close-institution-dialog').tap();
+  await expect(page.locator('#institution-dialog')).not.toBeVisible();
+  await expect(details).not.toBeFocused();
+  expect(await details.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
+  await page.locator('[data-page="market"]').tap();
+  const favorite = page.locator('#stock-rows [data-favorite="2330"]');
+  await favorite.tap();
+  await expect(favorite).not.toBeFocused();
+  expect(await favorite.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
+  await context.close();
 });
