@@ -315,7 +315,6 @@ main {
   margin-bottom: 25px;
 }
 .eyebrow {
-  letter-spacing: 2px;
   color: #6b7e99;
 }
 h1 {
@@ -2501,15 +2500,7 @@ dialog.institution-dialog {
     padding: 6px;
   }
   .filter-tabs {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
     width: 100%;
-    gap: 2px;
-  }
-  .filter-tabs button {
-    min-width: 0;
-    padding-inline: 2px;
-    white-space: normal;
   }
   .search-controls {
     display: grid;
@@ -2521,7 +2512,6 @@ dialog.institution-dialog {
     width: 100%;
     min-width: 0;
     max-width: none;
-    height: 44px;
   }
   .sector-inline {
     display: none;
@@ -2634,8 +2624,7 @@ dialog.institution-dialog {
     padding: 0 8px 12px;
   }
   .sector-ranking .sector-total strong { font-size: 14px; }
-  .sector-identity h3 { font-size: var(--text-body); white-space: nowrap; }
-  .sector-change { font-size: var(--text-title); }
+  .sector-identity h3 { white-space: nowrap; }
 }
 
 @media (max-width: 430px) {
