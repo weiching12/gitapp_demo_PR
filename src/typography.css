@@ -174,7 +174,6 @@ thead th button,
 .count-pill,
 .breadcrumb,
 .demo-badge,
-#watchlist-count,
 .date-control > span,
 .metric-label > span,
 .metric-value small,
@@ -201,7 +200,6 @@ thead th button,
   font-weight: 400;
 }
 .eyebrow,
-#watchlist-count,
 .watch-streak {
   font-weight: 500;
 }

@@ -157,11 +157,10 @@ function shell() {
             "",
           )}</select><span id="date-hint">${isDemo ? "預設顯示前一交易日的模擬資料" : "最近一個價量與法人資料均完整的交易日"}</span></div></section>
         <section id="watchlist" data-page-panel="favorites" aria-label="自選股票" hidden>
-          <div class="watchlist-heading"><span id="watchlist-count" role="status"></span><button class="outline-button" id="manage-favorites">${icon("star")} 管理自選</button></div>
-          <div class="overview-tabs" role="tablist" aria-label="自選總覽視角"><button id="watchlist-price-tab" role="tab" data-overview="price" aria-controls="watchlist-grid" aria-selected="true" tabindex="0">${icon("grid")} 價量總覽</button><button id="watchlist-institutions-tab" role="tab" data-overview="institutions" aria-controls="institution-overview" aria-selected="false" tabindex="-1">${icon("chart")} 法人總覽</button></div>
+          <div class="overview-controls"><div class="overview-tabs" role="tablist" aria-label="自選總覽視角"><button id="watchlist-price-tab" role="tab" data-overview="price" aria-label="價量總覽" aria-controls="watchlist-grid" aria-selected="true" tabindex="0">${icon("grid")}<span class="overview-label-full">價量總覽</span><span class="overview-label-short">價量</span></button><button id="watchlist-institutions-tab" role="tab" data-overview="institutions" aria-label="法人總覽" aria-controls="institution-overview" aria-selected="false" tabindex="-1">${icon("chart")}<span class="overview-label-full">法人總覽</span><span class="overview-label-short">法人</span></button></div><div class="institution-window" role="group" aria-label="法人累計區間" hidden><button data-institution-window="day" aria-pressed="true">當日</button><button data-institution-window="5" aria-pressed="false">近 5 日</button><button data-institution-window="20" aria-pressed="false">近 20 日</button></div></div>
           <div id="watchlist-carousel-controls" class="watchlist-carousel-controls" data-carousel="price" aria-label="自選卡片導覽"><span id="watchlist-carousel-status" role="status"></span><div class="watchlist-carousel-actions"><select id="watchlist-carousel-jump" data-carousel-jump aria-label="快速選擇自選股票" hidden></select><button class="icon-button" data-carousel-step="-1" aria-label="上一檔自選股票">${icon("chevron")}</button><button class="icon-button" data-carousel-step="1" aria-label="下一檔自選股票">${icon("chevron")}</button></div></div>
           <div id="watchlist-grid" class="watchlist-grid" role="tabpanel" aria-labelledby="watchlist-price-tab"></div>
-          <section id="institution-overview" class="institution-overview" role="tabpanel" aria-labelledby="watchlist-institutions-tab" hidden><div class="institution-window" role="group" aria-label="法人累計區間"><button data-institution-window="day" aria-pressed="true">當日</button><button data-institution-window="5" aria-pressed="false">近 5 日</button><button data-institution-window="20" aria-pressed="false">近 20 日</button></div><div id="institution-carousel-controls" class="watchlist-carousel-controls" data-carousel="institutions" aria-label="法人卡片導覽"><span role="status"></span><div class="watchlist-carousel-actions"><select data-carousel-jump aria-label="快速選擇法人比較股票" hidden></select><button class="icon-button" data-carousel-step="-1" aria-label="上一檔法人比較股票">${icon("chevron")}</button><button class="icon-button" data-carousel-step="1" aria-label="下一檔法人比較股票">${icon("chevron")}</button></div></div><div id="institution-overview-rows" class="institution-overview-rows"></div><p class="institution-overview-note">單位：張。連買／連賣天數截至資料日，與累計區間分開計算。</p></section>
+          <section id="institution-overview" class="institution-overview" role="tabpanel" aria-labelledby="watchlist-institutions-tab" hidden><div id="institution-carousel-controls" class="watchlist-carousel-controls" data-carousel="institutions" aria-label="法人卡片導覽"><span role="status"></span><div class="watchlist-carousel-actions"><select data-carousel-jump aria-label="快速選擇法人比較股票" hidden></select><button class="icon-button" data-carousel-step="-1" aria-label="上一檔法人比較股票">${icon("chevron")}</button><button class="icon-button" data-carousel-step="1" aria-label="下一檔法人比較股票">${icon("chevron")}</button></div></div><div id="institution-overview-rows" class="institution-overview-rows"></div><p class="institution-overview-note">單位：張。連買／連賣天數截至資料日，與累計區間分開計算。</p></section>
           <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>到市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div>
         </section>
         <section class="panel stocks-panel" data-page-panel="market" aria-label="市場觀察股票表格">
@@ -186,7 +185,7 @@ function shell() {
           <div class="sector-toolbar"><div class="sector-sort-control"><span>排行方式</span><div class="sector-sort-tabs" role="group" aria-label="排行方式"><button data-sector-sort="name-asc" aria-pressed="true">產業</button><button data-sector-sort="net-desc" aria-pressed="false">買超</button><button data-sector-sort="net-asc" aria-pressed="false">賣超</button></div></div><div class="sector-period-control"><span>時間範圍</span><div class="sector-period" role="group" aria-label="法人買株累計區間"><button data-sector-window="day" aria-pressed="true">當日</button><button data-sector-window="5" aria-pressed="false">5 日</button><button data-sector-window="20" aria-pressed="false">20 日</button></div></div></div>
           <div class="sector-ranking-head" aria-hidden="true"><span>產業排名</span><span id="sector-change-label">當日平均漲跌</span><span>法人淨買賣超</span></div>
           <div id="sector-grid" class="sector-grid sector-ranking"></div>
-          <p class="sector-note">單位：張。榜首百分比為該個股的區間漲跌幅；點選產業可同時查看當日、5 日、20 日買賣超。僅統計目前研究標的。</p>
+          <p class="sector-note">單位：張。TOP1 百分比為該個股的區間漲跌幅；點選產業可同時查看當日、5 日、20 日買賣超。僅統計目前研究標的。</p>
         </section>
         <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK INSIGHT</span></span><span>技術提示僅供研究參考。</span><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
       </main>
@@ -246,7 +245,6 @@ function renderWatchlist() {
   const favorites = state.favorites
     .map((symbol) => snapshots.find((stock) => stock.symbol === symbol))
     .filter((stock) => stock?.latest);
-  document.querySelector("#watchlist-count").textContent = `${favorites.length} 檔`;
   document.querySelector("#favorite-count").textContent = state.favorites.length;
   document.querySelector("#watchlist-empty").hidden = favorites.length > 0;
   if (state.institutionSymbol && !favorites.some((stock) => stock.symbol === state.institutionSymbol))
@@ -329,6 +327,8 @@ function renderOverviewVisibility() {
   document.querySelector("#watchlist-grid").hidden = empty || state.overview !== "price";
   document.querySelector("#watchlist-carousel-controls").hidden = empty || state.overview !== "price";
   document.querySelector("#institution-overview").hidden = empty || state.overview !== "institutions";
+  document.querySelector(".institution-window").hidden = empty || state.overview !== "institutions";
+  document.querySelector(".overview-controls").classList.toggle("institutional-active", !empty && state.overview === "institutions");
   document.querySelectorAll("[data-overview]").forEach((tab) => {
     const active = tab.dataset.overview === state.overview;
     tab.setAttribute("aria-selected", active);
@@ -420,9 +420,9 @@ function renderSectorOverview() {
     const { stock: leader, value: leaderValue } = getDirectionalLeader(candidates, sector.total);
     const periodLabel = days === 1 ? "當日" : `${days} 日`;
     const leaderChange = leader ? stockReturn(leader) : null;
-    const leaderText = leaderValue === null ? "資料不足" : `榜首·${leader.name}`;
+    const leaderText = leaderValue === null ? "資料不足" : `TOP1·${leader.name}`;
     const barWidth = `${Math.max(4, Math.round((Math.abs(sector.total ?? 0) / maxAmount) * 100))}%`;
-    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.total)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel} <span class="${direction(leaderChange)}">${percent(leaderChange)}</span> <span>${esc(leaderText)}</span></p></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total"><strong class="${direction(sector.total)}">${institutionalAmount(sector.total)}</strong><i class="${direction(sector.total)}" style="--sector-bar:${barWidth}"></i></div></div></article>`;
+    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.total)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel} <span>${esc(leaderText)}</span> <span class="${direction(leaderChange)}">${percent(leaderChange)}</span></p></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total"><strong class="${direction(sector.total)}">${institutionalAmount(sector.total)}</strong><i class="${direction(sector.total)}" style="--sector-bar:${barWidth}"></i></div></div></article>`;
   }).join("");
   if (document.querySelector("#sector-dialog")?.open) renderSectorDialog(state.sectorName);
 }
@@ -705,7 +705,7 @@ function bindEvents() {
       else {
         const scope = wasInOverview ? "#watchlist" : "#stock-rows";
         const focusTarget = document.querySelector(`${scope} [data-favorite="${symbol}"]`) ||
-          document.querySelector(wasInOverview ? "#manage-favorites" : '[data-view="favorites"]');
+          document.querySelector(wasInOverview ? '#watchlist .overview-tabs [aria-selected="true"]' : '[data-view="favorites"]');
         focusTarget.focus({ preventScroll: true });
       }
       toast(
@@ -723,7 +723,7 @@ function bindEvents() {
       renderTable();
     }
     if (button.id === "reset-filters") resetFilters();
-    if (button.id === "manage-favorites" || button.hasAttribute("data-manage-favorites")) {
+    if (button.hasAttribute("data-manage-favorites")) {
       resetFilters();
       state.page = "market";
       renderPage();
@@ -811,7 +811,7 @@ function bindEvents() {
     state.institutionSymbol = null;
     const scope = state.overview === "institutions" ? "#institution-overview" : "#watchlist-grid";
     const trigger = document.querySelector(`${scope} [data-institution-details="${symbol}"]`);
-    (trigger ?? document.querySelector("#manage-favorites")).focus({ preventScroll: true });
+    (trigger ?? document.querySelector('#watchlist .overview-tabs [aria-selected="true"]')).focus({ preventScroll: true });
   });
   const sectorDialog = document.querySelector("#sector-dialog");
   sectorDialog.addEventListener("close", () => {

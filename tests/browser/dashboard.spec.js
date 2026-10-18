@@ -267,7 +267,7 @@ test("empty favorites persist and offer a working path back to stock selection",
   await page.reload();
   await openPage(page, "favorites");
   await expect(page.locator(".watch-card")).toHaveCount(0);
-  await expect(page.locator("#watchlist-count")).toHaveText("0 檔");
+  await expect(page.locator("#watchlist-count")).toHaveCount(0);
   await page.getByRole("button", { name: "前往選擇股票" }).click();
   await expect(page.locator(".table-scroll")).toBeFocused();
   await expect(page.locator("#stock-rows tr")).toHaveCount(14);
@@ -643,12 +643,13 @@ test("sector page aggregates institutional flows and sorts industries", async ({
       await expect(cards.nth(index).locator(".sector-total strong")).toHaveText(amountText(ranked[index][1]));
       const leader = expectedLeader(ranked[index][0], days);
       const note = await cards.nth(index).locator(".sector-identity p").innerText();
-      expect(note).toContain(`榜首·${leader.stock.name}`);
+      expect(note).toContain(`TOP1·${leader.stock.name}`);
       expect(note).not.toMatch(/檔|張|買最多|賣最多/);
       const history = leader.stock.history.filter((bar) => bar.date <= info.asOf);
       const change = days === 1 ? getSnapshot(leader.stock, info.asOf).latest.changePercent
         : (history.at(-1).close / history.at(-(days + 1)).close - 1) * 100;
       expect(note).toContain(`${change > 0 ? "+" : ""}${formatted(change, 2)}%`);
+      expect(note.indexOf(`TOP1·${leader.stock.name}`)).toBeLessThan(note.indexOf(`${change > 0 ? "+" : ""}${formatted(change, 2)}%`));
     }
   }
   await page.locator('[data-sector-sort="net-asc"]').click();
@@ -730,10 +731,7 @@ test("sector data stays on the latest complete date while other pages retain the
   await expect(page.locator("#trade-date")).toHaveValue("2026-09-08");
   await expect(page.locator("#watchlist h2")).toHaveCount(0);
   await expect(page.locator("#page-title")).toContainText("自選總覽");
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.locator("#manage-favorites").click();
-  await expect(page.locator(".table-scroll")).toBeFocused();
-  await expect(page.locator(".table-scroll")).toBeInViewport();
+  await expect(page.locator("#manage-favorites, .watchlist-heading")).toHaveCount(0);
 });
 
 test("mobile market filters share one row and equal-size search controls", async ({ page }) => {
@@ -907,7 +905,7 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
         expect(navLabels[index].left).toBeGreaterThanOrEqual(navLabels[index - 1].right);
       }
     }
-    const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #manage-favorites, #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite]').evaluateAll((controls) => controls.flatMap((element) => {
+    const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite]').evaluateAll((controls) => controls.flatMap((element) => {
       const rect = element.getBoundingClientRect();
       return rect.width && rect.height && (rect.width < 44 || rect.height < 44)
         ? [{ control: element.getAttribute("aria-label") || element.textContent.trim(), width: rect.width, height: rect.height }]
@@ -987,7 +985,7 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
     await page.setViewportSize({ width, height: 900 });
     await openPage(page, "favorites");
     await page.locator('[data-overview="price"]').click();
-    const sizes = await page.locator(".panel-subtitle, .watchlist-heading p, .metric-label, .metric-description").evaluateAll((elements) =>
+    const sizes = await page.locator(".panel-subtitle, .metric-label, .metric-description").evaluateAll((elements) =>
       elements.filter((element) => element.getClientRects().length).map((element) => parseFloat(getComputedStyle(element).fontSize)));
     expect(Math.min(...sizes), `Reading copy at ${width}px`).toBeGreaterThanOrEqual(14);
     expect(await page.locator(".search-box input").evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
