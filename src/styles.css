@@ -2934,19 +2934,41 @@ dialog.sector-dialog {
     border-bottom: 0;
     border-left: 0;
     border-radius: 18px 18px 0 0;
+    transform: translateY(var(--sector-drag-y, 0px));
+    transition: transform 180ms ease-out;
+  }
+  dialog.sector-dialog.is-dragging {
+    transition: none;
   }
   .sector-dialog-handle {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 28px;
+    touch-action: none;
+    cursor: grab;
+  }
+  .sector-dialog-handle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -3px;
+    border-radius: 18px 18px 0 0;
+  }
+  .sector-dialog-handle::before {
+    content: "";
     width: 40px;
     height: 5px;
-    margin: 8px auto 0;
     border-radius: 999px;
     background: #cbd5e1;
   }
+  dialog.sector-dialog.is-dragging .sector-dialog-handle {
+    cursor: grabbing;
+  }
   .sector-dialog-top {
     gap: 10px;
-    padding: 13px 16px 14px;
+    padding: 8px 16px 14px;
   }
+  #close-sector-dialog { display: none; }
   .sector-dialog-body { padding: 15px 16px 20px; }
   .sector-summary-grid { gap: 8px; }
   .sector-detail-heading { align-items: flex-start; }

@@ -712,6 +712,39 @@ test("sector details show period totals and each constituent stock price and net
   await expect(dialog).not.toBeVisible();
 });
 
+test("mobile sector details close after a deliberate downward pull on the handle", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openPage(page, "sectors");
+  const card = page.locator("#sector-grid [data-sector-details]").first();
+  await card.click();
+  const dialog = page.locator("#sector-dialog");
+  const handle = dialog.locator(".sector-dialog-handle");
+  await expect(dialog.locator("#close-sector-dialog")).toBeHidden();
+  await expect(handle).toBeFocused();
+  const pull = async (distance) => {
+    const box = await handle.boundingBox();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + distance, { steps: 8 });
+    await page.mouse.up();
+  };
+
+  await pull(45);
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await pull(125);
+  await expect(dialog).not.toBeVisible();
+  await expect(card).toBeFocused();
+  await card.click();
+  await handle.click();
+  await expect(dialog).not.toBeVisible();
+  await card.click();
+  await handle.press("Enter");
+  await expect(dialog).not.toBeVisible();
+});
+
 test("sector data stays on the latest complete date while other pages retain their selected date", async ({ page }) => {
   const { info } = await demoProvider.load();
   await openPage(page, "sectors");
@@ -782,10 +815,14 @@ for (const width of [320, 390, 520, 768, 1440]) test(`sector details fit the vie
   expect(overflow).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath(`sector-details-${width}.png`) });
   if (width <= 520) {
+    await expect(dialog.locator("#close-sector-dialog")).toBeHidden();
     await dialog.locator("[data-sector-stock]").last().scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath(`sector-stocks-${width}.png`) });
+    await page.keyboard.press("Escape");
+  } else {
+    await expect(dialog.locator("#close-sector-dialog")).toBeVisible();
+    await dialog.locator("#close-sector-dialog").click();
   }
-  await dialog.locator("#close-sector-dialog").click();
   await expect(dialog).not.toBeVisible();
 });
 

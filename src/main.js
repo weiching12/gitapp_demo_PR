@@ -192,7 +192,7 @@ function shell() {
     </div>
     <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div></dialog>
     <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向" autofocus>${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
-    <dialog id="sector-dialog" class="sector-dialog" aria-labelledby="sector-dialog-heading" aria-describedby="sector-dialog-meta"><div class="sector-dialog-handle" aria-hidden="true"></div><header class="institution-dialog-top sector-dialog-top"><div><span class="eyebrow">SECTOR INSTITUTIONAL FLOWS</span><h2 id="sector-dialog-heading">產業法人買賣超</h2><p id="sector-dialog-meta"></p></div><button class="icon-button" id="close-sector-dialog" aria-label="關閉產業明細" autofocus>${icon("close")}</button></header><div id="sector-dialog-content" class="sector-dialog-body"></div><footer class="institution-dialog-footer sector-dialog-footer">正值為買超、負值為賣超 · 1 張 = 1,000 股 · 僅統計目前研究標的</footer></dialog>
+    <dialog id="sector-dialog" class="sector-dialog" aria-labelledby="sector-dialog-heading" aria-describedby="sector-dialog-meta"><div class="sector-dialog-handle" role="button" tabindex="0" aria-label="關閉產業明細，可向下拖曳"></div><header class="institution-dialog-top sector-dialog-top"><div><span class="eyebrow">SECTOR INSTITUTIONAL FLOWS</span><h2 id="sector-dialog-heading">產業法人買賣超</h2><p id="sector-dialog-meta"></p></div><button class="icon-button" id="close-sector-dialog" aria-label="關閉產業明細">${icon("close")}</button></header><div id="sector-dialog-content" class="sector-dialog-body"></div><footer class="institution-dialog-footer sector-dialog-footer">正值為買超、負值為賣超 · 1 張 = 1,000 股 · 僅統計目前研究標的</footer></dialog>
     <div id="toast" role="status" class="toast"></div>`;
 }
 
@@ -474,6 +474,8 @@ function openSectorDialog(name) {
   const dialog = document.querySelector("#sector-dialog");
   if (!dialog.open) dialog.showModal();
   dialog.scrollTop = 0;
+  dialog.querySelector(matchMedia("(max-width: 520px)").matches ? ".sector-dialog-handle" : "#close-sector-dialog")
+    .focus({ preventScroll: true });
 }
 
 
@@ -814,7 +816,47 @@ function bindEvents() {
     (trigger ?? document.querySelector('#watchlist .overview-tabs [aria-selected="true"]')).focus({ preventScroll: true });
   });
   const sectorDialog = document.querySelector("#sector-dialog");
+  const sectorHandle = sectorDialog.querySelector(".sector-dialog-handle");
+  let sectorDrag = null;
+  let suppressSectorHandleClickUntil = 0;
+  const resetSectorDrag = () => {
+    sectorDrag = null;
+    sectorDialog.classList.remove("is-dragging");
+    sectorDialog.style.removeProperty("--sector-drag-y");
+  };
+  sectorHandle.addEventListener("pointerdown", (event) => {
+    if (!sectorDialog.open || !matchMedia("(max-width: 520px)").matches || event.button !== 0) return;
+    sectorDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    sectorDialog.classList.add("is-dragging");
+    sectorHandle.setPointerCapture(event.pointerId);
+  });
+  sectorHandle.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== sectorDrag?.id) return;
+    const distance = event.clientY - sectorDrag.y;
+    const horizontal = Math.abs(event.clientX - sectorDrag.x);
+    sectorDialog.style.setProperty("--sector-drag-y", `${distance > horizontal ? Math.max(0, distance) : 0}px`);
+  });
+  sectorHandle.addEventListener("pointerup", (event) => {
+    if (event.pointerId !== sectorDrag?.id) return;
+    const distance = event.clientY - sectorDrag.y;
+    const horizontal = Math.abs(event.clientX - sectorDrag.x);
+    if (Math.hypot(distance, horizontal) > 8) suppressSectorHandleClickUntil = performance.now() + 350;
+    resetSectorDrag();
+    if (distance >= 90 && distance > horizontal) sectorDialog.close();
+  });
+  sectorHandle.addEventListener("pointercancel", resetSectorDrag);
+  sectorHandle.addEventListener("click", () => {
+    if (sectorDialog.open && performance.now() >= suppressSectorHandleClickUntil)
+      sectorDialog.close();
+  });
+  sectorHandle.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    sectorDialog.close();
+  });
   sectorDialog.addEventListener("close", () => {
+    resetSectorDrag();
+    suppressSectorHandleClickUntil = 0;
     const name = state.sectorName;
     state.sectorName = null;
     const trigger = [...document.querySelectorAll("#sector-grid [data-sector-details]")]
