@@ -269,7 +269,7 @@ test("empty favorites persist and offer a working path back to stock selection",
   await expect(page.locator(".watch-card")).toHaveCount(0);
   await expect(page.locator("#watchlist-count")).toHaveText("0 檔");
   await page.getByRole("button", { name: "前往選擇股票" }).click();
-  await expect(page.getByRole("searchbox")).toBeFocused();
+  await expect(page.locator(".table-scroll")).toBeFocused();
   await expect(page.locator("#stock-rows tr")).toHaveCount(14);
   await page.locator('#stock-rows [data-favorite="00878"]').click();
   await openPage(page, "favorites");
@@ -329,7 +329,7 @@ test("mobile cards swipe above the table and support scrolling and dialogs", asy
   await expect(page.locator(".watch-card")).toHaveCount(5);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.getByRole("button", { name: "管理自選" }).click();
-  await expect(page.getByRole("searchbox")).toBeFocused();
+  await expect(page.locator(".table-scroll")).toBeFocused();
   const signal = page.locator('[data-symbol="2317"] .signal-badge');
   await signal.scrollIntoViewIfNeeded();
   await expect(signal).toBeInViewport();
@@ -602,6 +602,10 @@ test("institutional overview compares every favorite using independent day, 5 an
 test("sector page aggregates institutional flows and sorts industries", async ({ page }) => {
   const { stocks, info } = await demoProvider.load();
   await openPage(page, "sectors");
+  await expect(page.locator('[data-sector-sort="name-asc"]')).toHaveAttribute("aria-pressed", "true");
+  const sortedNames = [...new Set(stocks.map((stock) => stock.sector))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(sortedNames);
+  await page.locator('[data-sector-sort="net-desc"]').click();
   const windows = page.getByRole("group", { name: "法人買株累計區間" });
   const expected = (days) => {
     const totals = new Map();
@@ -627,11 +631,8 @@ test("sector page aggregates institutional flows and sorts industries", async ({
     const leader = members.reduce((best, member) =>
       sectorTotal < 0 ? member.total < best.total ? member : best
         : member.total > best.total ? member : best);
-    const extreme = leader.total > 0 ? Math.max(...Object.values(leader.flows))
-      : Math.min(...Object.values(leader.flows));
-    return { leader, institutions: institutionalNames.filter((name) => leader.flows[name] === extreme) };
+    return leader;
   };
-  let periodLeaderChanges = 0;
   for (const [key, days, label] of [["day", 1, "當日"], ["5", 5, "5 日"], ["20", 20, "20 日"]]) {
     await windows.getByRole("button", { name: label, exact: true }).click();
     const ranked = expected(days);
@@ -640,17 +641,16 @@ test("sector page aggregates institutional flows and sorts industries", async ({
     for (let index = 0; index < ranked.length; index++) {
       await expect(cards.nth(index)).toHaveAttribute("data-sector-name", ranked[index][0]);
       await expect(cards.nth(index).locator(".sector-total strong")).toHaveText(amountText(ranked[index][1]));
-      const { leader, institutions } = expectedLeader(ranked[index][0], days);
+      const leader = expectedLeader(ranked[index][0], days);
       const note = await cards.nth(index).locator(".sector-identity p").innerText();
-      expect(note).toContain(`${leader.total > 0 ? "買最多" : leader.total < 0 ? "賣最多" : "買賣持平"} ${leader.stock.name}`);
-      if (leader.total !== 0) expect(note).toContain(institutions.join("、"));
-      if (days > 1) {
-        const current = expectedLeader(ranked[index][0], 1);
-        if (current.institutions.join("、") !== institutions.join("、")) periodLeaderChanges++;
-      }
+      expect(note).toContain(`榜首·${leader.stock.name}`);
+      expect(note).not.toMatch(/檔|張|買最多|賣最多/);
+      const history = leader.stock.history.filter((bar) => bar.date <= info.asOf);
+      const change = days === 1 ? getSnapshot(leader.stock, info.asOf).latest.changePercent
+        : (history.at(-1).close / history.at(-(days + 1)).close - 1) * 100;
+      expect(note).toContain(`${change > 0 ? "+" : ""}${formatted(change, 2)}%`);
     }
   }
-  expect(periodLeaderChanges).toBeGreaterThan(0);
   await page.locator('[data-sector-sort="net-asc"]').click();
   const ascending = expected(20).toReversed().map(([name]) => name);
   expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(ascending);
@@ -682,24 +682,25 @@ test("sector details show period totals and each constituent stock price and net
   const dialog = page.locator("#sector-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveAccessibleName(sectorName);
-  await expect(dialog.locator('[data-sector-summary="total"]')).toHaveText(amountText(expectedTotal(1)));
-  for (const institution of institutionalNames)
-    await expect(dialog.locator(`[data-sector-summary="${institution}"]`))
-      .toHaveText(amountText(sectorNet(institution, 1)));
+  await expect(dialog.locator("[data-sector-window]")).toHaveCount(0);
+  for (const [key, days] of [["day", 1], ["5", 5], ["20", 20]]) {
+    const summary = dialog.locator(`[data-sector-period="${key}"]`);
+    await expect(summary.locator('[data-sector-summary="total"]')).toHaveText(amountText(expectedTotal(days)).replace(" 張", ""));
+    for (const institution of institutionalNames)
+      await expect(summary.locator(`[data-sector-summary="${institution}"]`))
+        .toHaveText(amountText(sectorNet(institution, days)).replace(" 張", ""));
+  }
   await expect(dialog.locator("[data-sector-stock]")).toHaveCount(members.length);
   for (const stock of members) {
     const row = dialog.locator(`[data-sector-stock="${stock.symbol}"]`);
     const latest = stock.history.filter((bar) => bar.date <= info.asOf).at(-1);
     await expect(row).toContainText(stock.name);
     await expect(row.locator("td:nth-child(2)")).toContainText(formatted(latest.close, 2));
-    await expect(row.locator("td:last-child strong"))
-      .toHaveText(amountText(memberNet(stock, "外資", 1) + memberNet(stock, "投信", 1) + memberNet(stock, "自營商", 1)));
+    for (const [key, days] of [["day", 1], ["5", 5], ["20", 20]])
+      await expect(row.locator(`[data-sector-net="${key}"] strong`))
+        .toHaveText(amountText(institutionalNames.reduce((total, name) => total + memberNet(stock, name, days), 0)).replace(" 張", ""));
   }
 
-  await dialog.locator('[data-sector-window="5"]').click();
-  await expect(dialog.locator('[data-sector-window="5"]')).toHaveAttribute("aria-pressed", "true");
-  await expect(dialog.locator("#sector-dialog-meta")).toContainText("近 5 日");
-  await expect(dialog.locator('[data-sector-summary="total"]')).toHaveText(amountText(expectedTotal(5)));
   await dialog.locator("#close-sector-dialog").click();
   await expect(dialog).not.toBeVisible();
   const refreshedCard = page.locator(`#sector-grid [data-sector-details="${sectorName}"]`);
@@ -710,8 +711,55 @@ test("sector details show period totals and each constituent stock price and net
   await expect(dialog).not.toBeVisible();
 });
 
-test("sector details open as a full-width bottom sheet on mobile", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test("sector data stays on the latest complete date while other pages retain their selected date", async ({ page }) => {
+  const { info } = await demoProvider.load();
+  await openPage(page, "sectors");
+  const latest = await page.locator("#sector-grid").innerText();
+  await expect(page.locator("#trade-date")).toBeHidden();
+  await expect(page.locator("#trade-date")).toBeDisabled();
+  await expect(page.locator("#date-hint")).toHaveText(`最新完整交易日 ${info.asOf}`);
+  await openPage(page, "market");
+  await page.locator("#trade-date").selectOption("2026-09-08");
+  await openPage(page, "sectors");
+  await expect(page.locator("#sector-grid")).toHaveText(latest, { useInnerText: true });
+  await page.locator("#sector-grid [data-sector-details]").first().click();
+  await expect(page.locator("#sector-dialog-meta")).toHaveText(`最新完整交易日 ${info.asOf}`);
+  await page.locator("#close-sector-dialog").click();
+  await openPage(page, "favorites");
+  await expect(page.locator("#trade-date")).toBeVisible();
+  await expect(page.locator("#trade-date")).toHaveValue("2026-09-08");
+  await expect(page.locator("#watchlist h2")).toHaveCount(0);
+  await expect(page.locator("#page-title")).toContainText("自選總覽");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.locator("#manage-favorites").click();
+  await expect(page.locator(".table-scroll")).toBeFocused();
+  await expect(page.locator(".table-scroll")).toBeInViewport();
+});
+
+test("mobile market filters share one row and equal-size search controls", async ({ page }) => {
+  for (const width of [320, 390, 600]) {
+    await page.setViewportSize({ width, height: 844 });
+    const controls = await page.evaluate(() => {
+      const rect = (selector) => {
+        const { x, y, width, height } = document.querySelector(selector).getBoundingClientRect();
+        return { x, y, width, height };
+      };
+      return {
+        filters: [...document.querySelectorAll(".filter-tabs button")].map(node => node.getBoundingClientRect().y),
+        search: rect(".search-box"), sector: rect("#sector-filter"),
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+    expect(new Set(controls.filters).size).toBe(1);
+    expect(Math.abs(controls.search.width - controls.sector.width)).toBeLessThanOrEqual(1);
+    expect(controls.search.height).toBe(controls.sector.height);
+    expect(controls.search.height).toBeGreaterThanOrEqual(44);
+    expect(controls.scrollWidth).toBeLessThanOrEqual(width);
+  }
+});
+
+for (const width of [320, 390, 520, 768, 1440]) test(`sector details fit the viewport at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 844 });
   await openPage(page, "sectors");
   await page.locator("#sector-grid [data-sector-details]").first().click();
   const dialog = page.locator("#sector-dialog");
@@ -720,11 +768,27 @@ test("sector details open as a full-width bottom sheet on mobile", async ({ page
     const rect = element.getBoundingClientRect();
     return { x: rect.x, width: rect.width, bottom: rect.bottom, viewport: innerHeight };
   });
-  expect(layout.x).toBe(0);
-  expect(layout.width).toBe(390);
-  expect(layout.bottom).toBeGreaterThanOrEqual(layout.viewport - 1);
+  if (width <= 520) {
+    expect(layout.x).toBe(0);
+    expect(layout.width).toBe(width);
+    expect(layout.bottom).toBeGreaterThanOrEqual(layout.viewport - 1);
+  }
+  expect(layout.x).toBeGreaterThanOrEqual(0);
+  expect(layout.x + layout.width).toBeLessThanOrEqual(width);
   await expect(dialog.locator(".sector-stock-scroll")).toBeVisible();
-  await expect(dialog.locator(".sector-summary-grid .sector-summary-metric")).toHaveCount(4);
+  await expect(dialog.locator(".sector-summary-period")).toHaveCount(3);
+  const overflow = await dialog.evaluate((element) =>
+    [...element.querySelectorAll(".sector-dialog-body, .sector-stock-scroll, .sector-detail-heading, .sector-summary-period, .sector-stock-net strong")]
+      .filter((node) => node.scrollWidth > node.clientWidth + 1)
+      .map((node) => node.className || node.tagName));
+  expect(overflow).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath(`sector-details-${width}.png`) });
+  if (width <= 520) {
+    await dialog.locator("[data-sector-stock]").last().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath(`sector-stocks-${width}.png`) });
+  }
+  await dialog.locator("#close-sector-dialog").click();
+  await expect(dialog).not.toBeVisible();
 });
 
 test("both overview modes follow all favorites and retain the zero-favorite selection path", async ({ page }) => {
@@ -757,7 +821,7 @@ test("both overview modes follow all favorites and retain the zero-favorite sele
   await expect(page.locator("#watchlist-empty")).toBeVisible();
   await expect(page.locator("#institution-overview-rows article")).toHaveCount(0);
   await page.getByRole("button", { name: "前往選擇股票", exact: true }).click();
-  await expect(page.getByRole("searchbox")).toBeFocused();
+  await expect(page.locator(".table-scroll")).toBeFocused();
   await page.locator('#stock-rows [data-favorite="00878"]').click();
   await openPage(page, "favorites");
   await expect(overviewFor(page, "00878")).toBeVisible();

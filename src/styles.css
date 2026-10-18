@@ -624,7 +624,7 @@ h1 {
   scrollbar-width: thin;
   scrollbar-color: #bec6d1 #f2f4f8;
 }
-table {
+.table-scroll table {
   border-collapse: collapse;
   width: 100%;
   min-width: 1010px;
@@ -632,58 +632,58 @@ table {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-thead {
+.table-scroll thead {
   background: #f6f8fa;
 }
-thead th {
+.table-scroll thead th {
   color: #7a8ba2;
   height: 40px;
   border-bottom: 1px solid var(--border);
 }
-thead th button {
+.table-scroll thead th button {
   color: inherit;
   padding: 8px 0;
 }
-thead th button span {
+.table-scroll thead th button span {
   color: #a0acbd;
 }
-thead th[aria-sort="descending"] button,
-thead th[aria-sort="ascending"] button {
+.table-scroll thead th[aria-sort="descending"] button,
+.table-scroll thead th[aria-sort="ascending"] button {
   color: #475466;
 }
-thead th:nth-child(2) {
+.table-scroll thead th:nth-child(2) {
   text-align: left;
 }
-thead th:first-child {
+.table-scroll thead th:first-child {
   padding-left: 14px;
   width: 45px;
   text-align: center;
 }
-thead th:last-child {
+.table-scroll thead th:last-child {
   padding-right: 22px;
 }
-tbody td,
-tbody th {
+.table-scroll tbody td,
+.table-scroll tbody th {
   height: 66px;
   border-bottom: 1px solid #e6ebf1;
   padding: 8px 10px;
 }
-tbody td:first-child {
+.table-scroll tbody td:first-child {
   padding-left: 12px;
   padding-right: 5px;
 }
-tbody td:last-child {
+.table-scroll tbody td:last-child {
   padding-right: 20px;
 }
-tbody td:nth-child(3),
-tbody td:nth-child(5),
-tbody td:nth-child(9) {
+.table-scroll tbody td:nth-child(3),
+.table-scroll tbody td:nth-child(5),
+.table-scroll tbody td:nth-child(9) {
   letter-spacing: 0.2px;
 }
-tbody tr:hover {
+.table-scroll tbody tr:hover {
   background: #f6f8fa;
 }
-tbody th {
+.table-scroll tbody th {
   text-align: left;
   padding-left: 0;
 }
@@ -1447,27 +1447,15 @@ dialog h2 {
 .watchlist-heading {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   margin-bottom: 19px;
-}
-.watchlist-heading h2 {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 9px;
-  margin: 7px 0;
-  outline-offset: 5px;
 }
 #watchlist-count {
   padding: 4px 7px;
   border-radius: 5px;
   color: #1d4ed8;
   background: #eaf1ff;
-}
-.watchlist-heading p {
-  margin: 0;
-  color: #64748b;
 }
 .watchlist-grid {
   display: grid;
@@ -1865,10 +1853,6 @@ dialog.institution-dialog {
   }
   .watchlist-heading {
     gap: 10px;
-    align-items: flex-start;
-  }
-  .watchlist-heading .outline-button {
-    margin-top: 18px;
   }
   .watch-card {
     padding: 15px;
@@ -2157,7 +2141,6 @@ dialog.institution-dialog {
   }
   .sidebar-bottom .nav-item > span { display: none; }
   .workspace { margin-left: 0; }
-  #watchlist-heading { scroll-margin-top: 82px; }
   .filter-tabs button,
   #sector-filter,
   .date-control select,
@@ -2233,8 +2216,7 @@ dialog.institution-dialog {
 }
 
 /* Layout follows the shared type scale; narrow screens wrap instead of shrinking copy. */
-.page-heading > div:first-child,
-.watchlist-heading > div {
+.page-heading > div:first-child {
   min-width: 0;
 }
 .topbar-actions,
@@ -2242,9 +2224,6 @@ dialog.institution-dialog {
 .watchlist-heading,
 .watch-signal {
   flex-wrap: wrap;
-}
-.watchlist-heading > div {
-  flex: 1 1 230px;
 }
 .watch-signal .signal-reason {
   flex: 1 1 160px;
@@ -2415,9 +2394,6 @@ dialog.institution-dialog {
     max-width: none;
     grid-column: 1 / -1;
   }
-  .watchlist-heading .outline-button {
-    margin-top: 0;
-  }
   .watch-card {
     padding: 12px;
   }
@@ -2426,18 +2402,26 @@ dialog.institution-dialog {
   }
   .filter-tabs {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     width: 100%;
-    gap: 6px;
+    gap: 2px;
   }
   .filter-tabs button {
+    min-width: 0;
+    padding-inline: 2px;
     white-space: normal;
   }
-  .search-box {
-    max-width: none;
+  .search-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
+  .search-box,
   #sector-filter {
-    max-width: 140px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: 44px;
   }
   .sector-inline {
     display: none;
@@ -2462,12 +2446,6 @@ dialog.institution-dialog {
     flex: 1 1 140px;
   }
 }
-@media (min-width: 380px) and (max-width: 700px) {
-  .watchlist-heading .outline-button {
-    margin-top: 24px;
-  }
-}
-
 /* 法人買株：以排行榜呈現產業資金方向。 */
 .sector-ranking-head {
   display: grid;
@@ -2706,41 +2684,53 @@ dialog.sector-dialog {
   color: var(--muted);
   font-size: var(--text-secondary);
 }
-.sector-detail-period { flex: 0 0 auto; }
 .sector-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
-.sector-summary-metric {
-  display: flex;
+.sector-summary-period {
   min-width: 0;
-  flex-direction: column;
-  gap: 8px;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #f8fafc;
 }
-.sector-summary-metric > span {
+.sector-summary-period h4 {
+  margin: 0 0 8px;
   color: var(--muted);
   font-size: var(--text-secondary);
 }
-.sector-summary-metric > strong {
+.sector-summary-period header > strong {
+  display: block;
   overflow-wrap: anywhere;
-  font-size: clamp(15px, 2vw, 20px);
+  font-size: var(--text-title);
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
 }
-.sector-summary-metric.is-total {
-  border-color: #cbdaf0;
-  background: #f1f6fc;
+.sector-summary-period dl {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.sector-summary-period dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: var(--text-secondary);
+}
+.sector-summary-period dt { color: var(--muted); }
+.sector-summary-period dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
 .sector-stock-section { margin-top: 24px; }
-.sector-stock-heading > span {
-  flex: 0 0 auto;
+.sector-stock-period-label {
+  display: none;
   color: var(--muted);
-  font-size: var(--text-secondary);
+  font-size: var(--text-meta);
 }
 .sector-stock-scroll {
   max-height: min(48dvh, 520px);
@@ -2756,9 +2746,9 @@ dialog.sector-dialog {
   table-layout: fixed;
   font-variant-numeric: tabular-nums;
 }
-.sector-stock-name-column { width: 38%; }
-.sector-stock-price-column { width: 27%; }
-.sector-stock-net-column { width: 35%; }
+.sector-stock-name-column { width: 22%; }
+.sector-stock-price-column { width: 18%; }
+.sector-stock-net-column { width: 20%; }
 .sector-stock-table thead {
   position: sticky;
   top: 0;
@@ -2767,7 +2757,7 @@ dialog.sector-dialog {
 }
 .sector-stock-table th,
 .sector-stock-table td {
-  padding: 11px 14px;
+  padding: 11px 10px;
   border-bottom: 1px solid var(--border);
   text-align: right;
   vertical-align: middle;
@@ -2788,12 +2778,10 @@ dialog.sector-dialog {
   align-items: baseline;
   gap: 8px;
 }
-.sector-stock-name > strong,
-.sector-stock-close,
-.sector-stock-table td:last-child > strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.sector-stock-name > strong {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .sector-stock-name > small,
 .sector-stock-change {
@@ -2803,19 +2791,56 @@ dialog.sector-dialog {
 }
 .sector-stock-table td:nth-child(2) > * { display: block; }
 .sector-stock-change { margin-top: 3px; }
-.sector-stock-table td:last-child > strong { display: inline-block; }
+.sector-stock-net > strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: var(--text-secondary);
+}
 .sector-dialog-handle { display: none; }
 .sector-dialog-footer { padding-bottom: max(13px, env(safe-area-inset-bottom)); }
+.date-control [hidden] { display: none; }
+.table-scroll { scroll-margin-top: 90px; }
 
 @media (max-width: 700px) {
-  .sector-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sector-summary-grid { grid-template-columns: minmax(0, 1fr); }
   .sector-detail-heading { gap: 10px; }
-  .sector-detail-period { gap: 2px; }
+  .sector-summary-period { padding: 12px; }
+  .sector-summary-period header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .sector-summary-period h4 { margin: 0; }
+  .sector-summary-period dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .sector-summary-period dl > div { display: block; }
+  .sector-summary-period dd { margin-top: 3px; }
+  .sector-stock-scroll { max-height: none; overflow: visible; scrollbar-gutter: auto; }
+  .sector-stock-table,
+  .sector-stock-table tbody { display: block; }
+  .sector-stock-table colgroup { display: none; }
+  .sector-stock-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .sector-stock-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 8px;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sector-stock-table tbody tr:last-child { border-bottom: 0; }
+  .sector-stock-table th,
+  .sector-stock-table td { min-width: 0; padding: 0; border: 0; }
+  .sector-stock-table tbody th { grid-column: 1 / span 2; }
+  .sector-stock-price { grid-column: 3; }
+  .sector-stock-name { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .sector-stock-net { text-align: left !important; }
+  .sector-stock-period-label { display: block; margin-bottom: 3px; }
 }
 @media (max-width: 520px) {
   dialog.sector-dialog {
     position: fixed;
-    inset: auto 0 env(safe-area-inset-bottom, 0);
+    inset: auto 0 0;
     width: 100vw;
     max-width: 100vw;
     max-height: 88dvh;
@@ -2839,19 +2864,8 @@ dialog.sector-dialog {
   }
   .sector-dialog-body { padding: 15px 16px 20px; }
   .sector-summary-grid { gap: 8px; }
-  .sector-summary-metric { gap: 6px; padding: 11px; }
   .sector-detail-heading { align-items: flex-start; }
-  .sector-detail-period { align-self: center; }
-  .sector-detail-period button { min-width: 44px; padding-inline: 8px; }
   .sector-stock-section { margin-top: 20px; }
-  .sector-stock-scroll { max-height: 42dvh; border-radius: 8px; }
-  .sector-stock-name-column { width: 34%; }
-  .sector-stock-price-column { width: 25%; }
-  .sector-stock-net-column { width: 41%; }
-  .sector-stock-table th,
-  .sector-stock-table td { padding: 10px 8px; }
-  .sector-stock-table thead th { white-space: normal; line-height: 1.35; }
-  .sector-stock-name { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .sector-stock-table td:last-child > strong { font-size: 12px; }
+  .sector-stock-scroll { border-radius: 8px; }
   .sector-dialog-footer { padding: 11px 16px max(11px, env(safe-area-inset-bottom)); }
 }
