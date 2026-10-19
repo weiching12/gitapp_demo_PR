@@ -30,7 +30,7 @@ for (const kind of Object.keys(parts)) test(`${kind} carousel follows its respon
       continue;
     }
     await expect(dots).toBeVisible();
-    await expect(buttons).toHaveCount(5);
+    await expect(buttons).toHaveCount(3);
     await buttons.first().click();
     await expect(buttons.first()).toHaveAttribute("aria-current", "true");
     const placement = await page.evaluate(({ track, dots }) => {
@@ -94,17 +94,59 @@ test("carousel dots stay in sync after switching overviews, changing intervals a
   await page.locator('[data-overview="price"]').click();
   await expect(priceDots.nth(2)).toHaveAttribute("aria-current", "true");
   await page.locator('#watchlist-grid .watch-card').nth(2).locator('[data-favorite]').click();
-  await expect(priceDots).toHaveCount(4);
-  await expect(institutionDots).toHaveCount(4);
+  await expect(priceDots).toHaveCount(3);
+  await expect(institutionDots).toHaveCount(3);
   await expect(page.locator('#watchlist-carousel-controls [aria-current="true"]')).toHaveCount(1);
   await page.locator('#watchlist-carousel-controls [data-carousel-index="0"]').click();
   for (let remaining = 4; remaining > 1; remaining--) {
     await page.locator('#watchlist-grid .watch-card').first().locator('[data-favorite]').click();
+    if (remaining > 2) {
+      await expect(priceDots).toHaveCount(3);
+      await expect(institutionDots).toHaveCount(3);
+      await expect(page.locator('#watchlist-carousel-controls [aria-current="true"]')).toHaveCount(1);
+    }
   }
   await expect(page.locator('#watchlist-carousel-controls')).toBeHidden();
   await page.locator('#watchlist-grid .watch-card').first().locator('[data-favorite]').click();
   await expect(page.locator('#watchlist-empty')).toBeVisible();
   await expect(page.locator('#watchlist-carousel-controls')).toBeHidden();
+});
+
+test("three dots represent beginning, middle and end for any favorite count", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const symbols = await page.locator('#stock-rows tr[data-symbol]').evaluateAll((rows) => rows.map((row) => row.dataset.symbol));
+  for (const count of [2, 3, 6, symbols.length]) {
+    await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })), symbols.slice(0, count));
+    await page.reload();
+    await page.locator('[data-page="favorites"]').click();
+    for (const kind of Object.keys(parts)) {
+      await page.locator(`[data-overview="${kind}"]`).click();
+      const { track, card, dots } = parts[kind];
+      const buttons = page.locator(`${dots} [data-carousel-index]`);
+      await expect(page.locator(track).locator(card)).toHaveCount(count);
+      await expect(buttons).toHaveCount(3);
+      for (const position of [0, 1, 2]) {
+        if (count === 2 && position === 1) {
+          await expect(buttons.nth(position)).toHaveAttribute("aria-disabled", "true");
+          continue;
+        }
+        await buttons.nth(position).click();
+        await expect(buttons.nth(position)).toHaveAttribute("aria-current", "true");
+        const target = Math.round(position * (count - 1) / 2);
+        await expect.poll(() => page.locator(track).evaluate((element, { card, target }) =>
+          Math.abs(element.querySelectorAll(card)[target].getBoundingClientRect().left - element.getBoundingClientRect().left - parseFloat(getComputedStyle(element).paddingLeft)),
+        { card, target })).toBeLessThanOrEqual(1);
+      }
+      if (count === 2) {
+        await buttons.first().press("Home");
+        await buttons.first().press("ArrowRight");
+        await expect(buttons.last()).toBeFocused();
+        await expect(buttons.last()).toHaveAttribute("aria-current", "true");
+      }
+    }
+  }
 });
 
 test("smooth dot navigation retains the selected card after a responsive resize", async ({ page }) => {

@@ -394,8 +394,11 @@ function carouselIndex(kind, cards = carouselParts(kind).cards) {
 function renderCarouselPagination(kind, favorites) {
   const { grid, controls } = carouselParts(kind);
   grid.style.setProperty("--carousel-count", Math.max(1, favorites.length));
-  controls.innerHTML = favorites.map((stock, index) =>
-    `<button class="carousel-page" data-carousel-index="${index}" aria-label="第 ${index + 1} 檔：${esc(stock.name)} ${stock.symbol}" aria-controls="${grid.id}" tabindex="-1"><span class="carousel-dot" aria-hidden="true"></span></button>`).join("");
+  controls.innerHTML = ["前段", "中段", "後段"].map((label, position) => {
+    const index = Math.round(position * Math.max(0, favorites.length - 1) / 2);
+    const stock = favorites[index];
+    return `<button class="carousel-page" data-carousel-index="${position}" data-carousel-target="${index}" aria-label="${label}${stock ? `，第 ${index + 1} 檔：${esc(stock.name)} ${stock.symbol}` : ""}" aria-controls="${grid.id}"${position === 1 && favorites.length === 2 ? ' aria-disabled="true"' : ""} tabindex="-1"><span class="carousel-dot" aria-hidden="true"></span></button>`;
+  }).join("");
 }
 
 function fitCarouselTail(kind) {
@@ -410,10 +413,11 @@ function fitCarouselTail(kind) {
 function updateCarouselControls(kind) {
   const { cards, controls } = carouselParts(kind);
   const index = carouselIndex(kind, cards);
+  const activeDot = cards.length > 1 ? Math.round(index * 2 / (cards.length - 1)) : 0;
   carouselConfig[kind].index = index;
   controls.hidden = !carouselEnabled(kind) || cards.length <= 1 || (kind === "price" && state.overview !== "price");
   controls.querySelectorAll("[data-carousel-index]").forEach((button, position) => {
-    const active = position === index;
+    const active = position === activeDot;
     button.setAttribute("aria-current", String(active));
     button.tabIndex = active ? 0 : -1;
   });
@@ -806,8 +810,9 @@ function openDialog(type) {
   } else if (type === "source" && !isDemo && !dataset.info.updatedAt) {
     content.innerHTML = '<h2 id="dialog-heading">資料說明</h2><p>正在取得資料來源與市場範圍，請稍候。</p>';
   } else if (type === "source" && !isDemo) {
+    const syncNote = import.meta.env.VITE_SYNC_NOTE || "平日台灣時間 18:30、20:30 檢核全市場法人報表，驗證通過後分批更新快取，全部完成才發布；失敗保留上一份已驗證資料，基準不足時等待確認。";
     const checkedAt = new Date(dataset.info.updatedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
-    content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由臺灣證券交易所取得上市公司名錄、每日收盤行情及三大法人買賣超日報，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${dataset.stocks.length} 家上市公司（依官方名錄，含存託憑證）；不含上櫃與 ETF</dd></div><div><dt>市場報表交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>整批資料發布時間</dt><dd>${esc(checkedAt)}（台灣時間）；未提供行情的公司不列入當日排行，缺少法人明細時顯示資料不足</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>平日台灣時間 18:30、20:30 檢核全市場法人報表，驗證通過後分批更新快取，全部完成才發布；失敗保留上一份已驗證資料，基準不足時等待確認。</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
+    content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由臺灣證券交易所取得上市公司名錄、每日收盤行情及三大法人買賣超日報，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${dataset.stocks.length} 家上市公司（依官方名錄，含存託憑證）；不含上櫃與 ETF</dd></div><div><dt>市場報表交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>整批資料發布時間</dt><dd>${esc(checkedAt)}（台灣時間）；未提供行情的公司不列入當日排行，缺少法人明細時顯示資料不足</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>${esc(syncNote)}</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
   } else if (type === "source") {
     content.innerHTML = `<h2 id="dialog-heading">資料透明，觀察才有依據。</h2><p class="dialog-intro">這是可操作的前端示範版，目前沒有連接交易所或即時行情服務。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>14 檔台灣上市、上櫃股票與 ETF 範例</dd></div><div><dt>示範資料截止日</dt><dd>${dataset.info.asOf}（固定資料，不會自動更新）</dd></div><div><dt>買賣量定義</dt><dd>外資、投信、自營商買進與賣出股數；畫面換算成張</dd></div><div><dt>指標計算方式</dt><dd>由模擬 OHLC 歷史資料在瀏覽器計算，並非硬填指標數值</dd></div><div><dt>下一階段</dt><dd>確認正式行情與三大法人資料來源，接上 API，再設定 Cloudflare 部署。</dd></div></dl><p class="helper-text">正式資料需涵蓋交易日曆、除權息還原與法人分類定義。此版資料未經還原，不能用於實際交易。</p>`;
   } else {
@@ -912,9 +917,9 @@ function bindEvents() {
       state.overview = button.dataset.overview;
       renderOverviewVisibility();
     }
-    if (button.dataset.carouselIndex !== undefined) {
+    if (button.dataset.carouselIndex !== undefined && button.getAttribute("aria-disabled") !== "true") {
       const kind = button.closest("[data-carousel]").dataset.carousel;
-      scrollToCarouselCard(kind, Number(button.dataset.carouselIndex),
+      scrollToCarouselCard(kind, Number(button.dataset.carouselTarget),
       matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
     }
     if (button.dataset.institutionWindow) {
@@ -1018,7 +1023,7 @@ function bindEvents() {
     const dot = event.target.closest?.("[data-carousel-index]");
     if (dot && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
       event.preventDefault();
-      const buttons = [...dot.parentElement.querySelectorAll("[data-carousel-index]")];
+      const buttons = [...dot.parentElement.querySelectorAll('[data-carousel-index]:not([aria-disabled="true"])')];
       const current = buttons.indexOf(dot);
       const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
         : Math.max(0, Math.min(buttons.length - 1, current + (event.key === "ArrowRight" ? 1 : -1)));

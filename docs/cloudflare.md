@@ -46,6 +46,8 @@ Cloudflare 的免費 KV 仍有每日 100,000 次讀取及 1 GB 容量限制；�
 
 ## 部署
 
+若只需發布介面，而正式站仍使用尚未啟用 D1 的 API，可先以 `npx.cmd wrangler deployments list` 核對線上版本對應的 Git commit，再執行 `npm.cmd run deploy:ui -- --backend-ref=<該GitSHA>`。此命令以目前介面建置 assets，沿用指定版本的 Worker、KV binding、Cron 與更新說明，不會啟用 D1。必須明確指定已核對的線上後端 commit，不會自動選舊版；支援 `--dry-run` 與 `--build-only`。發布來源紀錄保存在 `.wrangler/ui-release-*/release.json`。完整 T86／D1 上線仍須完成 [啟用步驟](t86-sync.md)。
+
 先完成回補、單元／瀏覽器測試、本機正式模式及部署乾跑，再匯入雲端與部署。
 
 ```powershell

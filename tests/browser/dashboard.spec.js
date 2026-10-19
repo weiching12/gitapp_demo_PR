@@ -394,7 +394,7 @@ test("phone price carousel supports swipe with dot pagination", async ({ page })
   const controls = page.locator("#watchlist-carousel-controls");
   await expect(page.locator(".watch-card")).toHaveCount(14);
   await expect(controls).toBeVisible();
-  await expect(controls.locator("[data-carousel-index]")).toHaveCount(14);
+  await expect(controls.locator("[data-carousel-index]")).toHaveCount(3);
   const toolbarStyles = await page.evaluate(() => {
     const toolbar = getComputedStyle(document.querySelector(".overview-controls"));
     const tabs = getComputedStyle(document.querySelector(".overview-tabs"));
