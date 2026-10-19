@@ -68,30 +68,83 @@ test("filter keyboard order follows the visible order at phone and desktop width
   }
 });
 
-test("mobile prices and changes fit inside their cell for high-priced stocks", async ({ page }) => {
+test("market filters and empty results keep page and column widths stable with native scrollbars", async ({ playwright }, testInfo) => {
+  // Playwright normally hides classic scrollbars, masking their 15px layout shift.
+  const browser = await playwright.chromium.launch({
+    ...testInfo.project.use.launchOptions,
+    ignoreDefaultArgs: ["--hide-scrollbars"],
+  });
+  const page = await browser.newPage({ baseURL: testInfo.project.use.baseURL, reducedMotion: "reduce" });
+  const measure = () => page.evaluate(() => {
+    const bounds = element => {
+      const rect = element.getBoundingClientRect();
+      return [rect.left, rect.width];
+    };
+    return {
+      areas: ["#main", ".stocks-panel", ".table-toolbar", ".filter-tabs", ".table-scroll table"].map(selector => bounds(document.querySelector(selector))),
+      columns: [...document.querySelectorAll('.table-scroll thead th')].map(bounds),
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  try {
+    await page.goto("/");
+    for (const width of [320, 360, 390, 520, 600, 700, 701, 768, 900, 1024, 1280, 1440, 1920]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.locator('[data-view="all"]').click();
+      const original = await measure();
+      if (width > 700)
+        expect(original.columns[5][1], 'Technical descriptions need more width than stock names').toBeGreaterThan(original.columns[1][1] * 1.5);
+      const check = async state => {
+        const current = await measure();
+        expect(current.overflow, `${width}px / ${state}: page overflow`).toBe(false);
+        for (const key of ["areas", "columns"])
+          for (let index = 0; index < current[key].length; index++)
+            for (let axis = 0; axis < 2; axis++)
+              expect(Math.abs(current[key][index][axis] - original[key][index][axis]), `${width}px / ${state}: ${key}[${index}]`).toBeLessThanOrEqual(0.5);
+      };
+      for (const view of ["oversold", "favorites", "above", "below", "all"]) {
+        await page.locator(`[data-view="${view}"]`).click();
+        await check(view);
+      }
+      await page.locator('#stock-search').fill('no-matching-stock');
+      await expect(page.locator('#table-empty')).toBeVisible();
+      await check('empty results');
+      await page.locator('#stock-search').fill('');
+      await check('restored results');
+    }
+  } finally { await browser.close(); }
+});
+
+test("market prices and long names fit their cells on phones and desktops", async ({ page }) => {
   await page.route("**/src/provider.js", (route) => route.fulfill({
     contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
       export async function loadDataset() {
         const data = await demoProvider.load();
-        for (const stock of data.stocks) for (const bar of stock.history) {
-          for (const key of ["open", "high", "low", "close"]) bar[key] *= 12;
+        for (const stock of data.stocks) {
+          stock.name = "長名稱測試個股123ABC";
+          stock.sector = "電腦及週邊設備業";
+          for (const bar of stock.history)
+            for (const key of ["open", "high", "low", "close"]) bar[key] *= 12;
         }
         return data;
       }`,
   }));
   await page.goto("/");
-  for (const width of [320, 390, 700]) {
+  for (const width of [320, 390, 700, 701, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     const errors = await page.locator("#stock-rows .price-cell").evaluateAll((cells) => cells.flatMap((cell) => {
       const rect = cell.getBoundingClientRect();
       return [...cell.querySelectorAll(".stock-close, .mobile-change")].flatMap((element) => {
         const bounds = element.getBoundingClientRect();
-        return bounds.left < rect.left || bounds.right > rect.right
+        return bounds.width && (bounds.left < rect.left || bounds.right > rect.right)
           ? [cell.closest("tr").dataset.symbol + ": price spills outside cell"] : [];
       });
     }));
     expect(errors, `Price cell at ${width}px`).toEqual([]);
+    const names = await page.locator('#stock-rows .stock-name').evaluateAll(elements => elements
+      .filter(element => element.scrollWidth > element.clientWidth + 1).map(element => element.textContent));
+    expect(names, `Stock names at ${width}px`).toEqual([]);
   }
 });
 

@@ -16,6 +16,8 @@
 * {
   box-sizing: border-box;
 }
+/* Filters can remove the page scrollbar; keep the content width unchanged. */
+html { scrollbar-gutter: stable; }
 body {
   margin: 0;
   overflow-anchor: none;
@@ -543,24 +545,15 @@ h1 {
   border-bottom: 1px solid var(--border);
 }
 .filter-tabs {
-  display: flex;
-  gap: 5px;
+  --segment-inset: 4px;
   flex-shrink: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
 }
-.filter-tabs button {
-  padding: 8px 9px;
-  color: #7a8ba2;
-  white-space: nowrap;
-  border: 1px solid transparent;
-  border-radius: 4px;
-}
+.filter-tabs::-webkit-scrollbar { display: none; }
 .filter-tabs button.active {
-  color: #1d4ed8;
-  background: var(--accent-soft);
-  border-color: #d5dde8;
-}
-.filter-tabs button:hover {
-  background: #edf1f6;
+  color: #245cac;
 }
 .search-controls {
   display: flex;
@@ -617,6 +610,7 @@ h1 {
   min-height: 44px;
 }
 .table-scroll {
+  --table-favorite-width: 48px;
   overflow-x: auto;
   scrollbar-width: thin;
   scrollbar-color: #bec6d1 #f2f4f8;
@@ -625,6 +619,7 @@ h1 {
   height: 1px;
 }
 .table-scroll table {
+  table-layout: fixed;
   border-collapse: collapse;
   width: 100%;
   min-width: 1010px;
@@ -632,6 +627,13 @@ h1 {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.favorite-column { width: var(--table-favorite-width); }
+.stock-column { width: 15%; }
+.price-column { width: 11%; }
+.change-column { width: 9.5%; }
+.kd-column { width: 7.5%; }
+.signal-column { width: 25%; }
+.position-column { width: 10.5%; }
 .table-scroll thead {
   background: #fff;
 }
@@ -710,6 +712,8 @@ h1 {
 .stock-name strong,
 .sector-stock-name > strong {
   color: var(--ink);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .stock-close,
 .stock-volume {
@@ -737,6 +741,8 @@ h1 {
 .stock-name > span {
   letter-spacing: 0.7px;
   color: #7b8ca3;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .sector-inline {
   letter-spacing: 0;
@@ -1244,12 +1250,6 @@ dialog h2 {
   .page-footer button {
     margin-left: auto;
   }
-  .filter-tabs {
-    gap: 3px;
-  }
-  .filter-tabs button {
-    padding: 8px;
-  }
   .search-box {
     max-width: 300px;
     flex: 1;
@@ -1409,10 +1409,6 @@ dialog h2 {
   .filter-tabs {
     width: 100%;
     justify-content: space-between;
-    gap: 1px;
-  }
-  .filter-tabs button {
-    padding: 7px 8px;
   }
   .search-controls {
     gap: 6px;
@@ -1948,19 +1944,22 @@ dialog.institution-dialog {
   gap: 16px;
   margin-bottom: 16px;
 }
-.overview-tabs {
+.overview-tabs,
+.filter-tabs {
   position: relative;
   isolation: isolate;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 4px;
-  width: var(--overview-width, fit-content);
   max-width: 100%;
-  overflow: clip;
   border: 1px solid var(--border);
   border-radius: 9px;
   background: #fff;
+}
+.overview-tabs {
+  width: var(--overview-width, fit-content);
+  overflow: clip;
   transition: width 300ms ease;
 }
 .overview-view-tabs {
@@ -1993,7 +1992,8 @@ dialog.institution-dialog {
 }
 .segmented-control button { position: relative; z-index: 1; background: transparent; }
 .segmented-control button:focus-visible { outline-offset: -2px; }
-.overview-tabs [role="tab"] {
+.overview-tabs [role="tab"],
+.filter-tabs button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2002,6 +2002,7 @@ dialog.institution-dialog {
   padding: 9px 18px;
   border-radius: 6px;
   color: #64748b;
+  white-space: nowrap;
 }
 .overview-tabs [aria-selected="true"] {
   color: #245cac;
@@ -2312,7 +2313,8 @@ dialog.institution-dialog {
     z-index: 6;
     box-shadow: 0 4px 12px #172f500d;
   }
-  .overview-tabs {
+  .overview-tabs,
+  .filter-tabs {
     flex-shrink: 0;
     gap: 2px;
     padding: 1px;
@@ -2327,10 +2329,11 @@ dialog.institution-dialog {
     border-radius: 5px;
   }
   .segmented-indicator { border-radius: 5px; }
-  .overview-tabs [role="tab"] {
+  .overview-tabs [role="tab"],
+  .filter-tabs button {
     min-width: 40px;
     min-height: 34px;
-    padding: 3px 6px;
+    padding: 3px 4px;
     border-radius: 5px;
   }
   .overview-tabs .icon,
@@ -2389,7 +2392,7 @@ dialog.institution-dialog {
   }
   .overview-total dt { min-width: 0; }
   .overview-total dd { flex-shrink: 0; text-align: right; white-space: nowrap; }
-  .overview-tabs [role="tab"] { flex: none; padding-inline: 4px; }
+  .overview-tabs [role="tab"] { flex: none; }
 }
 @media (max-width: 360px) {
   .sidebar .brand { display: none; }
@@ -2422,9 +2425,8 @@ dialog.institution-dialog {
   flex: 1 1 160px;
 }
 .filter-tabs {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
-.filter-tabs button,
 .primary-button,
 .text-button,
 .icon-button {
@@ -2856,24 +2858,12 @@ dialog.institution-dialog {
     border-top: 1px solid var(--border);
   }
   .filter-tabs {
-    display: flex;
-    flex-wrap: nowrap;
+    --segment-inset: 1px;
     justify-content: space-between;
-    gap: 2px;
-    padding: 1px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: #fff;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
   }
   .filter-tabs button {
     flex: 1 0 64px;
     min-width: 64px;
-    min-height: 34px;
-    padding: 3px;
-    border-radius: 5px;
-    white-space: nowrap;
   }
   .search-controls { gap: 6px; }
   #sector-filter { order: 1; }

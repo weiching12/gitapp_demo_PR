@@ -100,7 +100,7 @@ test("overview keyboard navigation and visible focus survive the nested period c
   await expect(page.locator('.institution-window')).toBeHidden();
 });
 
-test("overview and sector controls share white surfaces and gray sliding selections", async ({ page }, testInfo) => {
+test("overview, market filters and sector controls share white surfaces and gray sliding selections", async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   const checkControl = async (selector, activeSelector, indicatorSelector) => {
@@ -114,12 +114,32 @@ test("overview and sector controls share white surfaces and gray sliding selecti
     }, { activeSelector, indicatorSelector });
     expect(delta).toBeLessThanOrEqual(1);
   };
-  for (const width of [320, 390, 700, 701, 768, 1440]) {
+  const sharedStyle = (selector, activeSelector) => page.locator(selector).evaluate((group, activeSelector) => {
+    const read = (element, properties) => {
+      const style = getComputedStyle(element);
+      return Object.fromEntries(properties.map(property => [property, style[property]]));
+    };
+    return {
+      container: read(group, ['backgroundColor', 'borderColor', 'borderWidth', 'borderRadius', 'padding', 'gap', 'height', 'alignItems']),
+      button: read(group.querySelector(activeSelector), ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'color', 'padding', 'borderWidth', 'borderRadius', 'height']),
+    };
+  }, activeSelector);
+  for (const width of [320, 360, 390, 700, 701, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
+    await page.locator('[data-page="market"]').click();
+    for (const view of ['all', 'favorites', 'above', 'below', 'oversold']) {
+      await page.locator(`[data-view="${view}"]`).click();
+      await checkControl('.filter-tabs', '[aria-pressed="true"]', '.segmented-indicator');
+    }
+    await page.locator('.filter-tabs').evaluate(element => { element.scrollLeft = 0; });
+    await checkControl('.filter-tabs', '[aria-pressed="true"]', '.segmented-indicator');
+    if ([390, 1440].includes(width)) await page.screenshot({ path: testInfo.outputPath(`market-filters-${width}.png`) });
+    const filterStyle = await sharedStyle('.filter-tabs', '[aria-pressed="true"]');
     await page.locator('[data-page="favorites"]').click();
     for (const kind of ['price', 'institutions']) {
       await page.locator(`[data-overview="${kind}"]`).click();
       await checkControl('.overview-tabs', '[aria-selected="true"]', '.overview-tab-indicator');
+      expect(await sharedStyle('.overview-tabs', '[aria-selected="true"]'), `Shared filter styling at ${width}px`).toEqual(filterStyle);
     }
     for (const period of ['day', '5', '20']) {
       await page.locator(`[data-institution-window="${period}"]`).click();

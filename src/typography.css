@@ -91,7 +91,6 @@ tbody td {
 .nav-item.active,
 .overview-tabs [aria-selected="true"],
 .institution-window [aria-pressed="true"],
-.filter-tabs .active,
 .overview-total dd {
   font-weight: 600;
 }

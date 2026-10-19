@@ -206,7 +206,7 @@ function shell() {
           <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>到市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div>
         </section>
         <section class="panel stocks-panel" data-page-panel="market" aria-label="市場觀察股票表格">
-          <div class="table-toolbar"><div class="filter-tabs" role="group" aria-label="清單篩選"><button data-view="all" class="active">全部標的</button><button data-view="favorites">我的自選</button><button data-view="above">站上季線</button><button data-view="below">季線之下</button><button data-view="oversold" aria-label="K 值低於 20">K值低於20</button></div><div class="search-controls"><label class="search-box">${icon("search")}<input id="stock-search" type="search" placeholder="搜尋代碼或名稱" aria-label="搜尋股票代碼或名稱" autocomplete="off"/><kbd>/</kbd></label><select id="sector-filter" aria-label="產業篩選"><option value="all">全部產業</option>${[...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("")}</select></div></div>
+          <div class="table-toolbar"><div class="filter-tabs segmented-control" role="group" aria-label="清單篩選"><span class="segmented-indicator" aria-hidden="true"></span><button data-view="all" class="active" aria-pressed="true">全部標的</button><button data-view="favorites" aria-pressed="false">我的自選</button><button data-view="above" aria-pressed="false">站上季線</button><button data-view="below" aria-pressed="false">季線之下</button><button data-view="oversold" aria-pressed="false" aria-label="K 值低於 20">K值低於20</button></div><div class="search-controls"><label class="search-box">${icon("search")}<input id="stock-search" type="search" placeholder="搜尋代碼或名稱" aria-label="搜尋股票代碼或名稱" autocomplete="off"/><kbd>/</kbd></label><select id="sector-filter" aria-label="產業篩選"><option value="all">全部產業</option>${[...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("")}</select></div></div>
           <div class="signal-note">${icon("info")}<span>依資料日 KD 交叉與 MA20 趨勢判讀；${isDemo ? "模擬資料技術提示" : "技術提示僅供觀察"}，需搭配風險控管。</span><button class="text-button" data-dialog="signals">判讀規則 ${icon("chevron")}</button></div>
           <div class="table-scroll" tabindex="0" role="region" aria-label="股票觀察清單，可左右捲動"><table><caption class="sr-only">${isDemo ? "模擬股票行情" : "股票收盤行情"}、KD 技術建議與三大法人買賣超。日漲跌幅與前一交易日收盤價比較，成交量位於收盤價下方，以張表示。點選星號可加入或移除上方自選總覽。</caption><colgroup><col class="favorite-column"/><col class="stock-column"/><col class="price-column"/><col class="change-column"/><col class="kd-column"/><col class="signal-column"/><col class="position-column"/><col class="net-column"/></colgroup><thead><tr><th scope="col"><span class="sr-only">自選</span></th><th scope="col">股票</th>${[
             ["close", '<span class="close-label-desktop">收盤價</span><span class="close-label-mobile">收盤／漲跌</span>'],
@@ -441,7 +441,7 @@ function updateSegmentedControl(group) {
   if (!group.getClientRects().length) return;
   const selected = group.querySelector('button[aria-pressed="true"]');
   const bounds = selected.getBoundingClientRect();
-  group.style.setProperty("--segment-left", `${bounds.left - group.getBoundingClientRect().left - group.clientLeft}px`);
+  group.style.setProperty("--segment-left", `${bounds.left - group.getBoundingClientRect().left - group.clientLeft + group.scrollLeft}px`);
   group.style.setProperty("--segment-width", `${bounds.width}px`);
 }
 
@@ -757,6 +757,7 @@ function renderTable() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", active);
   });
+  updateSegmentedControl(document.querySelector(".filter-tabs"));
   document
     .querySelectorAll("[data-sort-heading]")
     .forEach((heading) =>
