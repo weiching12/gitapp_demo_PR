@@ -62,10 +62,8 @@ input,
 select,
 tbody td,
 tbody th,
-.stock-name strong,
 .k-cell,
 .watch-institution-heading,
-.watch-cumulative > b,
 .overview-metric dd,
 .form-field label {
   font-size: var(--text-body);
@@ -76,15 +74,19 @@ select {
   line-height: var(--leading-control);
 }
 button,
-.stock-name strong,
 .price-cell,
-.watch-cumulative > b,
 .overview-metric dd {
   font-weight: 500;
 }
 tbody th,
 tbody td {
   font-weight: 400;
+}
+.stock-name strong,
+.sector-stock-name > strong {
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: var(--leading-heading);
 }
 .nav-item.active,
 .overview-tabs [aria-selected="true"],
@@ -101,6 +103,7 @@ tbody td {
 .watch-symbol,
 .overview-stock-code,
 .overview-metric dt,
+.institution-overview-head,
 .sector-sort-control,
 .date-control label,
 .signal-note,
@@ -111,7 +114,6 @@ tbody td {
 .change-chip,
 .watch-flow-heading > span,
 .watch-flow-total > div:first-child > span,
-.watch-flow-total small,
 .watch-flow-amounts,
 .watch-flow-legend,
 .watch-history-note,
@@ -148,6 +150,7 @@ tbody td {
 }
 thead th,
 thead th button,
+.sector-ranking-head,
 .overview-tabs [role="tab"],
 .institution-window button,
 .sector-period button,
@@ -223,6 +226,14 @@ thead th button,
   font-size: var(--text-body);
 }
 .sector-coverage { font-size: var(--text-meta); }
+.sector-breadth,
+.institution-volume-ratio,
+.institution-chart-empty,
+.sector-detail-heading .sector-chart-note {
+  font-size: var(--text-meta);
+  font-weight: 400;
+  line-height: var(--leading-control);
+}
 .load-status { font-size: var(--text-secondary); }
 @media (max-width: 700px) {
   :root {
@@ -258,7 +269,7 @@ thead th button,
   .sector-change {
     font-size: var(--text-secondary);
   }
-  .sector-summary-period header > strong {
+  .sector-summary-values .institution-money {
     font-size: var(--text-body);
   }
   .sector-toolbar .sector-sort-control > span,
@@ -281,6 +292,16 @@ thead th button,
   #trade-date {
     font-size: var(--text-secondary);
   }
+}
+.institution-money {
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: var(--leading-heading);
+}
+.institution-lots {
+  font-size: var(--text-meta);
+  font-weight: 400;
+  line-height: var(--leading-control);
 }
 @media (max-width: 1100px) {
   /* Compact navigation keeps labels inside the narrow header. */

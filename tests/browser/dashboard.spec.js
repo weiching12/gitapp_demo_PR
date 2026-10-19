@@ -33,6 +33,10 @@ const amountText = (shares) => {
   const digits = Number.isInteger(lots) ? 0 : 2;
   return `${lots > 0 ? "+" : ""}${formatted(lots, digits)} 張`;
 };
+const moneyText = (amount) => `${amount > 0 ? "+" : ""}${formatted(amount / 100000000, 2)} 億`;
+const dailyMoney = (history, name = "total") => history.reduce((total, bar) => total + bar.institutions
+  .filter((item) => name === "total" || item.name === name)
+  .reduce((net, item) => net + item.buy - item.sell, 0) * bar.close, 0);
 function streakText(history, name) {
   const nets = history.map((bar) => {
     const item = bar.institutions.find((row) => row.name === name);
@@ -87,10 +91,10 @@ test("all favorites show compact metrics with institutional details available se
       await expect(card).toContainText(`D 值 ${formatted(bar.d, 2)}`);
       await expect(card).toContainText(`季線 ${formatted(bar.ma60, 2)}`);
       const dialog = await openInstitutionDetails(page, symbol);
-      await expect(dialog.locator(".watch-flow-total strong")).toHaveText(`${signed(bar.institutionalNet / 1000)} 張`);
+      await expect(dialog.locator(".watch-flow-total strong")).toHaveText(moneyText(bar.institutionalNet * bar.close));
       for (const item of bar.institutions) {
         const row = dialog.locator(`[data-institution="${item.name}"]`);
-        await expect(row.locator("strong")).toHaveText(signed((item.buy - item.sell) / 1000));
+        await expect(row.locator(".watch-institution-value strong")).toHaveText(moneyText((item.buy - item.sell) * bar.close));
         await expect(row.locator(".watch-flow-bar-row").nth(0)).toContainText(formatted(item.buy / 1000));
         await expect(row.locator(".watch-flow-bar-row").nth(1)).toContainText(formatted(item.sell / 1000));
       }
@@ -150,7 +154,7 @@ test("open institutional details stay current after a date change and close if t
   }, date);
   const { latest } = getSnapshot(stocks.find((stock) => stock.symbol === "2330"), date);
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator(".watch-flow-total strong")).toHaveText(`${signed(latest.institutionalNet / 1000)} 張`);
+  await expect(dialog.locator(".watch-flow-total strong")).toHaveText(moneyText(latest.institutionalNet * latest.close));
   await page.keyboard.press("Escape");
   await expect(detailsButtonFor(page, "2330")).toBeFocused();
   await openInstitutionDetails(page, "2330");
@@ -378,7 +382,7 @@ test("mobile cards swipe above the table and support table scrolling", async ({ 
   await page.screenshot({ path: testInfo.outputPath("watchlist-mobile.png"), fullPage: true });
 });
 
-test("phone price carousel supports swipe without redundant navigation controls", async ({ page }) => {
+test("phone price carousel supports swipe with dot pagination", async ({ page }) => {
   const { stocks } = await demoProvider.load();
   await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })),
     stocks.map((stock) => stock.symbol));
@@ -389,7 +393,8 @@ test("phone price carousel supports swipe without redundant navigation controls"
   const grid = page.locator("#watchlist-grid");
   const controls = page.locator("#watchlist-carousel-controls");
   await expect(page.locator(".watch-card")).toHaveCount(14);
-  await expect(controls).toBeHidden();
+  await expect(controls).toBeVisible();
+  await expect(controls.locator("[data-carousel-index]")).toHaveCount(14);
   const toolbarStyles = await page.evaluate(() => {
     const toolbar = getComputedStyle(document.querySelector(".overview-controls"));
     const tabs = getComputedStyle(document.querySelector(".overview-tabs"));
@@ -429,8 +434,8 @@ test("phone price carousel supports swipe without redundant navigation controls"
     }
   }
   await page.setViewportSize({ width: 768, height: 844 });
-  await expect(page.locator("#watchlist-carousel-controls")).toBeHidden();
-  expect(await grid.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0);
+  await expect(page.locator("#watchlist-carousel-controls")).toBeVisible();
+  expect(await grid.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeGreaterThan(0);
 });
 
 test("favorite metrics remain unclipped across narrow screens, tablets and desktops", async ({ page }, testInfo) => {
@@ -505,11 +510,11 @@ test("institutional 5/20-session totals and foreign/trust streaks update with th
             return net + item.buy - item.sell;
           }, 0);
           total += sum;
-          await expect(dialog.locator(`[data-institution="${name}"] [data-window="${days}"] b`))
-            .toHaveText(`${signed(sum / 1000)} 張`);
+          await expect(dialog.locator(`[data-institution="${name}"] [data-window="${days}"] .institution-money`))
+            .toHaveText(moneyText(dailyMoney(history.slice(-days), name)));
         }
-        await expect(dialog.locator(`.watch-total-history [data-window="${days}"] b`))
-          .toHaveText(`${signed(total / 1000)} 張`);
+        await expect(dialog.locator(`.watch-total-history [data-window="${days}"] .institution-money`))
+          .toHaveText(moneyText(dailyMoney(history.slice(-days))));
       }
       for (const name of ["外資", "投信"]) {
         const nets = history.map((bar) => {
@@ -617,10 +622,10 @@ test("institutional overview compares every favorite using independent day, 5 an
           }, 0);
           total += sum;
           await expect(row.locator(`[data-overview-net="${name}"]`)).toHaveText(amountText(sum));
-          await expect(row.locator(`[data-overview-net="${name}"]`)).toHaveClass(sum > 0 ? "up" : sum < 0 ? "down" : "neutral");
+          await expect(row.locator(`[data-overview-amount="${name}"]`)).toHaveText(moneyText(dailyMoney(history.slice(-count), name)));
         }
         await expect(row.locator('[data-overview-net="total"]')).toHaveText(amountText(total));
-        await expect(row.locator('[data-overview-net="total"]')).toHaveClass(total > 0 ? "up" : total < 0 ? "down" : "neutral");
+        await expect(row.locator('[data-overview-amount="total"]')).toHaveText(moneyText(dailyMoney(history.slice(-count))));
         await expect(row.locator(".overview-total-context")).toHaveCount(0);
         for (const name of ["外資", "投信"])
           await expect(row.locator(`[data-overview-streak="${name}"]`)).toHaveText(streakText(history, name));
@@ -650,7 +655,7 @@ test("sector page aggregates institutional flows and sorts industries", async ({
     const totals = new Map();
     for (const stock of stocks) {
       const history = stock.history.filter((bar) => bar.date <= info.asOf).slice(-days);
-      const total = history.reduce((sum, bar) => sum + bar.institutions.reduce((net, item) => net + item.buy - item.sell, 0), 0);
+      const total = dailyMoney(history);
       totals.set(stock.sector, (totals.get(stock.sector) ?? 0) + total);
     }
     return [...totals].sort((a, b) => b[1] - a[1]);
@@ -664,7 +669,7 @@ test("sector page aggregates institutional flows and sorts industries", async ({
           return sum + item.buy - item.sell;
         }, 0),
       ]));
-      return { stock, flows, total: Object.values(flows).reduce((sum, value) => sum + value, 0) };
+      return { stock, flows, total: dailyMoney(history) };
     });
     const sectorTotal = members.reduce((sum, member) => sum + member.total, 0);
     const leader = members.reduce((best, member) =>
@@ -679,7 +684,7 @@ test("sector page aggregates institutional flows and sorts industries", async ({
     await expect(cards).toHaveCount(ranked.length);
     for (let index = 0; index < ranked.length; index++) {
       await expect(cards.nth(index)).toHaveAttribute("data-sector-name", ranked[index][0]);
-      await expect(cards.nth(index).locator(".sector-total strong")).toHaveText(amountText(ranked[index][1]));
+      await expect(cards.nth(index).locator(".sector-total strong")).toHaveText(moneyText(ranked[index][1]));
       const leader = expectedLeader(ranked[index][0], days);
       const note = await cards.nth(index).locator(".sector-identity p").innerText();
       expect(note).toContain(`TOP1·${leader.stock.name}`);
@@ -726,10 +731,10 @@ test("sector details show period totals and each constituent stock price and net
   await expect(dialog.locator("[data-sector-window]")).toHaveCount(0);
   for (const [key, days] of [["day", 1], ["5", 5], ["20", 20]]) {
     const summary = dialog.locator(`[data-sector-period="${key}"]`);
-    await expect(summary.locator('[data-sector-summary="total"]')).toHaveText(amountText(expectedTotal(days)).replace(" 張", ""));
+    await expect(summary.locator('[data-sector-summary="total"]')).toHaveText(amountText(expectedTotal(days)));
     for (const institution of institutionalNames)
       await expect(summary.locator(`[data-sector-summary="${institution}"]`))
-        .toHaveText(amountText(sectorNet(institution, days)).replace(" 張", ""));
+        .toHaveText(amountText(sectorNet(institution, days)));
   }
   await expect(dialog.locator("[data-sector-stock]")).toHaveCount(members.length);
   for (const stock of members) {
@@ -739,7 +744,7 @@ test("sector details show period totals and each constituent stock price and net
     await expect(row.locator("td:nth-child(2)")).toContainText(formatted(latest.close, 2));
     for (const [key, days] of [["day", 1], ["5", 5], ["20", 20]])
       await expect(row.locator(`[data-sector-net="${key}"] strong`))
-        .toHaveText(amountText(institutionalNames.reduce((total, name) => total + memberNet(stock, name, days), 0)).replace(" 張", ""));
+        .toHaveText(moneyText(dailyMoney(stock.history.filter((bar) => bar.date <= info.asOf).slice(-days))));
   }
 
   await dialog.locator("#close-sector-dialog").click();
@@ -1221,7 +1226,8 @@ test("reading copy and metadata stay legible across mobile, tablet and desktop v
       expect(Math.max(...groupHeights)).toBeLessThanOrEqual(40);
       const rows = await page.locator("#sector-grid .sector-main").evaluateAll((elements) =>
         elements.map((element) => element.getBoundingClientRect().height));
-      expect(Math.max(...rows)).toBeLessThanOrEqual(76);
+      // The 12px breadth label adds one metadata line; long TOP1 names may wrap.
+      expect(Math.max(...rows)).toBeLessThanOrEqual(115);
     }
     if (width <= 700) {
       const phoneSizes = await page.evaluate(() => ({
@@ -1290,7 +1296,7 @@ test("phone institutional rows align values and keep interval switching availabl
     await expect(page.locator(".institution-overview-row")).toHaveCount(14);
     const carousel = page.locator("#institution-overview-rows");
     const controls = page.locator("#institution-carousel-controls");
-    await expect(controls).toBeHidden();
+    await expect(controls).toBeVisible();
     const dimensions = await carousel.evaluate((element) => ({
       height: element.getBoundingClientRect().height,
       visibleWidth: element.clientWidth,
@@ -1357,7 +1363,7 @@ test("phone institution interval changes preserve the current card and scroll po
     await page.setViewportSize({ width, height: 600 });
     await openPage(page, "favorites");
     await page.locator('[data-overview="institutions"]').click();
-    await expect(page.locator('#institution-carousel-controls')).toBeHidden();
+    await expect(page.locator('#institution-carousel-controls')).toBeVisible();
     await page.locator('#institution-overview-rows').evaluate((element) => {
       element.scrollLeft = element.querySelectorAll('.institution-overview-row')[10].offsetLeft;
     });

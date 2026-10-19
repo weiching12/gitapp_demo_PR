@@ -8,6 +8,10 @@ import {
   getDominantInstitution,
   getDirectionalLeader,
   getSectorInstitutionSummary,
+  getSectorInstitutionEstimate,
+  getStockInstitutionEstimate,
+  getInstitutionVolumeRatio,
+  getStockInstitutionSeries,
   filterStocks,
 } from "../src/indicators.js";
 import { demoProvider } from "../src/data.js";
@@ -98,6 +102,86 @@ test("sectors with no available values remain unknown, while fully observed zero
   }
   const zero = getSnapshot({ history: [{ ...bar(20), institutions: bar(20).institutions.map((row) => ({ ...row, buy: 0, sell: 0 })) }] }, "2026-10-01");
   assert.equal(getSectorInstitutionSummary([zero], "day").total, 0);
+});
+
+test("sector monetary estimates weight each day's shares by that day's price", () => {
+  const dates = Array.from({ length: 5 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+  const nets = [1000, -1000, 0, 2000, -2000];
+  const history = dates.map((date, index) => ({ ...bar(20 + index * 10, date), institutions: [
+    { name: "外資", buy: Math.max(0, nets[index]), sell: Math.max(0, -nets[index]) },
+    { name: "投信", buy: 0, sell: 0 }, { name: "自營商", buy: 0, sell: 0 },
+  ] }));
+  const stock = getSnapshot({ history, tradingDates: dates }, dates.at(-1));
+  assert.equal(stock.institutionalSummary.total.net5, 0);
+  assert.deepEqual(getSectorInstitutionEstimate([stock], "5", dates),
+    { available: 1, expected: 1, buying: 0, amount: -30000 });
+  assert.equal(getSectorInstitutionEstimate([stock], "day", dates).amount, -120000);
+});
+
+test("sector monetary estimates exclude incomplete windows and preserve valid zero", () => {
+  const dates = Array.from({ length: 5 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+  const complete = { history: dates.map((date) => bar(20, date)) };
+  const missingDay = { history: complete.history.filter((_, index) => index !== 1) };
+  const missingInstitution = structuredClone(complete);
+  missingInstitution.history[1].institutions.pop();
+  const invalidPrice = structuredClone(complete);
+  invalidPrice.history[1].close = 0;
+  const zero = { history: complete.history.map((row) => ({ ...row,
+    institutions: row.institutions.map((item) => ({ ...item, buy: 0, sell: 0 })),
+  })) };
+  assert.deepEqual(getSectorInstitutionEstimate([complete, missingDay, missingInstitution, invalidPrice, zero], "5", dates),
+    { available: 2, expected: 5, buying: 1, amount: 200000 });
+  assert.deepEqual(getSectorInstitutionEstimate([missingDay], "5", dates),
+    { available: 0, expected: 1, buying: 0, amount: null });
+  assert.equal(getSectorInstitutionEstimate([zero], "day", dates).amount, 0);
+  assert.equal(getSectorInstitutionEstimate([complete], "20", dates).amount, null);
+});
+
+test("a 20-session monetary estimate uses exact market dates within trimmed display history", () => {
+  const dates = Array.from({ length: 30 }, (_, i) => `2026-09-${String(i + 1).padStart(2, "0")}`);
+  const stock = getSnapshot({ history: dates.map((date, i) => bar(i + 1, date)), tradingDates: dates }, dates.at(-1));
+  stock.history = stock.history.slice(-21);
+  assert.equal(getSectorInstitutionEstimate([stock], "20", dates).amount, 820000);
+});
+
+test("single-institution monetary values stay available while sector components share a complete-stock cohort", () => {
+  const dates = Array.from({ length: 5 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+  const complete = { history: dates.map((date) => bar(20, date)) };
+  const partial = structuredClone(complete);
+  partial.history[1].institutions.pop();
+  assert.equal(getStockInstitutionEstimate(partial, "外資", "5", dates), 200000);
+  assert.equal(getStockInstitutionEstimate(partial, "total", "5", dates), null);
+  assert.deepEqual(getSectorInstitutionEstimate([complete, partial], "5", dates, "外資"),
+    { available: 1, expected: 2, buying: 1, amount: 200000 });
+  assert.equal(getSectorInstitutionEstimate([complete], "5", dates, "missing").amount, null);
+});
+
+test("institution volume ratios use shares with a signed numerator and reject missing or zero volume", () => {
+  for (const net of [250, -250, 0]) {
+    const current = { ...institutionBar([net, 0, 0]), volume: 1000 };
+    assert.equal(getInstitutionVolumeRatio(current), net / 10);
+    for (const volume of [0, -1000, null, undefined, NaN, Infinity])
+      assert.equal(getInstitutionVolumeRatio({ ...current, volume }), null);
+    assert.equal(getInstitutionVolumeRatio({ ...current, institutions: current.institutions.slice(0, 2) }), null);
+  }
+  assert.equal(getInstitutionVolumeRatio(null), null);
+});
+
+test("institution daily series retains exact market gaps, zeros and each session's price", () => {
+  const dates = ["2026-10-08", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"];
+  const history = dates.map((date, index) => ({ ...institutionBar([index === 3 ? 0 : index % 2 ? -100 : 100, 0, 0], date), close: 10 + index }));
+  history[4].institutions.pop();
+  const stock = { history: history.filter((_, index) => index !== 2) };
+  assert.deepEqual(getStockInstitutionSeries(stock, dates), [
+    { date: dates[1], amount: -1100 }, { date: dates[2], amount: null },
+    { date: dates[3], amount: 0 }, { date: dates[4], amount: null }, { date: dates[5], amount: -1500 },
+  ]);
+  assert.deepEqual(getStockInstitutionSeries(stock, dates.slice(0, 2)), [
+    { date: dates[0], amount: 1000 }, { date: dates[1], amount: -1100 },
+  ]);
+  assert.deepEqual(getStockInstitutionSeries(stock, []), []);
+  stock.history.at(-1).close = 0;
+  assert.equal(getStockInstitutionSeries(stock, dates).at(-1).amount, null);
 });
 
 test("KD starts at 50 after a complete RSV window, then follows the recursive formula", () => {

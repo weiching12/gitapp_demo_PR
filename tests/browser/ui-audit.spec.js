@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { demoProvider } from "../../src/data.js";
 
 async function loadMarket(page, count = 150, initialCount = 30) {
   await page.route("**/src/provider.js", (route) => route.fulfill({
@@ -94,7 +95,7 @@ test("mobile prices and changes fit inside their cell for high-priced stocks", a
   }
 });
 
-test("phone sector amounts and percentages align and fit for every period", async ({ page }) => {
+test("phone sector identity stays compact while amounts and percentages align for every period", async ({ page }) => {
   await page.route("**/src/provider.js", (route) => route.fulfill({
     contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
@@ -111,12 +112,15 @@ test("phone sector amounts and percentages align and fit for every period", asyn
   }));
   await page.goto("/");
   await page.locator('[data-page="sectors"]').click();
-  for (const width of [320, 390, 700]) {
+  for (const width of [320, 360, 390, 700]) {
     await page.setViewportSize({ width, height: 844 });
     for (const period of ["day", "5", "20"]) {
       await page.locator(`[data-sector-window="${period}"]`).click();
       const issues = await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.flatMap((card) => {
         const name = card.querySelector(".sector-identity h3").getBoundingClientRect();
+        const identity = card.querySelector(".sector-identity");
+        const note = card.querySelector(".sector-identity p").getBoundingClientRect();
+        const breadth = card.querySelector(".sector-breadth").getBoundingClientRect();
         const amount = card.querySelector(".sector-total strong");
         const change = card.querySelector(".sector-change");
         const textBounds = (element) => {
@@ -124,13 +128,39 @@ test("phone sector amounts and percentages align and fit for every period", asyn
           return range.getBoundingClientRect();
         };
         const lots = textBounds(amount), percentage = textBounds(change), bounds = card.getBoundingClientRect();
+        const estimate = textBounds(card.querySelector("[data-sector-lots]"));
         return [
+          (note.top - name.bottom < 0 || note.top - name.bottom > 4) && "TOP1 does not follow the industry name compactly",
+          (breadth.top - note.bottom < 0 || breadth.top - note.bottom > 4) && "breadth does not follow TOP1 compactly",
+          identity.scrollWidth > identity.clientWidth + 1 && "industry information extends outside its column",
           Math.abs(lots.right - percentage.right) > 1 && "amount and percentage do not share the right edge",
           lots.left < name.right && "amount overlaps the sector name",
           lots.right > bounds.right && "amount extends outside the card",
+          estimate.left < name.right && "estimate overlaps the sector name",
+          estimate.right > bounds.right && "estimate extends outside the card",
         ].filter(Boolean).map((issue) => `${card.dataset.sectorName}: ${issue}`);
       }));
       expect(issues, `Sector numbers at ${width}px / ${period}`).toEqual([]);
     }
   }
+});
+
+test("sector estimated billions follow each selected period's daily prices and net shares", async ({ page }) => {
+  const data = await demoProvider.load();
+  await page.goto("/");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('[data-page="sectors"]').click();
+  const sector = data.stocks[0].sector;
+  const stocks = data.stocks.filter((stock) => stock.sector === sector);
+  const estimate = page.locator(`[data-sector-name="${sector}"] [data-sector-amount]`);
+  for (const [period, days] of [["day", 1], ["5", 5], ["20", 20]]) {
+    const dates = data.dates.slice(-days);
+    const total = stocks.reduce((sum, stock) => sum + stock.history.filter((bar) => dates.includes(bar.date))
+      .reduce((value, bar) => value + bar.institutions.reduce((net, item) => net + item.buy - item.sell, 0) * bar.close, 0), 0);
+    const billions = total / 100000000;
+    await page.locator(`[data-sector-window="${period}"]`).click();
+    await expect(estimate).toHaveText(`${billions > 0 ? "+" : ""}${billions.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 億`);
+    await expect(estimate).toHaveCSS("font-size", "14px");
+  }
+  await expect(page.locator(".sector-note")).toContainText("非實際成交金額");
 });

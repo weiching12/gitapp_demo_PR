@@ -10,6 +10,10 @@ import {
   getInstitutionNet,
   getStockInstitutionValue as stockInstitutionValue,
   getSectorInstitutionSummary,
+  getSectorInstitutionEstimate,
+  getStockInstitutionEstimate,
+  getInstitutionVolumeRatio,
+  getStockInstitutionSeries,
 } from "./indicators.js";
 
 const icons = {
@@ -57,14 +61,30 @@ const percent = (value) =>
 const institutionalAmount = (value, withUnit = true) => value === null
   ? "資料不足"
   : `${signed(value / 1000, Number.isInteger(value / 1000) ? 0 : 2)}${withUnit ? " 張" : ""}`;
+const institutionalMoney = (value) => value === null ? "資料不足" : `${signed(value / 100000000)} 億`;
+const stockMoney = (stock, name, window, asOf = state.date) => getStockInstitutionEstimate(stock, name, window,
+  dataset.dates.filter((date) => date <= asOf));
+const institutionalFigures = (amount, shares, moneyAttribute = "", sharesAttribute = "") =>
+  `<strong class="institution-money ${direction(amount)}" ${moneyAttribute}>${institutionalMoney(amount)}</strong><small class="institution-lots" ${sharesAttribute}>${institutionalAmount(shares)}</small>`;
+function institutionSparkline(stock, tradingDates) {
+  const series = getStockInstitutionSeries(stock, tradingDates);
+  if (!series.length) return '<small class="institution-chart-empty">近 5 日資料不足</small>';
+  const max = Math.max(1, ...series.map(({ amount }) => Math.abs(amount ?? 0)));
+  const description = series.map(({ date, amount }) => `${date} ${institutionalMoney(amount)}`).join("；");
+  return `<span class="institution-sparkline" role="img" aria-label="近 5 個交易日每日法人淨買賣超金額，由左至右由舊至新；各股獨立比例尺。${esc(description)}"><svg viewBox="0 0 100 36" aria-hidden="true"><line x1="0" y1="18" x2="100" y2="18"/>${series.map(({ date, amount }, index) => {
+    const height = amount === null ? 4 : amount === 0 ? 1 : Math.max(1, Math.abs(amount) / max * 16);
+    const y = amount === null ? 16 : amount === 0 ? 17.5 : amount > 0 ? 18 - height : 18;
+    return `<rect class="${amount === null ? "unknown" : direction(amount)}" data-flow-date="${date}" data-flow-amount="${amount ?? ""}" x="${8 + index * 18}" y="${y}" width="12" height="${height}" rx="1"><title>${date} ${institutionalMoney(amount)}</title></rect>`;
+  }).join("")}</svg></span>`;
+}
 const institutionalStreak = ({ direction, days, atLeast }) => {
   if (direction === "unknown") return "資料不足";
   if (direction === "neutral") return "當日持平";
   return `${atLeast ? "至少" : ""}連${direction === "buy" ? "買" : "賣"}${days}日`;
 };
-const institutionalHistory = (stats) =>
+const institutionalHistory = (stats, stock, name = "total") =>
   `<div class="watch-history">${[5, 20].map((days) =>
-    `<span class="watch-cumulative" data-window="${days}"><span>近 ${days} 日累計</span><b class="${direction(stats[`net${days}`])}">${institutionalAmount(stats[`net${days}`])}</b></span>`,
+    `<span class="watch-cumulative" data-window="${days}"><span>近 ${days} 日累計</span>${institutionalFigures(stockMoney(stock, name, String(days)), stats[`net${days}`])}</span>`,
   ).join("")}</div>`;
 const state = {
   date: "",
@@ -167,10 +187,22 @@ function shell() {
           )}</select></div></section>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
         <section id="watchlist" data-page-panel="favorites" aria-label="自選股票" hidden>
-          <div class="overview-controls"><div class="overview-tabs" role="tablist" aria-label="自選總覽視角"><button id="watchlist-price-tab" role="tab" data-overview="price" aria-label="價量總覽" aria-controls="watchlist-grid" aria-selected="true" tabindex="0">${icon("grid")}<span class="overview-label-full">價量總覽</span><span class="overview-label-short">價量</span></button><button id="watchlist-institutions-tab" role="tab" data-overview="institutions" aria-label="法人總覽" aria-controls="institution-overview" aria-selected="false" tabindex="-1">${icon("chart")}<span class="overview-label-full">法人總覽</span><span class="overview-label-short">法人</span></button></div><div class="institution-window" role="group" aria-label="法人累計區間" hidden><button data-institution-window="day" aria-pressed="true">當日</button><button data-institution-window="5" aria-pressed="false">近 5 日</button><button data-institution-window="20" aria-pressed="false">近 20 日</button></div></div>
-          <div id="watchlist-carousel-controls" class="watchlist-carousel-controls" data-carousel="price" aria-label="自選卡片導覽"><span id="watchlist-carousel-status" role="status"></span><div class="watchlist-carousel-actions"><select id="watchlist-carousel-jump" data-carousel-jump aria-label="快速選擇自選股票" hidden></select><button class="icon-button" data-carousel-step="-1" aria-label="上一檔自選股票">${icon("chevron")}</button><button class="icon-button" data-carousel-step="1" aria-label="下一檔自選股票">${icon("chevron")}</button></div></div>
+          <div class="overview-controls">
+            <div class="overview-tabs">
+              <span class="overview-tab-indicator" aria-hidden="true"></span>
+              <div class="overview-view-tabs" role="tablist" aria-label="自選總覽視角">
+                <button id="watchlist-price-tab" role="tab" data-overview="price" aria-label="價量總覽" aria-controls="watchlist-grid" aria-selected="true" tabindex="0">${icon("grid")}<span class="overview-label-full">價量總覽</span><span class="overview-label-short">價量</span></button>
+                <button id="watchlist-institutions-tab" role="tab" data-overview="institutions" aria-label="法人總覽" aria-controls="institution-overview" aria-selected="false" tabindex="-1">${icon("chart")}<span class="overview-label-full">法人總覽</span><span class="overview-label-short">法人</span></button>
+              </div>
+              <div class="institution-window segmented-control" role="group" aria-label="法人累計區間" hidden><span class="segmented-indicator" aria-hidden="true"></span><button data-institution-window="day" aria-pressed="true">當日</button><button data-institution-window="5" aria-pressed="false">近 5 日</button><button data-institution-window="20" aria-pressed="false">近 20 日</button></div>
+            </div>
+          </div>
           <div id="watchlist-grid" class="watchlist-grid" role="tabpanel" aria-labelledby="watchlist-price-tab"></div>
-          <section id="institution-overview" class="institution-overview" role="tabpanel" aria-labelledby="watchlist-institutions-tab" hidden><div id="institution-carousel-controls" class="watchlist-carousel-controls" data-carousel="institutions" aria-label="法人卡片導覽"><span role="status"></span><div class="watchlist-carousel-actions"><select data-carousel-jump aria-label="快速選擇法人比較股票" hidden></select><button class="icon-button" data-carousel-step="-1" aria-label="上一檔法人比較股票">${icon("chevron")}</button><button class="icon-button" data-carousel-step="1" aria-label="下一檔法人比較股票">${icon("chevron")}</button></div></div><div id="institution-overview-rows" class="institution-overview-rows"></div><p class="institution-overview-note">單位：張。連買／連賣天數截至資料日，與累計區間分開計算。</p></section>
+          <div id="watchlist-carousel-controls" class="carousel-pagination" data-carousel="price" role="group" aria-label="自選卡片導覽" hidden></div>
+          <section id="institution-overview" class="institution-overview" role="tabpanel" aria-labelledby="watchlist-institutions-tab" hidden>
+            <div class="institution-overview-head" aria-hidden="true"><span>股票</span><div class="institution-overview-metric-headings"><span>合計買賣超</span><span>外資</span><span>投信</span><span>自營商</span></div></div>
+            <div id="institution-overview-rows" class="institution-overview-rows"></div><div id="institution-carousel-controls" class="carousel-pagination" data-carousel="institutions" role="group" aria-label="法人卡片導覽" hidden></div><p class="institution-overview-note">金額：億；張數為輔。金額按每日收盤價換算，非實際成交金額。連買／連賣天數截至資料日。</p>
+          </section>
           <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>到市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div>
         </section>
         <section class="panel stocks-panel" data-page-panel="market" aria-label="市場觀察股票表格">
@@ -191,11 +223,11 @@ function shell() {
               "",
             )}</tr></thead><tbody id="stock-rows"></tbody></table></div><div id="table-load-trigger" class="table-load-trigger" aria-hidden="true" hidden></div><div id="table-empty" class="empty-state" hidden>${icon("search")}<h3>沒有符合條件的股票</h3><p>試試其他關鍵字，或清除篩選條件。</p><button class="outline-button" id="reset-filters">清除篩選</button></div><div class="table-footer"><span id="table-summary"></span><span>點選星號，即時更新我的自選 ${icon("star")}</span></div>
         </section>
-        <section id="sector-page" class="sector-page" data-page-panel="sectors" aria-label="法人買株排行榜" hidden>
-          <div class="sector-toolbar"><div class="sector-sort-control"><span>排行方式</span><div class="sector-sort-tabs" role="group" aria-label="排行方式"><button data-sector-sort="name-asc" aria-pressed="true">產業</button><button data-sector-sort="net-desc" aria-pressed="false">買超</button><button data-sector-sort="net-asc" aria-pressed="false">賣超</button></div></div><div class="sector-period-control"><span>時間範圍</span><div class="sector-period" role="group" aria-label="法人買株累計區間"><button data-sector-window="day" aria-pressed="true">當日</button><button data-sector-window="5" aria-pressed="false">5 日</button><button data-sector-window="20" aria-pressed="false">20 日</button></div></div></div>
-          <div class="sector-ranking-head" aria-hidden="true"><span>產業排名</span><span id="sector-change-label">當日平均漲跌</span><span>法人淨買賣超</span></div>
+        <section id="sector-page" class="sector-page panel" data-page-panel="sectors" aria-label="法人買株排行榜" hidden>
+          <div class="sector-toolbar"><div class="sector-sort-control"><span>排行方式</span><div class="sector-sort-tabs segmented-control" role="group" aria-label="排行方式"><span class="segmented-indicator" aria-hidden="true"></span><button data-sector-sort="name-asc" aria-pressed="true">產業</button><button data-sector-sort="net-desc" aria-pressed="false">買超</button><button data-sector-sort="net-asc" aria-pressed="false">賣超</button></div></div><div class="sector-period-control"><span>時間範圍</span><div class="sector-period segmented-control" role="group" aria-label="法人買株累計區間"><span class="segmented-indicator" aria-hidden="true"></span><button data-sector-window="day" aria-pressed="true">當日</button><button data-sector-window="5" aria-pressed="false">5 日</button><button data-sector-window="20" aria-pressed="false">20 日</button></div></div></div>
+          <div class="sector-ranking-head" aria-hidden="true"><span>產業排名</span><span id="sector-change-label">當日平均漲跌</span><span>法人淨買賣超金額</span></div>
           <div id="sector-grid" class="sector-grid sector-ranking"></div>
-          <p class="sector-note">單位：張。TOP1 百分比為該個股的區間漲跌幅；點選產業可同時查看當日、5 日、20 日買賣超。僅統計目前研究標的。</p>
+          <p class="sector-note">金額以億元顯示，張數為輔。金額依各股每日法人淨買賣股數 × 當日收盤價累計，非實際成交金額。TOP1 百分比為該個股的區間漲跌幅；點選產業可同時查看當日、5 日、20 日買賣超。僅統計目前研究標的。</p>
         </section>
         <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK INSIGHT</span></span><span>技術提示僅供研究參考。</span><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
       </main>
@@ -288,6 +320,8 @@ function renderPage() {
     else button.removeAttribute("aria-current");
   });
   renderLoadState();
+  updateOverviewTabs();
+  updateSegmentedControls();
 }
 
 function renderWatchlist() {
@@ -310,7 +344,7 @@ function renderWatchlist() {
       <header class="watch-card-heading"><div><span class="watch-symbol">${stock.symbol} <span>${esc(stock.market)} · ${esc(stock.sector)}</span></span><h3 id="watch-title-${stock.symbol}">${esc(stock.name)}</h3></div><button class="icon-button favorite-button is-favorite" data-favorite="${stock.symbol}" aria-label="移除${esc(stock.name)}自選" aria-pressed="true">${icon("star")}</button></header>
       <div class="metrics" aria-label="${esc(stock.name)}關鍵指標">
         <div class="metric-card"><div class="metric-label">收盤價 <span>TWD</span></div><div class="metric-value"><span class="metric-number">${number(bar.close, 2)}</span><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></div><div class="metric-description">較前日 <span class="${direction(bar.change)}">${signed(bar.change)}</span></div></div>
-        <div class="metric-card"><div class="metric-label">成交量 <span>當日</span></div><div class="metric-value"><span class="metric-number">${number(bar.volume / 1000)}</span><small>張</small></div><div class="metric-description">三大法人淨額 <span class="${direction(bar.institutionalNet)}">${bar.institutionalNet === null ? "資料不足" : `${signed(bar.institutionalNet / 1000, 0)} 張`}</span></div></div>
+         <div class="metric-card"><div class="metric-label">成交量 <span>當日</span></div><div class="metric-value"><span class="metric-number">${number(bar.volume / 1000)}</span><small>張</small></div><div class="metric-description"><span class="metric-institution-money">法人淨額 <strong class="institution-money ${direction(stockMoney(stock, "total", "day"))}">${institutionalMoney(stockMoney(stock, "total", "day"))}</strong></span><small class="institution-lots">${institutionalAmount(bar.institutionalNet)}</small></div></div>
         <div class="metric-card"><div class="metric-label">KD 值 <span>(${state.settings.period}, ${state.settings.kSmooth}, ${state.settings.dSmooth})</span></div><div class="metric-value"><span class="metric-number">${number(bar.k, 2)}</span><span class="indicator-tag">${kStatus}</span></div><div class="metric-description"><span class="metric-detail">D 值 ${number(bar.d, 2)}</span><span class="metric-detail">RSV ${number(bar.rsv, 2)}</span></div></div>
         <div class="metric-card quarter-card"><div class="metric-label">股價與季線 <span>MA60</span></div><div class="metric-value ${direction(bar.deviation)}"><span class="metric-number">${percent(bar.deviation)}</span></div><div class="metric-description"><span>${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><span class="metric-detail">季線 ${number(bar.ma60, 2)}</span></div></div>
       </div>
@@ -320,8 +354,8 @@ function renderWatchlist() {
   }).join("");
   renderInstitutionOverview(favorites);
   renderOverviewVisibility();
-  setCarouselOptions("price", favorites);
-  if (matchMedia("(max-width: 700px)").matches && favorites.length) {
+  renderCarouselPagination("price", favorites);
+  if (favorites.length) {
     const nextIndex = Math.max(0, favorites.findIndex((stock) => stock.symbol === previousSymbol));
     scrollToCarouselCard("price", nextIndex, "instant");
   }
@@ -329,9 +363,13 @@ function renderWatchlist() {
 }
 
 const carouselConfig = {
-  price: { container: "#watchlist-grid", item: ".watch-card", symbol: "watchSymbol" },
-  institutions: { container: "#institution-overview-rows", item: ".institution-overview-row", symbol: "overviewSymbol" },
+  price: { container: "#watchlist-grid", item: ".watch-card", symbol: "watchSymbol", index: 0 },
+  institutions: { container: "#institution-overview-rows", item: ".institution-overview-row", symbol: "overviewSymbol", index: 0 },
 };
+
+function carouselEnabled(kind) {
+  return kind === "price" || matchMedia("(max-width: 700px)").matches;
+}
 
 function carouselParts(kind) {
   const config = carouselConfig[kind];
@@ -343,37 +381,93 @@ function carouselParts(kind) {
 function carouselIndex(kind, cards = carouselParts(kind).cards) {
   if (!cards.length) return 0;
   const { grid } = carouselParts(kind);
+  const config = carouselConfig[kind];
+  // A resize can clamp scrollLeft before ResizeObserver restores the card.
+  if (!carouselEnabled(kind) || !grid.getClientRects().length || (config.width !== undefined && config.width !== grid.clientWidth))
+    return Math.min(config.index, cards.length - 1);
   const left = grid.getBoundingClientRect().left + parseFloat(getComputedStyle(grid).paddingLeft);
   return cards.reduce((nearest, card, index) =>
     Math.abs(card.getBoundingClientRect().left - left) < Math.abs(cards[nearest].getBoundingClientRect().left - left)
       ? index : nearest, 0);
 }
 
-function setCarouselOptions(kind, favorites) {
-  const jump = carouselParts(kind).controls.querySelector("[data-carousel-jump]");
-  jump.innerHTML = favorites.map((stock) =>
-    `<option value="${stock.symbol}">${esc(stock.name)} ${stock.symbol}</option>`).join("");
-  jump.hidden = favorites.length <= 10;
+function renderCarouselPagination(kind, favorites) {
+  const { grid, controls } = carouselParts(kind);
+  grid.style.setProperty("--carousel-count", Math.max(1, favorites.length));
+  controls.innerHTML = favorites.map((stock, index) =>
+    `<button class="carousel-page" data-carousel-index="${index}" aria-label="第 ${index + 1} 檔：${esc(stock.name)} ${stock.symbol}" aria-controls="${grid.id}" tabindex="-1"><span class="carousel-dot" aria-hidden="true"></span></button>`).join("");
+}
+
+function fitCarouselTail(kind) {
+  const { grid, cards } = carouselParts(kind);
+  if (!cards.length || !grid.getClientRects().length) return;
+  const style = getComputedStyle(grid);
+  const space = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  carouselConfig[kind].width = grid.clientWidth;
+  grid.style.setProperty("--carousel-tail", `${Math.max(0, space - cards.at(-1).getBoundingClientRect().width)}px`);
 }
 
 function updateCarouselControls(kind) {
-  const { cards, controls, symbol } = carouselParts(kind);
+  const { cards, controls } = carouselParts(kind);
   const index = carouselIndex(kind, cards);
-  controls.querySelector('[role="status"]').textContent = cards.length
-    ? `第 ${index + 1}／${cards.length} 檔 · 左右滑動` : "";
-  controls.querySelector('[data-carousel-step="-1"]').disabled = index === 0;
-  controls.querySelector('[data-carousel-step="1"]').disabled = index >= cards.length - 1;
-  controls.querySelector("[data-carousel-jump]").value = cards[index]?.dataset[symbol] ?? "";
+  carouselConfig[kind].index = index;
+  controls.hidden = !carouselEnabled(kind) || cards.length <= 1 || (kind === "price" && state.overview !== "price");
+  controls.querySelectorAll("[data-carousel-index]").forEach((button, position) => {
+    const active = position === index;
+    button.setAttribute("aria-current", String(active));
+    button.tabIndex = active ? 0 : -1;
+  });
 }
 
 function scrollToCarouselCard(kind, index, behavior = "smooth") {
   const { grid, cards } = carouselParts(kind);
   const card = cards[index];
   if (!card) return;
+  carouselConfig[kind].index = index;
+  if (!grid.getClientRects().length) { updateCarouselControls(kind); return; }
+  if (!carouselEnabled(kind)) {
+    carouselConfig[kind].width = grid.clientWidth;
+    updateCarouselControls(kind);
+    return;
+  }
+  fitCarouselTail(kind);
   const left = card.getBoundingClientRect().left - grid.getBoundingClientRect().left +
     grid.scrollLeft - parseFloat(getComputedStyle(grid).paddingLeft);
   grid.scrollTo({ left, behavior });
   if (behavior === "instant") updateCarouselControls(kind);
+}
+
+function updateSegmentedControl(group) {
+  if (!group.getClientRects().length) return;
+  const selected = group.querySelector('button[aria-pressed="true"]');
+  const bounds = selected.getBoundingClientRect();
+  group.style.setProperty("--segment-left", `${bounds.left - group.getBoundingClientRect().left - group.clientLeft}px`);
+  group.style.setProperty("--segment-width", `${bounds.width}px`);
+}
+
+function updateSegmentedControls() {
+  document.querySelectorAll(".segmented-control").forEach(updateSegmentedControl);
+}
+
+function updateOverviewTabs() {
+  const controls = document.querySelector(".overview-controls");
+  const tabs = controls.querySelector(".overview-tabs");
+  if (!tabs.getClientRects().length) return;
+  const views = tabs.querySelector(".overview-view-tabs");
+  const selected = views.querySelector('[aria-selected="true"]');
+  const style = getComputedStyle(tabs);
+  const controlStyle = getComputedStyle(controls);
+  const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  const borders = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+  const expanded = controls.classList.contains("institutional-active");
+  const width = expanded
+    ? controls.clientWidth - parseFloat(controlStyle.paddingLeft) - parseFloat(controlStyle.paddingRight)
+    : views.offsetWidth + padding + borders;
+  const left = selected.getBoundingClientRect().left - tabs.getBoundingClientRect().left - tabs.clientLeft;
+  tabs.style.setProperty("--overview-width", `${width}px`);
+  tabs.style.setProperty("--overview-indicator-left", `${left}px`);
+  tabs.style.setProperty("--overview-indicator-width", `${selected.offsetWidth}px`);
+  updateSegmentedControl(tabs.querySelector(".institution-window"));
 }
 
 function renderOverviewVisibility() {
@@ -388,6 +482,11 @@ function renderOverviewVisibility() {
     tab.setAttribute("aria-selected", active);
     tab.tabIndex = active ? 0 : -1;
   });
+  updateOverviewTabs();
+  for (const kind of Object.keys(carouselConfig)) {
+    scrollToCarouselCard(kind, carouselConfig[kind].index, "instant");
+    updateCarouselControls(kind);
+  }
 }
 
 function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
@@ -400,7 +499,7 @@ function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
     const { latest: bar, institutionalSummary: summary } = stock;
     const day = state.institutionWindow === "day";
     const total = day ? bar.institutionalNet : summary.total[`net${state.institutionWindow}`];
-    const metric = (name, value, streak = "") => `<div class="overview-metric${name === "total" ? " overview-total" : ""}"><dt>${name === "total" ? "合計買賣超" : esc(name)}</dt><dd class="${direction(value)}" data-overview-net="${name}">${institutionalAmount(value)}</dd>${streak}</div>`;
+    const metric = (name, value, streak = "") => `<div class="overview-metric${name === "total" ? " overview-total" : ""}"><dt>${name === "total" ? "合計買賣超" : esc(name)}</dt><dd>${institutionalFigures(stockMoney(stock, name, state.institutionWindow), value, `data-overview-amount="${name}"`, `data-overview-net="${name}"`)}</dd>${streak}</div>`;
     return `<article class="institution-overview-row" data-overview-symbol="${stock.symbol}" aria-labelledby="overview-name-${stock.symbol}"><header><div><span class="overview-stock-code">${stock.symbol} · ${esc(stock.market)}</span><h4 id="overview-name-${stock.symbol}">${esc(stock.name)}</h4></div><button class="overview-detail-button" data-institution-details="${stock.symbol}" aria-label="查看${esc(stock.name)}三大法人動向" aria-haspopup="dialog" aria-controls="institution-dialog">明細 ${icon("chevron")}</button></header><dl class="institution-overview-metrics">${metric("total", total)}${["外資", "投信", "自營商"].map((name) => {
       const stats = summary.institutions[name];
       const value = day ? getInstitutionNet(bar.institutions, name) : stats[`net${state.institutionWindow}`];
@@ -408,8 +507,8 @@ function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
       return metric(name, value, streak);
     }).join("")}</dl></article>`;
   }).join("");
-  setCarouselOptions("institutions", favorites);
-  if (matchMedia("(max-width: 700px)").matches && favorites.length) {
+  renderCarouselPagination("institutions", favorites);
+  if (favorites.length) {
     const nextIndex = Math.max(0, favorites.findIndex((stock) => stock.symbol === previousSymbol));
     scrollToCarouselCard("institutions", nextIndex, "instant");
   }
@@ -421,6 +520,7 @@ function updateInstitutionOverviewWindow() {
   const stocksBySymbol = new Map(snapshots.map((stock) => [stock.symbol, stock]));
   document.querySelectorAll("[data-institution-window]").forEach((button) =>
     button.setAttribute("aria-pressed", button.dataset.institutionWindow === state.institutionWindow));
+  updateSegmentedControl(document.querySelector(".institution-window"));
   document.querySelectorAll("#institution-overview-rows .institution-overview-row").forEach((row) => {
     const stock = stocksBySymbol.get(row.dataset.overviewSymbol);
     if (!stock?.latest) return;
@@ -433,8 +533,11 @@ function updateInstitutionOverviewWindow() {
     row.querySelectorAll("[data-overview-net]").forEach((amount) => {
       const value = values[amount.dataset.overviewNet];
       amount.textContent = institutionalAmount(value);
-      amount.classList.remove("up", "down", "neutral");
-      amount.classList.add(direction(value));
+      const primary = row.querySelector(`[data-overview-amount="${amount.dataset.overviewNet}"]`);
+      const money = stockMoney(stock, amount.dataset.overviewNet, state.institutionWindow);
+      primary.textContent = institutionalMoney(money);
+      primary.classList.remove("up", "down", "neutral");
+      primary.classList.add(direction(money));
     });
   });
 }
@@ -468,6 +571,7 @@ function renderSectorOverview() {
       name,
       stocks,
       summary,
+      estimate: getSectorInstitutionEstimate(stocks, state.sectorWindow, dataset.dates),
       total: summary.total,
       change: priced.length && returns.length === priced.length
         ? returns.reduce((total, value) => total + value, 0) / returns.length : null,
@@ -475,28 +579,29 @@ function renderSectorOverview() {
   });
   sectors.sort((a, b) => {
     if (state.sectorSort === "name-asc") return a.name.localeCompare(b.name, "zh-Hant");
-    if (a.total === null) return b.total === null ? 0 : 1;
-    if (b.total === null) return -1;
-    return (a.total - b.total) * (state.sectorSort === "net-asc" ? 1 : -1);
+    if (a.estimate.amount === null) return b.estimate.amount === null ? 0 : 1;
+    if (b.estimate.amount === null) return -1;
+    return (a.estimate.amount - b.estimate.amount) * (state.sectorSort === "net-asc" ? 1 : -1);
   });
   document.querySelectorAll("[data-sector-window]").forEach((button) =>
     button.setAttribute("aria-pressed", button.dataset.sectorWindow === state.sectorWindow));
   document.querySelectorAll("[data-sector-sort]").forEach((button) =>
     button.setAttribute("aria-pressed", button.dataset.sectorSort === state.sectorSort));
+  document.querySelectorAll(".sector-toolbar .segmented-control").forEach(updateSegmentedControl);
   document.querySelector("#sector-change-label").textContent = days === 1
     ? "當日平均漲跌" : `${days} 日平均漲跌`;
-  const maxAmount = Math.max(1, ...sectors.map((sector) => Math.abs(sector.total ?? 0)));
+  const maxAmount = Math.max(1, ...sectors.map((sector) => Math.abs(sector.estimate.amount ?? 0)));
   document.querySelector("#sector-grid").innerHTML = sectors.map((sector, index) => {
     const candidates = sector.stocks.map((stock) => ({
       stock,
-      value: stockInstitutionValue(stock, "total", state.sectorWindow),
+      value: stockMoney(stock, "total", state.sectorWindow, dataset.info.asOf),
     }));
-    const { stock: leader, value: leaderValue } = getDirectionalLeader(candidates, sector.total);
+    const { stock: leader, value: leaderValue } = getDirectionalLeader(candidates, sector.estimate.amount);
     const periodLabel = days === 1 ? "" : `${days} 日 `;
     const leaderChange = leader ? stockReturn(leader) : null;
     const leaderText = leaderValue === null ? "資料不足" : `TOP1·${leader.name}`;
-    const barWidth = `${Math.max(4, Math.round((Math.abs(sector.total ?? 0) / maxAmount) * 100))}%`;
-    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.total)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel}<span>${esc(leaderText)}</span> <span class="${direction(leaderChange)}">${percent(leaderChange)}</span></p></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total"><strong class="${direction(sector.total)}">${institutionalAmount(sector.total)}</strong><i class="${direction(sector.total)}" style="--sector-bar:${barWidth}"></i></div></div>${sectorCoverage(sector.summary)}</article>`;
+    const barWidth = `${Math.max(4, Math.round((Math.abs(sector.estimate.amount ?? 0) / maxAmount) * 100))}%`;
+    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.estimate.amount)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel}<span>${esc(leaderText)}</span> <span class="${direction(leaderChange)}">${percent(leaderChange)}</span></p><small class="sector-breadth" data-sector-breadth title="所選區間淨買賣超金額為正的家數／金額資料完整的有效家數">買超 ${sector.estimate.available ? sector.estimate.buying : "—"}／${sector.estimate.available} 檔</small></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total">${institutionalFigures(sector.estimate.amount, sector.total, 'data-sector-amount', 'data-sector-lots')}<i class="${direction(sector.estimate.amount)}" style="--sector-bar:${barWidth}"></i></div></div>${sectorCoverage(sector.summary)}</article>`;
   }).join("");
   if (document.querySelector("#sector-dialog")?.open) renderSectorDialog(state.sectorName);
 }
@@ -505,9 +610,10 @@ function renderSectorDialog(name) {
   const stocks = latestSnapshots.filter((stock) => stock.sector === name);
   if (!stocks.length) return;
   const periods = [["day", "當日"], ["5", "5 日"], ["20", "20 日"]];
+  const tradingDates = dataset.dates.filter((date) => date <= dataset.info.asOf);
   const members = stocks.map((stock) => ({
     stock,
-    net: stockInstitutionValue(stock, "total", "day"),
+    net: stockMoney(stock, "total", "day", dataset.info.asOf),
   })).sort((a, b) => {
     if (a.net === null) return b.net === null ? a.stock.name.localeCompare(b.stock.name, "zh-Hant") : 1;
     if (b.net === null) return -1;
@@ -518,22 +624,28 @@ function renderSectorDialog(name) {
   document.querySelector("#sector-dialog-meta").textContent = `${isDemo ? "最新完整交易日" : "最新報表交易日"} ${dataset.info.asOf}`;
   document.querySelector("#sector-dialog-content").innerHTML = `
     <section class="sector-detail-summary" aria-labelledby="sector-summary-heading">
-      <div class="sector-detail-heading"><div><h3 id="sector-summary-heading">法人淨買賣超</h3><p>當日與近 5／20 個交易日累計，單位：張</p></div></div>
+      <div class="sector-detail-heading"><div><h3 id="sector-summary-heading">法人淨買賣超金額</h3><p>當日與近 5／20 個交易日累計；金額：億，張數為輔</p></div></div>
       <div class="sector-summary-grid">${periods.map(([key, label]) => {
         const summary = getSectorInstitutionSummary(stocks, key);
         const total = summary.total;
-        return `<article class="sector-summary-period" data-sector-period="${key}" aria-label="${label}法人買賣超"><header><h4>${label}</h4><strong class="${direction(total)}" data-sector-summary="total">${institutionalAmount(total, false)}</strong></header>${sectorCoverage(summary)}<dl>${["外資", "投信", "自營商"].map((institution) => {
+        const amount = getSectorInstitutionEstimate(stocks, key, dataset.dates).amount;
+        return `<article class="sector-summary-period" data-sector-period="${key}" aria-label="${label}法人買賣超"><header><h4>${label}</h4><div class="sector-summary-values">${institutionalFigures(amount, total, 'data-sector-money="total"', 'data-sector-summary="total"')}</div></header>${sectorCoverage(summary)}<dl>${["外資", "投信", "自營商"].map((institution) => {
           const value = summary[institution];
-          return `<div><dt>${institution}</dt><dd class="${direction(value)}" data-sector-summary="${institution}">${institutionalAmount(value, false)}</dd></div>`;
+          const money = getSectorInstitutionEstimate(stocks, key, dataset.dates, institution).amount;
+          return `<div><dt>${institution}</dt><dd>${institutionalFigures(money, value, `data-sector-money="${institution}"`, `data-sector-summary="${institution}"`)}</dd></div>`;
         }).join("")}</dl></article>`;
       }).join("")}</div>
     </section>
     <section class="sector-stock-section" aria-labelledby="sector-stock-heading">
-      <div class="sector-detail-heading"><div><h3 id="sector-stock-heading">產業個股</h3><p>依當日買賣超排序，單位：張</p></div></div>
+      <div class="sector-detail-heading"><div><h3 id="sector-stock-heading">產業個股</h3><p>依當日淨買賣超金額排序；金額：億，張數為輔</p><p class="sector-chart-note">5 日柱圖：每日淨額，左舊右新、各股獨立比例尺；空心為缺漏。法人占量＝當日淨買賣超股數／成交股數。</p></div></div>
       <div class="sector-stock-scroll" tabindex="0" role="region" aria-label="${esc(name)}個股股價與法人買賣超">
-        <table class="sector-stock-table"><caption class="sr-only">${esc(name)}各股最新收盤價、日漲跌幅及當日、5 日、20 日法人淨買賣超，單位：張</caption><colgroup><col class="sector-stock-name-column"><col class="sector-stock-price-column">${periods.map(() => '<col class="sector-stock-net-column">').join("")}</colgroup><thead><tr><th scope="col">股票</th><th scope="col">收盤價／日漲跌</th>${periods.map(([, label]) => `<th scope="col">${label}買賣超</th>`).join("")}</tr></thead><tbody>${members.map(({ stock }) => `<tr data-sector-stock="${stock.symbol}"><th scope="row"><span class="sector-stock-name"><strong>${esc(stock.name)}</strong><small>${stock.symbol}</small></span></th><td class="sector-stock-price"><span class="sector-stock-close">${number(stock.latest?.close, 2)}</span><small class="sector-stock-change ${direction(stock.latest?.changePercent)}">${percent(stock.latest?.changePercent)}</small></td>${periods.map(([key, label]) => {
+        <table class="sector-stock-table"><caption class="sr-only">${esc(name)}各股最新收盤價、日漲跌幅及當日、5 日、20 日法人淨買賣超金額（億）與張數（張）</caption><colgroup><col class="sector-stock-name-column"><col class="sector-stock-price-column">${periods.map(() => '<col class="sector-stock-net-column">').join("")}</colgroup><thead><tr><th scope="col">股票</th><th scope="col">收盤價／日漲跌</th>${periods.map(([, label]) => `<th scope="col">${label}金額／張數</th>`).join("")}</tr></thead><tbody>${members.map(({ stock }) => `<tr data-sector-stock="${stock.symbol}"><th scope="row"><span class="sector-stock-name"><strong>${esc(stock.name)}</strong><small>${stock.symbol}</small></span></th><td class="sector-stock-price"><span class="sector-stock-close">${number(stock.latest?.close, 2)}</span><small class="sector-stock-change ${direction(stock.latest?.changePercent)}">${percent(stock.latest?.changePercent)}</small></td>${periods.map(([key, label]) => {
           const value = stockInstitutionValue(stock, "total", key);
-          return `<td class="sector-stock-net ${direction(value)}" data-sector-net="${key}"><span class="sector-stock-period-label" aria-hidden="true">${label}</span><strong>${institutionalAmount(value, false)}</strong></td>`;
+          const ratio = key === "day" ? getInstitutionVolumeRatio(stock.latest) : null;
+          const extra = key === "day"
+            ? `<small class="institution-volume-ratio" data-institution-ratio title="當日三大法人淨買賣超股數 ÷ 當日成交股數 × 100%">法人占量 <span class="${direction(ratio)}">${ratio === null ? "資料不足" : percent(ratio)}</span></small>`
+            : key === "5" ? institutionSparkline(stock, tradingDates) : "";
+          return `<td class="sector-stock-net" data-sector-net="${key}"><span class="sector-stock-period-label" aria-hidden="true">${label}</span>${institutionalFigures(stockMoney(stock, "total", key, dataset.info.asOf), value)}${extra}</td>`;
         }).join("")}</tr>`).join("")}</tbody></table>
       </div>
     </section>`;
@@ -556,15 +668,15 @@ function institutionalDetails(stock) {
   const buy = bar.institutionalNet === null ? null : bar.institutions.reduce((sum, item) => sum + item.buy, 0);
   const sell = bar.institutionalNet === null ? null : bar.institutions.reduce((sum, item) => sum + item.sell, 0);
   const max = Math.max(...bar.institutions.flatMap((item) => [item.buy, item.sell]), 1);
-  return `<section class="watch-flow" data-institution-symbol="${stock.symbol}" aria-label="${esc(stock.name)}三大法人動向"><div class="watch-flow-heading"><h3>買賣超與累計</h3><span>單位：張</span></div>
-        <div class="institution-summary"><div class="watch-flow-total"><div><span>合計買賣超</span><strong class="${direction(buy - sell)}">${bar.institutionalNet === null ? "—" : signed(bar.institutionalNet / 1000, 0)}<small> 張</small></strong></div><div class="watch-flow-amounts"><span>買進 ${buy === null ? "—" : number(buy / 1000)}</span><span>賣出 ${sell === null ? "—" : number(sell / 1000)}</span></div></div>
-        <div class="watch-total-history" aria-label="三大法人累計買賣超">${institutionalHistory(institutionalSummary.total)}</div></div><p class="watch-history-note">累計含資料日，以交易日計算</p>
+  return `<section class="watch-flow" data-institution-symbol="${stock.symbol}" aria-label="${esc(stock.name)}三大法人動向"><div class="watch-flow-heading"><h3>買賣超金額與累計</h3><span>金額：億；張數為輔</span></div>
+        <div class="institution-summary"><div class="watch-flow-total"><div><span>合計買賣超</span>${institutionalFigures(stockMoney(stock, "total", "day"), bar.institutionalNet)}</div><div class="watch-flow-amounts"><span>買進 ${buy === null ? "—" : number(buy / 1000)} 張</span><span>賣出 ${sell === null ? "—" : number(sell / 1000)} 張</span></div></div>
+        <div class="watch-total-history" aria-label="三大法人累計買賣超">${institutionalHistory(institutionalSummary.total, stock)}</div></div><p class="watch-history-note">累計含資料日；金額按每日收盤價換算，非實際成交金額</p>
         <div class="watch-flow-legend"><span><i class="buy-key"></i>買進</span><span><i class="sell-key"></i>賣出</span><span>右側為買賣超</span></div>
         <div class="watch-institutions">${bar.institutions.map((item) => {
           const stats = institutionalSummary.institutions[item.name];
           const streak = ["外資", "投信"].includes(item.name)
             ? `<span class="watch-streak ${stats.streak.direction}" data-streak>${institutionalStreak(stats.streak)}</span>` : "";
-          return `<div class="watch-institution" data-institution="${esc(item.name)}"><div class="watch-institution-heading"><span class="watch-institution-label"><span>${esc(item.name)}</span>${streak}</span><strong class="${direction(item.buy - item.sell)}">${signed((item.buy - item.sell) / 1000, 0)}</strong></div><div class="watch-flow-bar-row"><span class="watch-flow-bar buy" style="width:${(item.buy / max) * 100}%"></span><span>${number(item.buy / 1000)}</span></div><div class="watch-flow-bar-row"><span class="watch-flow-bar sell" style="width:${(item.sell / max) * 100}%"></span><span>${number(item.sell / 1000)}</span></div>${institutionalHistory(stats)}</div>`;
+          return `<div class="watch-institution" data-institution="${esc(item.name)}"><div class="watch-institution-heading"><span class="watch-institution-label"><span>${esc(item.name)}</span>${streak}</span><div class="watch-institution-value">${institutionalFigures(stockMoney(stock, item.name, "day"), item.buy - item.sell)}</div></div><div class="watch-flow-bar-row"><span class="watch-flow-bar buy" style="width:${(item.buy / max) * 100}%"></span><span>${number(item.buy / 1000)} 張</span></div><div class="watch-flow-bar-row"><span class="watch-flow-bar sell" style="width:${(item.sell / max) * 100}%"></span><span>${number(item.sell / 1000)} 張</span></div>${institutionalHistory(stats, stock, item.name)}</div>`;
         }).join("")}</div>
       </section>`;
 }
@@ -758,6 +870,11 @@ function syncTableFavorite(symbol) {
 
 function bindEvents() {
   observeTableBatches();
+  const overviewResize = new ResizeObserver(updateOverviewTabs);
+  overviewResize.observe(document.querySelector(".overview-controls"));
+  overviewResize.observe(document.querySelector(".overview-view-tabs"));
+  const segmentedResize = new ResizeObserver(updateSegmentedControls);
+  document.querySelectorAll(".segmented-control").forEach((group) => segmentedResize.observe(group));
   const phoneLayout = matchMedia("(max-width: 700px)");
   const searchControls = document.querySelector(".search-controls");
   const arrangeSearchControls = () => {
@@ -794,11 +911,9 @@ function bindEvents() {
       state.overview = button.dataset.overview;
       renderOverviewVisibility();
     }
-    if (button.dataset.carouselStep) {
+    if (button.dataset.carouselIndex !== undefined) {
       const kind = button.closest("[data-carousel]").dataset.carousel;
-      const count = carouselParts(kind).cards.length;
-      scrollToCarouselCard(kind, Math.max(0, Math.min(count - 1,
-        carouselIndex(kind) + Number(button.dataset.carouselStep))),
+      scrollToCarouselCard(kind, Number(button.dataset.carouselIndex),
       matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
     }
     if (button.dataset.institutionWindow) {
@@ -877,13 +992,16 @@ function bindEvents() {
     renderTable();
   });
   for (const kind of Object.keys(carouselConfig)) {
-    const { grid, controls, symbol } = carouselParts(kind);
-    grid.addEventListener("scroll", () => updateCarouselControls(kind), { passive: true });
-    controls.querySelector("[data-carousel-jump]").addEventListener("change", (event) => {
-      const cards = carouselParts(kind).cards;
-      scrollToCarouselCard(kind, cards.findIndex((card) => card.dataset[symbol] === event.target.value),
-        matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
-    });
+    const { grid } = carouselParts(kind);
+    let frame;
+    grid.addEventListener("scroll", () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = null; updateCarouselControls(kind); });
+    }, { passive: true });
+    new ResizeObserver(() => {
+      if (grid.getClientRects().length)
+        scrollToCarouselCard(kind, carouselConfig[kind].index, "instant");
+    }).observe(grid);
   }
   document
     .querySelector("#sector-filter")
@@ -896,6 +1014,17 @@ function bindEvents() {
     refreshData();
   });
   document.addEventListener("keydown", (event) => {
+    const dot = event.target.closest?.("[data-carousel-index]");
+    if (dot && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const buttons = [...dot.parentElement.querySelectorAll("[data-carousel-index]")];
+      const current = buttons.indexOf(dot);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+        : Math.max(0, Math.min(buttons.length - 1, current + (event.key === "ArrowRight" ? 1 : -1)));
+      buttons[next].focus({ preventScroll: true });
+      buttons[next].click();
+      return;
+    }
     const overviewTab = event.target.closest?.("[data-overview]");
     if (overviewTab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
       event.preventDefault();

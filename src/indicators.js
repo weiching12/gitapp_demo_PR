@@ -134,6 +134,46 @@ export function getSectorInstitutionSummary(stocks, window) {
   };
 }
 
+function institutionMoney(bar, name = "total") {
+  if (!Number.isFinite(bar?.close) || bar.close <= 0) return null;
+  const net = name === "total" ? getInstitutionalNet(bar.institutions) : getInstitutionNet(bar.institutions, name);
+  const amount = net === null ? null : net * bar.close;
+  return Number.isFinite(amount) ? amount : null;
+}
+
+/** Signed net shares / traded shares. Zero volume is unknown, not zero percent. */
+export function getInstitutionVolumeRatio(bar) {
+  const net = getInstitutionalNet(bar?.institutions);
+  return net !== null && Number.isFinite(bar?.volume) && bar.volume > 0
+    ? net / bar.volume * 100 : null;
+}
+
+/** Keep exact market sessions, including unknown slots and genuine zero values. */
+export function getStockInstitutionSeries(stock, tradingDates) {
+  const history = new Map((stock.history ?? []).map((bar) => [bar.date, bar]));
+  return tradingDates.slice(-5).map((date) => ({ date, amount: institutionMoney(history.get(date)) }));
+}
+
+/** Closing-price estimate in TWD, using complete stock windows only. */
+export function getStockInstitutionEstimate(stock, name, window, tradingDates) {
+  const days = window === "day" ? 1 : Number(window);
+  const dates = tradingDates.slice(-days);
+  if (![1, 5, 20].includes(days) || dates.length !== days) return null;
+  const history = new Map((stock.history ?? []).map((bar) => [bar.date, bar]));
+  const daily = dates.map((date) => institutionMoney(history.get(date), name));
+  return daily.every(Number.isFinite) ? daily.reduce((sum, value) => sum + value, 0) : null;
+}
+
+export function getSectorInstitutionEstimate(stocks, window, tradingDates, name = "total") {
+  const values = stocks.map((stock) => ({ stock,
+    total: getStockInstitutionEstimate(stock, "total", window, tradingDates) }))
+    .filter(({ total }) => Number.isFinite(total))
+    .map(({ stock, total }) => name === "total" ? total : getStockInstitutionEstimate(stock, name, window, tradingDates))
+    .filter(Number.isFinite);
+  return { available: values.length, expected: stocks.length, buying: values.filter((value) => value > 0).length,
+    amount: values.length ? values.reduce((sum, value) => sum + value, 0) : null };
+}
+
 /** Totals stay in shares; rolling windows include the selected session. */
 export function getInstitutionalSummary(history) {
   const names = ["外資", "投信", "自營商"];

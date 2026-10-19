@@ -145,6 +145,7 @@ test("partial sector totals disclose window coverage and keep missing constituen
   const histories = new Map(chunks.flatMap((chunk) => chunk.stocks).map((stock) => [stock.symbol, new Map(stock.history.map((row) => [row[0], row]))]));
   const amount = (shares, unit = false) => shares === null ? "資料不足"
     : `${shares > 0 ? "+" : ""}${(shares / 1000).toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(shares / 1000) ? 0 : 2, maximumFractionDigits: Number.isInteger(shares / 1000) ? 0 : 2 })}${unit ? " 張" : ""}`;
+  const money = (value) => value === null ? "資料不足" : `${value > 0 ? "+" : ""}${(value / 100000000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 億`;
   const expected = (sector, days) => {
     const stocks = manifest.stocks.filter((stock) => stock.sector === sector);
     const dates = manifest.dates.slice(-days);
@@ -152,7 +153,10 @@ test("partial sector totals disclose window coverage and keep missing constituen
       .filter((rows) => rows.length === days && rows.every((row) => row && row.slice(6).every(Number.isFinite)));
     const net = (offset) => rows.length ? rows.reduce((total, history) => total + history.reduce((sum, row) => sum + row[offset] - row[offset + 1], 0), 0) : null;
     const parts = [6, 8, 10].map(net);
-    return { total: rows.length ? parts.reduce((a, b) => a + b, 0) : null, parts, available: rows.length, expected: stocks.length };
+    const cash = [6, 8, 10].map((offset) => rows.length ? rows.reduce((total, history) => total
+      + history.reduce((sum, row) => sum + (row[offset] - row[offset + 1]) * row[4], 0), 0) : null);
+    return { total: rows.length ? parts.reduce((a, b) => a + b, 0) : null, parts, cash,
+      money: rows.length ? cash.reduce((a, b) => a + b, 0) : null, available: rows.length, expected: stocks.length };
   };
   const unpriced = manifest.stocks.find((stock) => manifest.coverage.inactive.includes(stock.symbol));
   const sectors = [...new Set(["電子零組件業", unpriced?.sector].filter(Boolean))];
@@ -162,7 +166,8 @@ test("partial sector totals disclose window coverage and keep missing constituen
       const result = expected(sector, days);
       await page.locator(`[data-sector-window="${key}"]`).click();
       const card = page.locator(`[data-sector-details="${sector}"]`);
-      await expect(card.locator(".sector-total strong")).toHaveText(amount(result.total, true));
+      await expect(card.locator("[data-sector-lots]")).toHaveText(amount(result.total, true));
+      await expect(card.locator("[data-sector-amount]")).toHaveText(money(result.money));
       if (result.available < result.expected)
         await expect(card.locator("[data-sector-coverage]")).toHaveText(`已統計 ${result.available}／${result.expected} 檔，部分資料缺漏`);
       else await expect(card.locator("[data-sector-coverage]")).toHaveCount(0);
@@ -171,9 +176,12 @@ test("partial sector totals disclose window coverage and keep missing constituen
     for (const [key, days] of [["day", 1], ["5", 5], ["20", 20]]) {
       const result = expected(sector, days);
       const summary = page.locator(`#sector-dialog [data-sector-period="${key}"]`);
-      await expect(summary.locator('[data-sector-summary="total"]')).toHaveText(amount(result.total));
-      for (const [i, name] of ["外資", "投信", "自營商"].entries())
-        await expect(summary.locator(`[data-sector-summary="${name}"]`)).toHaveText(amount(result.parts[i]));
+      await expect(summary.locator('[data-sector-summary="total"]')).toHaveText(amount(result.total, true));
+      await expect(summary.locator('[data-sector-money="total"]')).toHaveText(money(result.money));
+      for (const [i, name] of ["外資", "投信", "自營商"].entries()) {
+        await expect(summary.locator(`[data-sector-summary="${name}"]`)).toHaveText(amount(result.parts[i], true));
+        await expect(summary.locator(`[data-sector-money="${name}"]`)).toHaveText(money(result.cash[i]));
+      }
       if (result.available < result.expected)
         await expect(summary.locator("[data-sector-coverage]")).toContainText(`${result.available}／${result.expected}`);
     }

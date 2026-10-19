@@ -511,7 +511,8 @@ h1 {
 .institution-heading > span {
   font-variant-numeric: tabular-nums;
 }
-.stocks-panel {
+.stocks-panel,
+.sector-page {
   overflow: hidden;
 }
 .outline-button {
@@ -706,8 +707,9 @@ h1 {
   text-align: left;
   min-width: 105px;
 }
-.stock-name strong {
-  color: #2b4365;
+.stock-name strong,
+.sector-stock-name > strong {
+  color: var(--ink);
 }
 .stock-close,
 .stock-volume {
@@ -1465,25 +1467,63 @@ dialog h2 {
   container: watchlist / inline-size;
 }
 .watchlist-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+  --carousel-columns: 1;
+  --carousel-visible: min(var(--carousel-columns), var(--carousel-count, 1));
+  display: flex;
   gap: 18px;
 }
-.watchlist-grid:has(> .watch-card:nth-child(-n + 2):last-child) {
-  grid-template-columns: minmax(0, 1fr);
+.watchlist-grid > .watch-card {
+  flex: 0 0 calc((100% - (var(--carousel-visible) - 1) * 18px) / var(--carousel-visible));
 }
 @container watchlist (min-width: 638px) {
-  .watchlist-grid:has(> .watch-card:nth-child(-n + 2):last-child) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  .watchlist-grid { --carousel-columns: 2; }
 }
 @container watchlist (min-width: 966px) {
-  .watchlist-grid:has(> .watch-card:nth-child(-n + 2):last-child) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  .watchlist-grid { --carousel-columns: 3; }
 }
-.watchlist-carousel-controls {
-  display: none;
+@container watchlist (min-width: 1294px) {
+  .watchlist-grid { --carousel-columns: 4; }
+}
+.watchlist-grid {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  padding: 2px 0 12px;
+  scrollbar-width: none;
+}
+.watchlist-grid::-webkit-scrollbar { display: none; }
+.watchlist-grid > .watch-card { scroll-snap-align: start; }
+.watchlist-grid > .watch-card:last-child {
+  margin-inline-end: var(--carousel-tail, 0px);
+}
+.carousel-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0 8px 8px;
+}
+.carousel-pagination[hidden] { display: none; }
+.carousel-page {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 6px;
+}
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: width 220ms ease, background-color 220ms ease;
+}
+.carousel-page[aria-current="true"] .carousel-dot {
+  width: 24px;
+  background: var(--accent);
 }
 .watch-card {
   min-width: 0;
@@ -1646,9 +1686,10 @@ dialog h2 {
 .watch-institution-heading {
   margin-bottom: 5px;
 }
-.watch-institution-heading > strong {
+.watch-institution-value {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 .watch-institution-label {
   display: flex;
@@ -1688,7 +1729,7 @@ dialog h2 {
 .watch-cumulative > span {
   color: #64748b;
 }
-.watch-cumulative > b {
+.watch-cumulative > .institution-money {
   overflow-wrap: anywhere;
 }
 .watch-total-history .watch-history {
@@ -1908,14 +1949,50 @@ dialog.institution-dialog {
   margin-bottom: 16px;
 }
 .overview-tabs {
+  position: relative;
+  isolation: isolate;
   display: flex;
+  align-items: center;
   gap: 6px;
   padding: 4px;
-  width: fit-content;
+  width: var(--overview-width, fit-content);
+  max-width: 100%;
+  overflow: clip;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: #eef2f7;
+  background: #fff;
+  transition: width 300ms ease;
 }
+.overview-view-tabs {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.overview-tab-indicator,
+.segmented-indicator {
+  position: absolute;
+  border-radius: 6px;
+  background: #eef2f7;
+  pointer-events: none;
+  transition: left 300ms ease, width 300ms ease;
+}
+.overview-tab-indicator {
+  top: 4px;
+  bottom: 4px;
+  left: var(--overview-indicator-left, 4px);
+  width: var(--overview-indicator-width, 0px);
+}
+.segmented-control { position: relative; isolation: isolate; }
+.segmented-indicator {
+  top: var(--segment-inset, 3px);
+  bottom: var(--segment-inset, 3px);
+  left: var(--segment-left, 0px);
+  width: var(--segment-width, 0px);
+}
+.segmented-control button { position: relative; z-index: 1; background: transparent; }
+.segmented-control button:focus-visible { outline-offset: -2px; }
 .overview-tabs [role="tab"] {
   display: flex;
   align-items: center;
@@ -1927,10 +2004,9 @@ dialog.institution-dialog {
   color: #64748b;
 }
 .overview-tabs [aria-selected="true"] {
-  background: #fff;
   color: #245cac;
-  box-shadow: 0 1px 4px #172f5012;
 }
+.overview-tabs button:focus-visible { outline-offset: -2px; }
 .overview-tabs .icon {
   width: 16px;
   height: 16px;
@@ -1949,11 +2025,15 @@ dialog.institution-dialog {
   color: #64748b;
 }
 .institution-window {
+  --segment-inset: 0px;
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-shrink: 0;
   width: fit-content;
   margin-left: auto;
-  gap: 8px;
+  gap: 6px;
+  background: #fff;
 }
 .institution-window[hidden] {
   display: none;
@@ -1963,30 +2043,34 @@ dialog.institution-dialog {
   min-width: 64px;
   padding: 8px 14px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 6px;
   color: #64748b;
 }
-.institution-window button:hover {
+.overview-tabs [role="tab"]:hover:not([aria-selected="true"]),
+.segmented-control button:hover:not([aria-pressed="true"]) {
   color: #245cac;
   background: #f1f5fb;
 }
 .institution-window button[aria-pressed="true"] {
-  color: #214f91;
-  border-color: #bdd2f2;
-  background: #e8f0fd;
+  color: #245cac;
 }
 .institution-overview-rows {
   display: grid;
-  gap: 12px;
+  gap: 6px;
 }
+.institution-overview-head,
 .institution-overview-row {
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr);
   align-items: center;
   gap: 14px;
-  padding: 12px 16px;
+  padding: 8px 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+.institution-overview-head {
+  border-color: transparent;
+  color: var(--muted);
 }
 .institution-overview-row > header {
   display: grid;
@@ -2005,6 +2089,23 @@ dialog.institution-dialog {
 .sector-total strong {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.institution-money {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.institution-lots {
+  display: block;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.metric-institution-money {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 4px;
 }
 .sector-note {
   margin: 0;
@@ -2029,6 +2130,7 @@ dialog.institution-dialog {
   width: 12px;
   height: 12px;
 }
+.institution-overview-metric-headings,
 .institution-overview-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2218,6 +2320,13 @@ dialog.institution-dialog {
     border-radius: 6px;
     background: #fff;
   }
+  .overview-view-tabs { gap: 2px; }
+  .overview-tab-indicator {
+    top: 1px;
+    bottom: 1px;
+    border-radius: 5px;
+  }
+  .segmented-indicator { border-radius: 5px; }
   .overview-tabs [role="tab"] {
     min-width: 40px;
     min-height: 34px;
@@ -2231,19 +2340,11 @@ dialog.institution-dialog {
   .overview-label-short {
     display: inline;
   }
-  .overview-tabs [aria-selected="true"] {
-    background: #e8f0fd;
-    box-shadow: none;
-  }
   .institution-window {
     align-self: center;
     max-width: 100%;
     margin: 0 0 0 auto;
     gap: 2px;
-    padding: 1px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: #f6f8fb;
   }
   .institution-window button {
     min-width: 40px;
@@ -2252,6 +2353,7 @@ dialog.institution-dialog {
     border-radius: 5px;
     white-space: nowrap;
   }
+  .institution-overview-head { display: none; }
   .institution-overview-note { margin: 2px 12px 0; }
   .institution-overview-row { grid-template-columns: 1fr; gap: 12px; padding: 14px; background: #fff; }
   .institution-overview-row > header { display: flex; justify-content: space-between; align-items: center; }
@@ -2287,7 +2389,6 @@ dialog.institution-dialog {
   }
   .overview-total dt { min-width: 0; }
   .overview-total dd { flex-shrink: 0; text-align: right; white-space: nowrap; }
-  .overview-tabs { width: auto; }
   .overview-tabs [role="tab"] { flex: none; padding-inline: 4px; }
 }
 @media (max-width: 360px) {
@@ -2342,43 +2443,23 @@ dialog.institution-dialog {
 .form-field {
   flex-wrap: wrap;
 }
-@media (max-width: 900px) {
-  .institution-overview-row {
-    grid-template-columns: 1fr;
+@media (min-width: 701px) {
+  .institution-overview-row > header > div { display: contents; }
+  .institution-overview-row .overview-stock-code { grid-column: 1; grid-row: 1; }
+  .institution-overview-row .overview-detail-button { grid-column: 2; grid-row: 1; }
+  .institution-overview-row h4 { grid-column: 1 / -1; grid-row: 2; margin: 0; }
+  .overview-metric dt {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 @media (max-width: 700px) {
-  .watchlist-carousel-controls:not([hidden]) {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 8px;
-    color: var(--muted);
-    font-size: var(--text-secondary);
-  }
-  #watchlist-carousel-controls,
-  #institution-carousel-controls {
-    display: none;
-  }
-  .watchlist-carousel-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .watchlist-carousel-actions select {
-    min-height: 44px;
-    max-width: 130px;
-  }
-  .watchlist-carousel-actions .icon-button {
-    width: 44px;
-    height: 44px;
-    border: 1px solid var(--border);
-    background: #fff;
-  }
-  .watchlist-carousel-actions [data-carousel-step="-1"] .icon { transform: rotate(180deg); }
-  .watchlist-carousel-actions .icon-button:disabled { opacity: .4; cursor: default; }
   .watchlist-grid,
   .institution-overview-rows {
     display: flex;
@@ -2389,11 +2470,7 @@ dialog.institution-dialog {
     scroll-snap-type: x mandatory;
     scroll-padding-inline: 12px;
     padding: 2px 12px 12px;
-    padding-right: max(12px, calc(100% - 386px));
     scrollbar-width: none;
-  }
-  #institution-carousel-controls {
-    margin-top: 12px;
   }
   .watchlist-grid::-webkit-scrollbar,
   .institution-overview-rows::-webkit-scrollbar { display: none; }
@@ -2401,6 +2478,9 @@ dialog.institution-dialog {
   .institution-overview-rows .institution-overview-row {
     flex: 0 0 calc(100% - 12px);
     scroll-snap-align: start;
+  }
+  .institution-overview-rows > .institution-overview-row:last-child {
+    margin-inline-end: var(--carousel-tail, 0px);
   }
   .watchlist-grid .watch-card {
     /* Two metric columns need about 170px each, plus the gap and card padding. */
@@ -2512,9 +2592,6 @@ dialog.institution-dialog {
   .table-scroll .stock-name strong {
     white-space: normal;
     overflow-wrap: anywhere;
-    color: var(--ink);
-    font-weight: 600;
-    line-height: var(--leading-heading);
   }
   .stock-volume { white-space: normal; }
   .table-scroll .change-chip { padding: 4px; }
@@ -2609,33 +2686,35 @@ dialog.institution-dialog {
 .sector-ranking-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px 170px;
-  gap: 18px;
-  margin: 0 20px;
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 8px 20px;
+  background: #fff;
+  color: #7a8ba2;
   text-align: right;
 }
 .sector-ranking-head span:first-child { text-align: left; }
 .sector-ranking {
   display: block;
-  padding: 0 20px 18px;
+  padding: 0;
 }
 .sector-ranking .sector-card {
   padding: 0;
   border: 0;
   border-top: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #e6ebf1;
   border-radius: 0;
   background: transparent;
 }
+.sector-ranking .sector-card:last-child { border-bottom: 0; }
 .sector-main {
   display: grid;
   grid-template-columns: 30px 10px minmax(0, 1fr) 120px 170px;
   align-items: center;
   gap: 12px;
   min-height: 92px;
-  padding: 14px;
+  padding: 8px 20px;
 }
 .sector-ranking .sector-rank {
   display: block;
@@ -2656,6 +2735,12 @@ dialog.institution-dialog {
 .sector-marker.up { background: var(--up); }
 .sector-marker.down { background: var(--down); }
 .sector-identity { min-width: 0; }
+.sector-breadth {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
 .sector-identity h3 { margin: 0 0 7px; }
 .sector-identity p {
   margin: 0;
@@ -2727,6 +2812,7 @@ dialog.institution-dialog {
   border-block: 1px solid var(--border);
   background: #fff;
 }
+.sector-page .sector-toolbar { border-top: 0; }
 .sector-sort-control,
 .sector-period-control {
   display: flex;
@@ -2738,7 +2824,7 @@ dialog.institution-dialog {
 .sector-period-control > span { white-space: nowrap; }
 .sector-sort-tabs,
 .sector-period {
-  position: static;
+  position: relative;
   display: flex;
   width: fit-content;
   gap: 3px;
@@ -2746,7 +2832,7 @@ dialog.institution-dialog {
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: #f6f8fb;
+  background: #fff;
   box-shadow: none;
 }
 .sector-sort-tabs button,
@@ -2761,8 +2847,6 @@ dialog.institution-dialog {
 .sector-sort-tabs [aria-pressed="true"],
 .sector-period [aria-pressed="true"] {
   color: #245cac;
-  background: #e9f1ff;
-  box-shadow: 0 1px 3px #183d7414;
 }
 
 @media (max-width: 700px) {
@@ -2811,6 +2895,7 @@ dialog.institution-dialog {
   .sector-period-control { gap: 4px; }
   .sector-sort-tabs,
   .sector-period {
+    --segment-inset: 1px;
     gap: 2px;
     padding: 1px;
     border-radius: 6px;
@@ -2824,23 +2909,20 @@ dialog.institution-dialog {
   .sector-ranking-head { display: none; }
   .sector-main {
     grid-template-columns: 18px 8px minmax(0, 1fr) minmax(86px, max-content);
-    grid-template-rows: auto auto;
+    grid-template-rows: auto 1fr;
     gap: 3px 6px;
     min-height: 64px;
     padding: 6px;
   }
-  .sector-identity h3 { margin-bottom: 0; }
+  .sector-identity h3 { margin-bottom: 3px; }
   .sector-ranking .sector-rank,
   .sector-marker { grid-row: 1 / span 2; align-self: center; }
-  .sector-identity { display: contents; }
-  .sector-identity h3 { grid-column: 3; grid-row: 1; align-self: baseline; }
+  .sector-identity { grid-column: 3; grid-row: 1 / span 2; align-self: start; }
   .sector-identity p {
-    grid-column: 3;
-    grid-row: 2;
-    align-self: start;
     overflow: visible;
     text-overflow: clip;
     white-space: normal;
+    overflow-wrap: anywhere;
     line-height: 1.35;
   }
   .sector-identity p span { color: inherit; font-size: inherit; }
@@ -2879,7 +2961,7 @@ dialog.institution-dialog {
   cursor: pointer;
   text-align: left;
 }
-.sector-ranking .sector-card:hover .sector-main { background: #f8fafc; }
+.sector-ranking .sector-card:hover { background: #f6f8fa; }
 .sector-ranking .sector-card:focus-visible {
   position: relative;
   z-index: 1;
@@ -2934,13 +3016,14 @@ dialog.sector-dialog {
   color: var(--muted);
   font-size: var(--text-secondary);
 }
-.sector-summary-period header > strong {
+.sector-summary-values .institution-money {
   display: block;
   overflow-wrap: anywhere;
   font-size: var(--text-title);
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
 }
+.sector-summary-values { min-width: 0; text-align: right; }
 .sector-summary-period dl {
   margin: 12px 0 0;
   padding-top: 10px;
@@ -2972,6 +3055,7 @@ dialog.sector-dialog {
   border-radius: 10px;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  background: #fff;
 }
 .sector-stock-table {
   width: 100%;
@@ -2986,25 +3070,28 @@ dialog.sector-dialog {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #f8fafc;
+  background: #fff;
 }
 .sector-stock-table th,
 .sector-stock-table td {
-  padding: 11px 10px;
-  border-bottom: 1px solid var(--border);
+  padding: 8px 10px;
+  border-bottom: 1px solid #e6ebf1;
   text-align: right;
   vertical-align: middle;
 }
 .sector-stock-table thead th {
-  color: var(--muted);
-  font-size: var(--text-meta);
+  height: 40px;
+  border: 0;
+  background: #fff;
+  color: #7a8ba2;
+  font-size: var(--text-secondary);
   font-weight: 500;
-  white-space: nowrap;
+  white-space: normal;
 }
 .sector-stock-table th:first-child,
 .sector-stock-table td:first-child { text-align: left; }
 .sector-stock-table tbody tr:last-child > * { border-bottom: 0; }
-.sector-stock-table tbody tr:hover { background: #f8fafc; }
+.sector-stock-table tbody tr:hover { background: #f6f8fa; }
 .sector-stock-name {
   display: flex;
   min-width: 0;
@@ -3027,8 +3114,30 @@ dialog.sector-dialog {
 .sector-stock-net > strong {
   display: block;
   overflow-wrap: anywhere;
-  font-size: var(--text-secondary);
+  font-size: var(--text-body);
 }
+.institution-volume-ratio,
+.institution-chart-empty {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.institution-sparkline {
+  display: block;
+  width: 100px;
+  max-width: 100%;
+  margin: 5px 0 0 auto;
+}
+.institution-sparkline svg { display: block; width: 100%; height: 36px; }
+.institution-sparkline line { stroke: var(--border); }
+.institution-sparkline rect { fill: currentColor; }
+.institution-sparkline .unknown {
+  fill: none;
+  stroke: var(--muted);
+  stroke-dasharray: 2 1;
+}
+.sector-detail-heading .sector-chart-note { margin-top: 5px; }
 .sector-dialog-handle { display: none; }
 .sector-dialog-footer { padding-bottom: max(13px, env(safe-area-inset-bottom)); }
 .date-control [hidden] { display: none; }
@@ -3059,7 +3168,7 @@ dialog.sector-dialog {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px 8px;
     padding: 12px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid #e6ebf1;
   }
   .sector-stock-table tbody tr:last-child { border-bottom: 0; }
   .sector-stock-table th,
@@ -3068,6 +3177,7 @@ dialog.sector-dialog {
   .sector-stock-price { grid-column: 3; }
   .sector-stock-name { flex-direction: column; align-items: flex-start; gap: 2px; }
   .sector-stock-net { text-align: left !important; }
+  .institution-sparkline { margin-inline-start: 0; }
   .sector-stock-period-label { display: block; margin-bottom: 3px; }
 }
 @media (max-width: 520px) {
