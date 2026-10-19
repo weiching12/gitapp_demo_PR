@@ -2548,8 +2548,8 @@ dialog.institution-dialog {
     padding: 0;
   }
   .table-scroll {
-    --table-favorite-width: 44px;
-    --table-stock-width: clamp(68px, 18vw, 76px);
+    --table-favorite-width: 32px;
+    --table-stock-width: 60px;
     --table-net-width: 132px;
   }
   .table-scroll table {
@@ -2584,6 +2584,9 @@ dialog.institution-dialog {
   .table-scroll thead th:nth-child(2),
   .table-scroll tbody th {
     left: var(--table-favorite-width);
+  }
+  .table-scroll .favorite-button {
+    width: var(--table-favorite-width);
   }
   .table-scroll .stock-name {
     min-width: 0;

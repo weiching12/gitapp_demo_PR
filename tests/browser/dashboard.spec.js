@@ -1091,7 +1091,8 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
     const undersized = await page.locator('.sidebar .nav-item, [role="tab"], #trade-date, .search-box, #sector-filter, .filter-tabs button, #stock-rows [data-favorite]').evaluateAll((controls, viewportWidth) => controls.flatMap((element) => {
       const rect = element.getBoundingClientRect();
       const compact = viewportWidth <= 700 && element.matches('[role="tab"], .search-box, #sector-filter, .filter-tabs button');
-      const minWidth = compact ? 40 : 44;
+      const compactFavorite = viewportWidth <= 700 && element.matches('#stock-rows [data-favorite]');
+      const minWidth = compactFavorite ? 32 : compact ? 40 : 44;
       const minHeight = compact ? 34 : 44;
       return rect.width && rect.height && (rect.width < minWidth || rect.height < minHeight)
         ? [{ control: element.getAttribute("aria-label") || element.textContent.trim(), width: rect.width, height: rect.height }]
