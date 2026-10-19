@@ -1,8 +1,11 @@
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { syncT86, acceptedT86 } from "../cloudflare/t86-sync.js";
+import { T86Store } from "../cloudflare/t86-store.js";
+import { t86FlowReport } from "../cloudflare/t86-validator.js";
 import { CATALOG_URL, MANIFEST_KEY, SHARD_COUNT, createManifest, fetchJson, marketDay,
-  mergeShard, normalizeCatalog, normalizeFlows, normalizePrices, reportUrl, shardKey, taipeiDate, validDate } from "../cloudflare/twse.js";
+  mergeShard, normalizeCatalog, normalizePrices, reportUrl, shardKey, taipeiDate, validDate } from "../cloudflare/twse.js";
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const readJson = async (path) => {
@@ -17,19 +20,21 @@ async function saveJson(path, value) {
 /** Sequential, resumable bulk download. Cache only successful JSON replies. */
 export async function seedMarket({ end = taipeiDate(), sessions = 90, interval = 10000,
   directory = ".wrangler/twse-cache", output = ".wrangler/market-seed.json", offline = false,
-  fetcher = fetch, wait = sleep, now = () => Date.now(), log = console.log } = {}) {
+  fetcher = fetch, wait = sleep, now = () => Date.now(), log = console.log, t86Store, t86Env = {} } = {}) {
   if (!validDate(end) || end > taipeiDate() || !Number.isInteger(sessions) || sessions < 1 || sessions > 260 || interval < 10000)
     throw new Error("Use a valid --end date, 1–260 --sessions, and --interval >= 10000 ms");
+  if (!t86Store) throw new Error("Historical ingestion requires T86Store; no validation bypass is allowed");
   await mkdir(directory, { recursive: true });
   let lastRequest = 0;
-  async function request(url) {
+  async function spacedFetch(url, options) {
     if (offline) throw new Error(`Offline cache missing: ${url}`);
     const delay = Math.max(0, lastRequest + interval - now());
     if (delay) await wait(delay);
     lastRequest = now();
     // Fail fast on 403/429/network errors. No parallelism or automatic retry loop.
-    return fetchJson(url, fetcher);
+    return fetcher(url, options);
   }
+  const request = (url) => fetchJson(url, spacedFetch);
   const catalogPath = `${directory}/companies.json`;
   let cachedCatalog = await readJson(catalogPath);
   if (!cachedCatalog || (!offline && cachedCatalog.checkedOn !== taipeiDate())) {
@@ -56,14 +61,16 @@ export async function seedMarket({ end = taipeiDate(), sessions = 90, interval =
     const prices = normalizePrices(rawPrices, date);
     if (!prices) { log(`${date}: no exchange report`); continue; }
     const flowPath = `${directory}/flows-${date}.json`;
-    let rawFlows = await readJson(flowPath);
-    if (!rawFlows) {
-      rawFlows = await request(reportUrl("flows", date));
-      if (!normalizeFlows(rawFlows, date)) throw new Error(`Institution report not published: ${date}`);
-      await saveJson(flowPath, rawFlows);
-    }
-    const day = marketDay(catalog, prices, normalizeFlows(rawFlows, date));
-    if (prices.reportRows < 900 || rawFlows.data.length < 500) throw new Error(`Suspiciously short market report: ${date}`);
+    let rawJson;
+    try { rawJson = await readFile(flowPath, "utf8"); }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+    const run = await syncT86(t86Env, { tradeDate: date, slot: "backfill", now: new Date(now()), store: t86Store,
+      ...(rawJson === undefined ? { fetcher: spacedFetch } : { rawJson, httpStatus: 200 }) });
+    if (!acceptedT86(run.Status)) throw new Error(`Historical T86 ${date}: ${run.Status}: ${run.ErrorMessage ?? "no data"}; RunId=${run.RunId}`);
+    if (rawJson === undefined) await writeFile(flowPath, run.RawJson);
+    const version = await t86Store.current(date);
+    const day = marketDay(catalog, prices, t86FlowReport(JSON.parse(version.RowsJson), date));
+    if (prices.reportRows < 900) throw new Error(`Suspiciously short market report: ${date}`);
     days.push(day);
     if (!offline) await saveJson(`${directory}/progress.json`, { companies: catalog.length, requestedSessions: sessions,
       completedSessions: days.length, newest: days[0].date, oldest: date, checkedAt: new Date(now()).toISOString() });
@@ -87,8 +94,14 @@ export async function seedMarket({ end = taipeiDate(), sessions = 90, interval =
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const args = Object.fromEntries(process.argv.slice(2).map((arg) => arg.replace(/^--/, "").split("=")));
-  seedMarket({ ...(args.end && { end: args.end }), ...(args.sessions && { sessions: Number(args.sessions) }),
-    ...(args.interval && { interval: Number(args.interval) }), ...(args.directory && { directory: args.directory }),
-    ...(args.output && { output: args.output }), offline: Object.hasOwn(args, "offline") })
-    .catch((error) => { console.error(`TWSE ingestion stopped: ${error.message}. Re-run to resume cached downloads.`); process.exitCode = 1; });
+  const { getPlatformProxy } = await import("wrangler");
+  const proxy = await getPlatformProxy({ remoteBindings: false });
+  try {
+    await seedMarket({ ...(args.end && { end: args.end }), ...(args.sessions && { sessions: Number(args.sessions) }),
+      ...(args.interval && { interval: Number(args.interval) }), ...(args.directory && { directory: args.directory }),
+      ...(args.output && { output: args.output }), offline: Object.hasOwn(args, "offline"),
+      t86Store: new T86Store(proxy.env.T86_DB), t86Env: proxy.env });
+  } catch (error) {
+    console.error(`TWSE ingestion stopped: ${error.message}. Re-run to resume cached downloads.`); process.exitCode = 1;
+  } finally { await proxy.dispose(); }
 }

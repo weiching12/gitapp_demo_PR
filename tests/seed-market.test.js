@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, mkdir } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
+import { testStore } from "./helpers/t86-db.js";
 import { seedMarket } from "../scripts/seed-market.js";
 
 test("bulk historical ingestion spaces requests, skips explicit holidays and resumes offline without upstream", async () => {
@@ -31,7 +32,7 @@ test("bulk historical ingestion spaces requests, skips explicit holidays and res
     return Response.json(body);
   };
   try {
-    const options = { directory, end: "2026-10-18", sessions: 2, output: join(directory, "seed.json"), fetcher,
+    const options = { t86Store: testStore().store, directory, end: "2026-10-18", sessions: 2, output: join(directory, "seed.json"), fetcher,
       now: () => clock, wait: async (ms) => { clock += ms; }, log: () => {} };
     const result = await seedMarket(options);
     assert.deepEqual(result.manifest.dates, ["2026-10-14", "2026-10-16"]);

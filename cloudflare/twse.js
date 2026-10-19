@@ -1,4 +1,5 @@
 import { SHARD_COUNT, HISTORY_LIMIT } from "../src/market-codec.js";
+import { T86DataValidator, t86FlowReport } from "./t86-validator.js";
 export { SHARD_COUNT, HISTORY_LIMIT };
 
 // Public TWSE whole-market reports. No individual-stock upstream requests.
@@ -126,27 +127,12 @@ export function normalizePrices(body, date) {
 }
 
 export function normalizeFlows(body, date) {
-  if (!checkReport(body, date)) return null;
-  const indices = columns(body.fields, ["證券代號", "外陸資買進股數(不含外資自營商)", "外陸資賣出股數(不含外資自營商)",
-    "投信買進股數", "投信賣出股數", "自營商買進股數(自行買賣)", "自營商賣出股數(自行買賣)",
-    "自營商買進股數(避險)", "自營商賣出股數(避險)"]);
-  const netIndices = columns(body.fields, ["外陸資買賣超股數(不含外資自營商)", "投信買賣超股數",
-    "自營商買賣超股數", "三大法人買賣超股數"]);
-  if (!Array.isArray(body.data) || !body.data.length || (body.total !== undefined && Number(body.total) !== body.data.length))
-    throw new Error("Empty or truncated TWSE institution table");
-  const records = new Map();
-  for (const row of body.data) {
-    const symbol = row[indices[0]]?.trim();
-    const numbers = indices.slice(1).map((index) => numeric(row[index], true));
-    const [fb, fs, tb, ts, sb, ss, hb, hs] = numbers;
-    if (!symbol || !Number.isSafeInteger(sb + hb) || !Number.isSafeInteger(ss + hs)) throw new Error("Invalid dealer share totals");
-    const nets = [fb - fs, tb - ts, (sb + hb) - (ss + hs)];
-    nets.push(nets.reduce((sum, value) => sum + value, 0));
-    if (nets.some((value, index) => !Number.isSafeInteger(value) || numeric(row[netIndices[index]], true, true) !== value))
-      throw new Error(`TWSE published net totals disagree: ${symbol}`);
-    addUnique(records, symbol, [fb, fs, tb, ts, sb + hb, ss + hs]);
-  }
-  return { date, records: Object.fromEntries(records), reportRows: body.data.length };
+  // Pure parser for fixtures/legacy consumers. All ingestion paths must also pass
+  // the contextual count gate (syncT86 or the seed validator) before publishing.
+  const result = new T86DataValidator().validate({ httpStatus: 200, rawJson: JSON.stringify(body), tradeDate: date, baselineConfirmed: true });
+  if (result.status === "NoData") return null;
+  if (!result.valid) throw new Error(result.error);
+  return t86FlowReport(result.rows, date);
 }
 
 export function marketDay(catalog, prices, flows) {

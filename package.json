@@ -7,14 +7,16 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build --configLoader runner",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test tests/*.test.js",
+    "test": "node --experimental-sqlite --test tests/*.test.js",
+    "test:t86-runtime": "node tests/t86-runtime.mjs",
     "test:e2e": "playwright test",
     "test:cloudflare": "playwright test --config playwright.cloudflare.config.js",
     "build:cloudflare": "vite build --mode cloudflare --configLoader runner",
     "dev:cloudflare": "npm run build:cloudflare && wrangler dev --port 8787",
     "deploy": "npm run build:cloudflare && wrangler deploy",
     "seed": "node scripts/seed-market.js",
-    "verify:market": "node scripts/verify-market.js"
+    "verify:market": "node scripts/verify-market.js",
+    "t86:admin": "node scripts/t86-admin.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

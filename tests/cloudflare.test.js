@@ -2,11 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import worker from "../cloudflare/worker.js";
-import { syncMarket, pendingDates, scheduledDates } from "../cloudflare/sync.js";
+import { syncMarket as runSyncMarket, pendingDates, scheduledDates } from "../cloudflare/sync.js";
 import { CATALOG_URL, MANIFEST_KEY, SHARD_COUNT, SYNC_KEY, createManifest, marketDay, mergeShard,
   normalizeCatalog, normalizeFlows, normalizePrices, reportUrl, shardKey, shardOf, stageKey, taipeiDate } from "../cloudflare/twse.js";
 import { combineChunks, loadApiDataset } from "../src/provider.js";
 import { getSnapshot } from "../src/indicators.js";
+
+import { testStore } from "./helpers/t86-db.js";
+const syncMarket = (env, options) => {
+  env.MARKET_DATA.testStore ??= testStore().store;
+  return runSyncMarket(env, { ...options, t86Store: env.MARKET_DATA.testStore });
+};
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/twse-20261016.json", import.meta.url)));
 const date = "2026-10-16";
@@ -197,14 +203,14 @@ test("public API is cache-only, returns company snapshots and never contacts ups
   assert.equal((await worker.fetch(new Request("https://example.test/api/market"), { MARKET_DATA: memoryKV() })).status, 503);
 });
 
-test("upstream failure has a 30-minute cooldown, three-failure cap, and preserves the public manifest", async () => {
+test("failed T86 acquisition runs once per round and preserves the public manifest", async () => {
   const { manifest } = datasetParts(); manifest.asOf = "2026-10-15";
   const kv = memoryKV([[MANIFEST_KEY, JSON.stringify(manifest)]]);
   let calls = 0;
   const fetcher = async () => { calls++; return new Response(null, { status: 429 }); };
   for (let minute = 0; minute < 180; minute++)
     await syncMarket({ MARKET_DATA: kv }, { now: new Date(Date.UTC(2026, 9, 16, 13, minute)), fetcher });
-  assert.equal(calls, 3);
+  assert.equal(calls, 1);
   assert.deepEqual(await kv.get(MANIFEST_KEY, "json"), manifest);
   assert.equal(kv.writes.filter((key) => key === MANIFEST_KEY).length, 0);
 });
@@ -238,9 +244,9 @@ test("full nightly sync makes three spaced upstream calls and publishes only aft
   assert.equal((await kv.get(SYNC_KEY, "json")).phase, "done");
 });
 
-test("nightly cron uses Taipei 21:00–23:59 and requires no API token", () => {
+test("cron starts Taipei 18:30, continues both rounds through 23:59 and requires no API token", () => {
   const config = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
-  assert.deepEqual(config.triggers.crons, ["* 13-15 * * mon-fri"]);
+  assert.deepEqual(config.triggers.crons, ["30-59 10 * * mon-fri", "* 11-15 * * mon-fri"]);
   assert.equal(config.secrets, undefined);
 });
 
@@ -291,7 +297,7 @@ test("a failed KV shard write keeps the old market public and resumes at its che
   const kv = memoryKV([[MANIFEST_KEY, JSON.stringify(manifest)],
     [shardKey("older-retired", 0), "{}"],
     ...chunks.map((chunk, i) => [shardKey(manifest.generation, i), JSON.stringify(chunk)]),
-    [SYNC_KEY, JSON.stringify({ date, generation, phase: "shards", nextShard: 0, failures: 0 })],
+    [SYNC_KEY, JSON.stringify({ date, slot: "20:30", generation, phase: "shards", nextShard: 0, failures: 0 })],
     [stageKey(generation, "catalog"), JSON.stringify(catalog)], [stageKey(generation, "days"), JSON.stringify([market()])]]);
   const put = kv.put;
   let fail = true;

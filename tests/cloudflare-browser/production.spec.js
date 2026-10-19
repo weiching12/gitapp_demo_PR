@@ -33,7 +33,8 @@ test("TWSE full listed-company API renders current-day prices in viewport batche
   await expect(dialog).toContainText("臺灣證券交易所");
   await expect(dialog).toContainText(`${manifest.stocks.length} 家上市公司`);
   await expect(dialog).not.toContainText("FinMind");
-  await expect(dialog).toContainText("21:00");
+  await expect(dialog).toContainText("18:30");
+  await expect(dialog).toContainText("20:30");
   expect(errors).toEqual([]);
 });
 

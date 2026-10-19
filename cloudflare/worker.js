@@ -44,7 +44,7 @@ export default {
   },
   async scheduled(controller, env) {
     const state = await syncMarket(env, { now: new Date(controller.scheduledTime) });
-    console.log(JSON.stringify({ event: "twse-sync", date: state.date, phase: state.phase,
-      nextShard: state.nextShard, failures: state.failures }));
+    console.log(JSON.stringify({ event: "twse-sync", date: state.date, slot: state.slot, phase: state.phase,
+      t86Status: state.t86Status, nextShard: state.nextShard, failures: state.failures, error: state.error }));
   },
 };

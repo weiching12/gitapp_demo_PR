@@ -1,7 +1,17 @@
 import { CATALOG_URL, HISTORY_LIMIT, MANIFEST_KEY, SHARD_COUNT, SYNC_KEY, createManifest, fetchJson,
-  marketDay, mergeShard, normalizeCatalog, normalizeFlows, normalizePrices, reportUrl, shardKey, stageKey, taipeiDate } from "./twse.js";
+  marketDay, mergeShard, normalizeCatalog, normalizePrices, reportUrl, shardKey, stageKey, taipeiDate } from "./twse.js";
+import { T86Store } from "./t86-store.js";
+import { acceptedT86, syncT86 } from "./t86-sync.js";
+import { t86FlowReport } from "./t86-validator.js";
 
 const put = (kv, key, value) => kv.put(key, JSON.stringify(value));
+
+export function syncSlot(now) {
+  const local = new Date(now.getTime() + 28800000);
+  if ([0, 6].includes(local.getUTCDay())) return null;
+  const minute = local.getUTCHours() * 60 + local.getUTCMinutes();
+  return minute >= 20 * 60 + 30 ? "20:30" : minute >= 18 * 60 + 30 ? "18:30" : null;
+}
 
 export function pendingDates(after, through, limit = 10) {
   const cursor = new Date(`${after ?? through}T00:00:00Z`), dates = [];
@@ -26,25 +36,45 @@ export function scheduledDates(manifest, through, checkedThrough) {
  * Two small history shards per subsequent invocation keep CPU/memory bounded.
  * The public manifest switches only after all immutable shards have been written.
  */
-export async function syncMarket(env, { now = new Date(), fetcher = fetch } = {}) {
+export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86Store } = {}) {
   const kv = env.MARKET_DATA, date = taipeiDate(now);
+  const slot = syncSlot(now);
+  if (!slot) return { date, status: "Skipped", phase: "outside-window" };
+  const store = t86Store ?? new T86Store(env.T86_DB);
   let state = await kv.get(SYNC_KEY, "json");
   const manifest = await kv.get(MANIFEST_KEY, "json");
-  if (manifest?.asOf >= date) return { status: "current", date: manifest.asOf };
-  if (!state || state.date !== date) {
+  if (!state || state.date !== date || state.slot !== slot) {
     const checkedThrough = state?.phase === "done" && state.checkedThrough > manifest?.asOf ? state.checkedThrough : manifest?.asOf;
-    const reportDates = scheduledDates(manifest, date, checkedThrough);
+    const reportDates = [...new Set([...scheduledDates(manifest, date, checkedThrough), date])].sort();
     const cleanupGenerations = [...new Set([...(state?.cleanupGenerations ?? []),
       state && state.generation !== manifest?.generation && state.nextShard > 0 ? state.generation : null,
     ].filter(Boolean))];
     if (state) for (const type of ["catalog", "prices", "days"]) await kv.delete(stageKey(state.generation, type));
-    state = { date, generation: `${date.replaceAll("-", "")}-${now.getTime()}`,
-      phase: reportDates.length ? "catalog" : "done", reportDates, nextDate: 0, dayCount: 0, nextShard: 0, failures: 0,
+    state = { date, slot, generation: `${date.replaceAll("-", "")}-${now.getTime()}`,
+      phase: "t86", reportDates, nextDate: 0, dayCount: 0, nextShard: 0, failures: 0,
       cleanupGenerations };
   }
   if (state.phase === "done" || state.failures >= 3 || (state.retryAfter && now.getTime() < state.retryAfter)) return state;
   try {
-    if (state.phase === "catalog") {
+    if (state.phase === "t86") {
+      // One acquisition per daily round. Minute ticks only advance the validated
+      // generation; they never poll today's T86 again.
+      const run = await syncT86(env, { tradeDate: date, slot, now, fetcher, store });
+      state.t86Status = run.Status;
+      state.t86VersionId = run.VersionId;
+      state.t86Hash = run.DataHash;
+      if (run.Status === "Running") {
+        // A concurrent invocation owns this round. Keep waiting; syncT86 will
+        // explicitly fail an expired attempt instead of repeating acquisition.
+        state.phase = "t86";
+      } else if (!acceptedT86(run.Status)) {
+        state.phase = "done";
+        state.error = run.ErrorMessage;
+      } else if (manifest?.asOf === date && manifest.t86Hash === run.DataHash) {
+        state.phase = "done";
+        state.checkedThrough = date;
+      } else state.phase = "catalog";
+    } else if (state.phase === "catalog") {
       const catalog = normalizeCatalog(await fetchJson(CATALOG_URL, fetcher));
       if (catalog.length < 900 || (manifest && catalog.length < manifest.stocks.length * 0.95))
         throw new Error("Unexpectedly small TWSE catalog; preserve last good market");
@@ -67,8 +97,14 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch } = {}
       }
     } else if (state.phase === "flows") {
       const reportDate = state.reportDates[state.nextDate];
-      const flows = normalizeFlows(await fetchJson(reportUrl("flows", reportDate), fetcher), reportDate);
-      if (!flows || flows.reportRows < 500) throw new Error("Institution report not ready or too short");
+      if (reportDate !== date) {
+        const run = await syncT86(env, { tradeDate: reportDate, slot: "backfill", now, fetcher, store });
+        if (!acceptedT86(run.Status)) throw new Error(`Historical T86 ${run.Status}: ${run.ErrorMessage ?? reportDate}`);
+      }
+      const version = await store.current(reportDate);
+      if (!version || (reportDate === date && version.VersionId !== state.t86VersionId))
+        throw new Error("Validated T86 version unavailable or superseded; preserve public snapshot");
+      const flows = t86FlowReport(JSON.parse(version.RowsJson), reportDate);
       const [catalog, prices] = await Promise.all([
         kv.get(stageKey(state.generation, "catalog"), "json"), kv.get(stageKey(state.generation, "prices"), "json"),
       ]);
@@ -112,8 +148,11 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch } = {}
         kv.get(stageKey(state.generation, "catalog"), "json"), kv.get(stageKey(state.generation, "days"), "json"),
       ]);
       if (!catalog || !days?.length) throw new Error("Cannot publish missing staged inputs");
+      const version = await store.current(date);
+      if (version?.VersionId !== state.t86VersionId) throw new Error("T86 changed during staging; refuse stale publication");
       const dates = [...new Set([...(manifest?.dates ?? []), ...days.map((day) => day.date)])].sort().slice(-HISTORY_LIMIT);
-      await put(kv, MANIFEST_KEY, createManifest(catalog, dates, state.generation, now.toISOString(), days.at(-1).coverage, manifest?.generation));
+      await put(kv, MANIFEST_KEY, { ...createManifest(catalog, dates, state.generation, now.toISOString(), days.at(-1).coverage, manifest?.generation),
+        t86Hash: state.t86Hash, t86VersionId: state.t86VersionId, syncSlot: slot });
       // Staging inputs are no longer used; two generations of history remain.
       for (const type of ["catalog", "prices", "days"]) await kv.delete(stageKey(state.generation, type));
       state.phase = "done";
@@ -121,7 +160,7 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch } = {}
       state.cleanupGenerations = [];
     }
     state.retryAfter = null;
-    state.error = null;
+    if (state.t86Status === undefined || acceptedT86(state.t86Status)) state.error = null;
   } catch (error) {
     state.failures++;
     state.retryAfter = now.getTime() + 30 * 60000;
