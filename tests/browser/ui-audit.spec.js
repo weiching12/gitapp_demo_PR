@@ -93,3 +93,44 @@ test("mobile prices and changes fit inside their cell for high-priced stocks", a
     expect(errors, `Price cell at ${width}px`).toEqual([]);
   }
 });
+
+test("phone sector amounts and percentages align and fit for every period", async ({ page }) => {
+  await page.route("**/src/provider.js", (route) => route.fulfill({
+    contentType: "application/javascript",
+    body: `import { demoProvider } from "/src/data.js";
+      export async function loadDataset() {
+        const data = await demoProvider.load();
+        data.stocks.forEach((stock, index) => {
+          stock.sector = ["電腦及週邊設備業", "電子零組件業", "半導體業"][index % 3];
+          for (const bar of stock.history) for (const institution of bar.institutions) {
+            institution.buy *= 100; institution.sell *= 100;
+          }
+        });
+        return data;
+      }`,
+  }));
+  await page.goto("/");
+  await page.locator('[data-page="sectors"]').click();
+  for (const width of [320, 390, 700]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const period of ["day", "5", "20"]) {
+      await page.locator(`[data-sector-window="${period}"]`).click();
+      const issues = await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.flatMap((card) => {
+        const name = card.querySelector(".sector-identity h3").getBoundingClientRect();
+        const amount = card.querySelector(".sector-total strong");
+        const change = card.querySelector(".sector-change");
+        const textBounds = (element) => {
+          const range = document.createRange(); range.selectNodeContents(element);
+          return range.getBoundingClientRect();
+        };
+        const lots = textBounds(amount), percentage = textBounds(change), bounds = card.getBoundingClientRect();
+        return [
+          Math.abs(lots.right - percentage.right) > 1 && "amount and percentage do not share the right edge",
+          lots.left < name.right && "amount overlaps the sector name",
+          lots.right > bounds.right && "amount extends outside the card",
+        ].filter(Boolean).map((issue) => `${card.dataset.sectorName}: ${issue}`);
+      }));
+      expect(issues, `Sector numbers at ${width}px / ${period}`).toEqual([]);
+    }
+  }
+});

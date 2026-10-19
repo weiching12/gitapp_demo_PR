@@ -108,6 +108,21 @@ test("full-market phone controls, filters, sector and institution details retain
     expect(await page.locator("#institution-dialog").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
     await page.locator("#close-institution-dialog").click();
     await page.locator('[data-page="sectors"]').click();
+    await expect(page.locator(".sector-card").first()).toBeVisible({ timeout: 30000 });
+    if (width <= 700) for (const period of ["day", "5", "20"]) {
+      await page.locator(`[data-sector-window="${period}"]`).click();
+      const issues = await page.locator(".sector-card").evaluateAll((cards) => cards.flatMap((card) => {
+        const amount = card.querySelector(".sector-total strong");
+        const change = card.querySelector(".sector-change");
+        const range = document.createRange();
+        range.selectNodeContents(amount); const lots = range.getBoundingClientRect();
+        range.selectNodeContents(change); const percentage = range.getBoundingClientRect();
+        const name = card.querySelector(".sector-identity h3").getBoundingClientRect();
+        return Math.abs(lots.right - percentage.right) > 1 || lots.left < name.right || lots.right > card.getBoundingClientRect().right
+          ? [card.dataset.sectorName] : [];
+      }));
+      expect(issues, `Sector amount/percentage at ${width}px / ${period}`).toEqual([]);
+    }
     await page.locator('[data-sector-window="20"]').click();
     await page.locator(".sector-card").first().click();
     await expect(page.locator("#sector-dialog")).toBeVisible();

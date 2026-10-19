@@ -2710,7 +2710,7 @@ dialog.institution-dialog {
     padding: 0 8px 12px;
   }
   .sector-ranking .sector-total strong { font-size: 14px; }
-  .sector-identity h3 { white-space: nowrap; }
+  .sector-identity h3 { white-space: normal; overflow-wrap: anywhere; }
 }
 
 @media (max-width: 430px) {
@@ -2823,7 +2823,7 @@ dialog.institution-dialog {
   }
   .sector-ranking-head { display: none; }
   .sector-main {
-    grid-template-columns: 18px 8px minmax(0, 1fr) 86px;
+    grid-template-columns: 18px 8px minmax(0, 1fr) minmax(86px, max-content);
     grid-template-rows: auto auto;
     gap: 3px 6px;
     min-height: 64px;
@@ -2846,6 +2846,7 @@ dialog.institution-dialog {
   .sector-identity p span { color: inherit; font-size: inherit; }
   .sector-ranking .sector-total {
     display: block;
+    text-align: right;
     grid-column: 4;
     grid-row: 1;
     align-self: baseline;
@@ -2860,7 +2861,7 @@ dialog.institution-dialog {
   .sector-sort-control,
   .sector-period-control { min-width: 0; }
   .sector-main {
-    grid-template-columns: 17px 8px minmax(0, 1fr) 82px;
+    grid-template-columns: 17px 8px minmax(0, 1fr) minmax(82px, max-content);
     padding-inline: 4px;
   }
 }
