@@ -35,9 +35,9 @@ select {
 }
 button {
   cursor: pointer;
-}
-button {
   color: inherit;
+  border: 0;
+  background: none;
 }
 button:disabled {
   opacity: 0.45;
@@ -59,10 +59,6 @@ select:focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
-}
-button {
-  border: 0;
-  background: none;
 }
 button .icon {
   flex-shrink: 0;
@@ -427,7 +423,6 @@ h1 {
   align-content: flex-start;
   gap: 10px;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.7px;
   white-space: nowrap;
 }
 .metric-number {
@@ -466,10 +461,7 @@ h1 {
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  color: #8191a8;
   margin-top: 15px;
-}
-.metric-detail {
 }
 .indicator-tag {
   color: #8d855f;
@@ -669,8 +661,6 @@ h1 {
   text-align: left;
 }
 .table-scroll thead th:first-child {
-  padding-left: 14px;
-  width: 45px;
   text-align: center;
 }
 .table-scroll thead th:last-child {
@@ -991,9 +981,6 @@ dialog h2 {
 .source-details dd {
   margin: 0;
   color: #505e72;
-}
-.helper-text {
-  color: #8493a9;
 }
 .guide-item {
   display: flex;
@@ -2171,16 +2158,16 @@ dialog.institution-dialog {
   position: sticky;
   left: 0;
   z-index: 2;
-  width: 48px;
-  min-width: 48px;
-  max-width: 48px;
+  width: var(--table-favorite-width);
+  min-width: var(--table-favorite-width);
+  max-width: var(--table-favorite-width);
   padding: 0 2px;
   background: #fff;
 }
 .table-scroll thead th:nth-child(2),
 .table-scroll tbody th {
   position: sticky;
-  left: 48px;
+  left: var(--table-favorite-width);
   z-index: 2;
   background: #fff;
   box-shadow: 1px 0 #e2e8f0;
@@ -2538,7 +2525,6 @@ dialog.institution-dialog {
   .watch-card .metric-value .change-chip,
   .watch-card .metric-value .indicator-tag {
     padding: 2px 4px;
-    font-size: 12px;
     line-height: 18px;
   }
   .watch-card .metric-value .change-chip { font-size: var(--text-title); }
@@ -2557,7 +2543,6 @@ dialog.institution-dialog {
     width: calc(var(--table-favorite-width) + var(--table-stock-width) + 116px + 72px + 210px + 112px + var(--table-net-width));
     min-width: 0;
   }
-  .favorite-column { width: var(--table-favorite-width); }
   .stock-column { width: var(--table-stock-width); }
   .price-column { width: 116px; }
   .change-column {
@@ -2576,14 +2561,7 @@ dialog.institution-dialog {
   }
   .table-scroll thead th:first-child,
   .table-scroll tbody td:first-child {
-    width: var(--table-favorite-width);
-    min-width: var(--table-favorite-width);
-    max-width: var(--table-favorite-width);
     padding: 0;
-  }
-  .table-scroll thead th:nth-child(2),
-  .table-scroll tbody th {
-    left: var(--table-favorite-width);
   }
   .table-scroll .favorite-button {
     width: var(--table-favorite-width);

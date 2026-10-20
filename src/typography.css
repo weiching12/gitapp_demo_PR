@@ -89,7 +89,6 @@ tbody td {
   line-height: var(--leading-heading);
 }
 .nav-item.active,
-.overview-tabs [aria-selected="true"],
 .institution-window [aria-pressed="true"],
 .overview-total dd {
   font-weight: 600;

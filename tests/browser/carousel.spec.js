@@ -5,6 +5,37 @@ const parts = {
   institutions: { track: "#institution-overview-rows", card: ".institution-overview-row", dots: "#institution-carousel-controls" },
 };
 
+for (const kind of Object.keys(parts)) test(`${kind} keeps the adjacent card when the current favorite is removed`, async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await page.locator('[data-page="favorites"]').click();
+  await page.locator(`[data-overview="${kind}"]`).click();
+  const { track, card, dots } = parts[kind];
+  const symbolAttribute = kind === "price" ? "data-watch-symbol" : "data-overview-symbol";
+  const cards = page.locator(track).locator(card);
+  for (const dot of [1, 2]) {
+    await page.locator(`${dots} [data-carousel-index="${dot}"]`).click();
+    const count = await cards.count(), index = Math.round(dot * (count - 1) / 2);
+    const removed = await cards.nth(index).getAttribute(symbolAttribute);
+    const expected = await cards.nth(index + 1 < count ? index + 1 : index - 1).getAttribute(symbolAttribute);
+    if (kind === "price") await cards.nth(index).locator("[data-favorite]").click();
+    else {
+      await page.locator('[data-page="market"]').click();
+      await page.locator(`#stock-rows [data-favorite="${removed}"]`).click();
+      await page.locator('[data-page="favorites"]').click();
+    }
+    await expect(cards).toHaveCount(count - 1);
+    await expect.poll(() => page.locator(track).evaluate((element, { card, symbolAttribute }) => {
+      const left = element.getBoundingClientRect().left + parseFloat(getComputedStyle(element).paddingLeft);
+      const closest = [...element.querySelectorAll(card)].reduce((a, b) =>
+        Math.abs(a.getBoundingClientRect().left - left) <= Math.abs(b.getBoundingClientRect().left - left) ? a : b);
+      return closest.getAttribute(symbolAttribute);
+    }, { card, symbolAttribute })).toBe(expected);
+    await expect(page.locator(`${dots} [aria-current="true"]`)).toHaveCount(1);
+  }
+});
+
 for (const kind of Object.keys(parts)) test(`${kind} carousel follows its responsive layout and supports dot navigation`, async ({ page }, testInfo) => {
   await page.goto("/");
   await page.emulateMedia({ reducedMotion: "reduce" });

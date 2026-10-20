@@ -58,9 +58,9 @@ const direction = (value) =>
   value > 0 ? "up" : value < 0 ? "down" : "neutral";
 const percent = (value) =>
   value === null || value === undefined ? "—" : `${signed(value)}%`;
-const institutionalAmount = (value, withUnit = true) => value === null
+const institutionalAmount = (value) => value === null
   ? "資料不足"
-  : `${signed(value / 1000, Number.isInteger(value / 1000) ? 0 : 2)}${withUnit ? " 張" : ""}`;
+  : `${signed(value / 1000, Number.isInteger(value / 1000) ? 0 : 2)} 張`;
 const institutionalMoney = (value) => value === null ? "資料不足" : `${signed(value / 100000000)} 億`;
 const stockMoney = (stock, name, window, asOf = state.date) => getStockInstitutionEstimate(stock, name, window,
   dataset.dates.filter((date) => date <= asOf));
@@ -262,7 +262,6 @@ function refreshData() {
   renderTable();
   renderSectorOverview();
   renderPage();
-  renderLoadState();
   if (document.querySelector("#institution-dialog").open) renderInstitutionDialog();
 }
 
@@ -356,15 +355,16 @@ function renderWatchlist() {
   renderOverviewVisibility();
   renderCarouselPagination("price", favorites);
   if (favorites.length) {
-    const nextIndex = Math.max(0, favorites.findIndex((stock) => stock.symbol === previousSymbol));
+    const match = favorites.findIndex((stock) => stock.symbol === previousSymbol);
+    const nextIndex = match >= 0 ? match : Math.min(previousIndex, favorites.length - 1);
     scrollToCarouselCard("price", nextIndex, "instant");
   }
   updateCarouselControls("price");
 }
 
 const carouselConfig = {
-  price: { container: "#watchlist-grid", item: ".watch-card", symbol: "watchSymbol", index: 0 },
-  institutions: { container: "#institution-overview-rows", item: ".institution-overview-row", symbol: "overviewSymbol", index: 0 },
+  price: { container: "#watchlist-grid", item: ".watch-card", index: 0 },
+  institutions: { container: "#institution-overview-rows", item: ".institution-overview-row", index: 0 },
 };
 
 function carouselEnabled(kind) {
@@ -375,7 +375,7 @@ function carouselParts(kind) {
   const config = carouselConfig[kind];
   const grid = document.querySelector(config.container);
   return { grid, cards: [...grid.querySelectorAll(config.item)],
-    controls: document.querySelector(`[data-carousel="${kind}"]`), symbol: config.symbol };
+    controls: document.querySelector(`[data-carousel="${kind}"]`) };
 }
 
 function carouselIndex(kind, cards = carouselParts(kind).cards) {
@@ -493,10 +493,10 @@ function renderOverviewVisibility() {
   }
 }
 
-function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
-  snapshots.find((stock) => stock.symbol === symbol)).filter((stock) => stock?.latest)) {
+function renderInstitutionOverview(favorites) {
   const previousRows = carouselParts("institutions").cards;
-  const previousSymbol = previousRows[carouselIndex("institutions", previousRows)]?.dataset.overviewSymbol;
+  const previousIndex = carouselIndex("institutions", previousRows);
+  const previousSymbol = previousRows[previousIndex]?.dataset.overviewSymbol;
   document.querySelectorAll("[data-institution-window]").forEach((button) =>
     button.setAttribute("aria-pressed", button.dataset.institutionWindow === state.institutionWindow));
   document.querySelector("#institution-overview-rows").innerHTML = favorites.map((stock) => {
@@ -513,7 +513,8 @@ function renderInstitutionOverview(favorites = state.favorites.map((symbol) =>
   }).join("");
   renderCarouselPagination("institutions", favorites);
   if (favorites.length) {
-    const nextIndex = Math.max(0, favorites.findIndex((stock) => stock.symbol === previousSymbol));
+    const match = favorites.findIndex((stock) => stock.symbol === previousSymbol);
+    const nextIndex = match >= 0 ? match : Math.min(previousIndex, favorites.length - 1);
     scrollToCarouselCard("institutions", nextIndex, "instant");
   }
   updateCarouselControls("institutions");
