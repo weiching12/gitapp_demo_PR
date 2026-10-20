@@ -70,10 +70,13 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
       } else if (!acceptedT86(run.Status)) {
         state.phase = "done";
         state.error = run.ErrorMessage;
-      } else if (manifest?.asOf === date && manifest.t86Hash === run.DataHash) {
-        state.phase = "done";
-        state.checkedThrough = date;
-      } else state.phase = "catalog";
+      } else {
+        // T86 only fingerprints institution data. Even an unchanged report must
+        // continue through catalog/prices and scheduled historical rechecks:
+        // price/volume corrections and older T86 revisions have separate lives.
+        // syncT86 still avoids rewriting unchanged institution rows in D1.
+        state.phase = "catalog";
+      }
     } else if (state.phase === "catalog") {
       const catalog = normalizeCatalog(await fetchJson(CATALOG_URL, fetcher));
       if (catalog.length < 900 || (manifest && catalog.length < manifest.stocks.length * 0.95))

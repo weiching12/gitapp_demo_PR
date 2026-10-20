@@ -237,10 +237,14 @@ for (const evening of ["Failed", "Unchanged", "Success"]) test(`complete daily p
     t86Store: store, fetcher, now: new Date(Date.UTC(2026, 9, 19, 12, 30 + minute)) });
   assert.equal(t86Calls, 2);
   assert.equal(JSON.parse(values.get(SYNC_KEY)).t86Status, evening);
-  assert.equal(published.length, evening === "Success" ? 2 : 1);
+  assert.equal(published.length, evening === "Failed" ? 1 : 2);
   if (evening === "Success") {
     assert.notEqual((await store.current(date)).VersionId, earlyVersion);
     assert.equal(JSON.parse(values.get(MANIFEST_KEY)).t86VersionId, (await store.current(date)).VersionId);
+  } else if (evening === "Unchanged") {
+    assert.notEqual(values.get(MANIFEST_KEY), early);
+    assert.equal((await store.current(date)).VersionId, earlyVersion);
+    assert.equal(JSON.parse(values.get(MANIFEST_KEY)).t86VersionId, earlyVersion);
   } else {
     assert.equal(values.get(MANIFEST_KEY), early);
     assert.equal((await store.current(date)).VersionId, earlyVersion);
