@@ -21,7 +21,7 @@ export default {
         value = await env.MARKET_DATA.get(MANIFEST_KEY);
       } else {
         const chunk = path.match(/^\/api\/market\/([a-z0-9-]{1,64})\/(\d{1,3})$/);
-        const symbol = path.match(/^\/api\/stocks\/(\d{4,6})$/)?.[1];
+        const symbol = path.match(/^\/api\/stocks\/((?:\d{4,6}|\d{5}[A-Z]))$/)?.[1];
         if (chunk && Number(chunk[2]) < SHARD_COUNT) {
           value = await env.MARKET_DATA.get(shardKey(chunk[1], Number(chunk[2])));
           immutable = true;

@@ -7,6 +7,7 @@ import { T86Store } from "../cloudflare/t86-store.js";
 import { syncMarket, syncSlot } from "../cloudflare/sync.js";
 import { MANIFEST_KEY, SYNC_KEY } from "../cloudflare/twse.js";
 import { testDatabase, testStore } from "./helpers/t86-db.js";
+import { etfCatalog } from "./helpers/etf-catalog.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/twse-20261016.json", import.meta.url)));
 const date = "2026-10-19";
@@ -221,6 +222,7 @@ for (const evening of ["Failed", "Unchanged", "Success"]) test(`complete daily p
   const fetcher = async (input) => {
     const url = new URL(input);
     if (url.hostname.startsWith("openapi")) return Response.json(companies);
+    if (url.pathname.endsWith("/ETF/list")) return Response.json(etfCatalog);
     if (url.pathname.includes("MI_INDEX")) return Response.json(prices);
     t86Calls++;
     const body = report(round === "20:30" && evening === "Failed" ? 940 : 1000);

@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { syncMarket } from "../cloudflare/sync.js";
-import { MANIFEST_KEY, SHARD_COUNT, SYNC_KEY, shardKey } from "../cloudflare/twse.js";
+import { MANIFEST_KEY, SHARD_COUNT, SYNC_KEY, shardKey, shardOf } from "../cloudflare/twse.js";
 import { testStore } from "./helpers/t86-db.js";
+import { etfCatalog } from "./helpers/etf-catalog.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/twse-20261016.json", import.meta.url)));
 
@@ -20,11 +21,13 @@ function setup() {
     const date = url.searchParams.get("date");
     calls.push([url.pathname, date]);
     if (url.hostname.startsWith("openapi")) return Response.json(companies);
+    if (url.pathname.endsWith("/ETF/list")) return Response.json(etfCatalog);
     if (url.pathname.includes("MI_INDEX")) {
       const body = structuredClone(fixture.prices);
       body.date = date;
       const row = body.tables[0].data.find((r) => r[0] === "2330");
       body.tables[0].data = companies.map((c) => [c.公司代號, ...row.slice(1)]);
+      body.tables[0].data.push(["0050", ...row.slice(1)]);
       if (corrected) {
         const col = body.tables[0].fields.indexOf("成交股數");
         body.tables[0].data[0][col] = "1234567";
@@ -34,6 +37,7 @@ function setup() {
     const body = structuredClone(fixture.flows);
     body.date = date;
     body.data = companies.map((c) => [c.公司代號, ...body.data[0].slice(1)]);
+    body.data.push(["0050", "元大台灣50", ...body.data[0].slice(2)]);
     // Only the historical report changes; today's institution Hash stays equal.
     if (corrected && date === "20261014") for (const col of [2, 4, 18])
       body.data[0][col] = String(Number(body.data[0][col].replaceAll(",", "")) + 100);
@@ -86,5 +90,18 @@ test("Friday rechecks both preceding sessions despite unchanged current T86", as
       ["20261014", "20261015", "20261016"]);
     assert.deepEqual(f.calls.filter(([p]) => p.includes("T86")).map(([, d]) => d),
       ["20261016", "20261014", "20261015"]);
+  } finally { f.db.sqlite.close(); }
+});
+
+test("nightly sync retains the ETF session and accumulates the following trading day", async () => {
+  const f = setup();
+  try {
+    const first = await f.run("2026-10-19", "10");
+    const second = await f.run("2026-10-20", "10");
+    const history = (manifest) => JSON.parse(f.data.get(shardKey(manifest.generation, shardOf("0050"))))
+      .stocks.find((stock) => stock.symbol === "0050").history;
+    assert.deepEqual(history(first).map((row) => row[0]), ["2026-10-19"]);
+    assert.deepEqual(history(second).map((row) => row[0]), ["2026-10-19", "2026-10-20"]);
+    assert.equal(second.stocks.filter((stock) => stock.assetType !== "etf").length, 1000);
   } finally { f.db.sqlite.close(); }
 });

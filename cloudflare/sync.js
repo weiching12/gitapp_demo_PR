@@ -1,5 +1,6 @@
-import { CATALOG_URL, HISTORY_LIMIT, MANIFEST_KEY, SHARD_COUNT, SYNC_KEY, createManifest, fetchJson,
-  marketDay, mergeShard, normalizeCatalog, normalizePrices, reportUrl, shardKey, stageKey, taipeiDate } from "./twse.js";
+import { CATALOG_URL, ETF_CATALOG_URL, HISTORY_LIMIT, MANIFEST_KEY, SHARD_COUNT, SYNC_KEY, createManifest, fetchJson,
+  marketDay, mergeShard, normalizeCatalog, normalizeEtfCatalog, combineCatalogs, normalizePrices, reportUrl, shardKey, stageKey, taipeiDate } from "./twse.js";
+import { isEtf } from "../src/market-codec.js";
 import { T86Store } from "./t86-store.js";
 import { acceptedT86, syncT86 } from "./t86-sync.js";
 import { t86FlowReport } from "./t86-validator.js";
@@ -49,7 +50,7 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
     const cleanupGenerations = [...new Set([...(state?.cleanupGenerations ?? []),
       state && state.generation !== manifest?.generation && state.nextShard > 0 ? state.generation : null,
     ].filter(Boolean))];
-    if (state) for (const type of ["catalog", "prices", "days"]) await kv.delete(stageKey(state.generation, type));
+    if (state) for (const type of ["companies", "catalog", "prices", "days"]) await kv.delete(stageKey(state.generation, type));
     state = { date, slot, generation: `${date.replaceAll("-", "")}-${now.getTime()}`,
       phase: "t86", reportDates, nextDate: 0, dayCount: 0, nextShard: 0, failures: 0,
       cleanupGenerations };
@@ -79,9 +80,17 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
       }
     } else if (state.phase === "catalog") {
       const catalog = normalizeCatalog(await fetchJson(CATALOG_URL, fetcher));
-      if (catalog.length < 900 || (manifest && catalog.length < manifest.stocks.length * 0.95))
+      if (catalog.length < 900 || (manifest && catalog.length < manifest.stocks.filter((stock) => !isEtf(stock)).length * 0.95))
         throw new Error("Unexpectedly small TWSE catalog; preserve last good market");
-      await put(kv, stageKey(state.generation, "catalog"), catalog);
+      await put(kv, stageKey(state.generation, "companies"), catalog);
+      state.phase = "etfs";
+    } else if (state.phase === "etfs") {
+      const etfs = normalizeEtfCatalog(await fetchJson(ETF_CATALOG_URL, fetcher));
+      const priorEtfs = manifest?.stocks.filter(isEtf).length ?? 0;
+      if (etfs.length < priorEtfs * 0.95) throw new Error("Unexpectedly small ETF catalog; preserve last good market");
+      const companies = await kv.get(stageKey(state.generation, "companies"), "json");
+      if (!companies) throw new Error("Staged company catalog not visible yet");
+      await put(kv, stageKey(state.generation, "catalog"), combineCatalogs(companies, etfs));
       state.phase = "prices";
     } else if (state.phase === "prices") {
       const reportDate = state.reportDates[state.nextDate];
@@ -157,7 +166,7 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
       await put(kv, MANIFEST_KEY, { ...createManifest(catalog, dates, state.generation, now.toISOString(), days.at(-1).coverage, manifest?.generation),
         t86Hash: state.t86Hash, t86VersionId: state.t86VersionId, syncSlot: slot });
       // Staging inputs are no longer used; two generations of history remain.
-      for (const type of ["catalog", "prices", "days"]) await kv.delete(stageKey(state.generation, type));
+      for (const type of ["companies", "catalog", "prices", "days"]) await kv.delete(stageKey(state.generation, type));
       state.phase = "done";
       state.checkedThrough = state.reportDates.at(-1);
       state.cleanupGenerations = [];

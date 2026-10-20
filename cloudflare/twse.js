@@ -1,14 +1,14 @@
-import { SHARD_COUNT, HISTORY_LIMIT } from "../src/market-codec.js";
+import { SHARD_COUNT, HISTORY_LIMIT, shardOf, isEtf, validSymbol } from "../src/market-codec.js";
 import { T86DataValidator, t86FlowReport } from "./t86-validator.js";
-export { SHARD_COUNT, HISTORY_LIMIT };
+export { SHARD_COUNT, HISTORY_LIMIT, shardOf };
 
 // Public TWSE whole-market reports. No individual-stock upstream requests.
 export const CATALOG_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L";
+export const ETF_CATALOG_URL = "https://www.twse.com.tw/rwd/zh/ETF/list?response=json";
 export const MANIFEST_KEY = "twse:v2:market";
 export const SYNC_KEY = "twse:v2:sync";
 export const shardKey = (generation, index) => `twse:v2:${generation}:shard:${index}`;
 export const stageKey = (generation, type) => `twse:v2:${generation}:${type}`;
-export const shardOf = (symbol) => Number(symbol) % SHARD_COUNT;
 export const taipeiDate = (now = new Date()) => new Date(now.getTime() + 28800000).toISOString().slice(0, 10);
 export const validDate = (date) => typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
   Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
@@ -56,6 +56,40 @@ export function normalizeCatalog(rows) {
     seen.add(symbol);
     return { symbol, name, sector, market: "上市", listedOn };
   }).sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
+export function normalizeEtfCatalog(body) {
+  if (body?.stat !== "OK" || !Array.isArray(body.fields) || !Array.isArray(body.data) || !body.data.length)
+    throw new Error("Invalid TWSE ETF catalog");
+  const required = ["上市日期", "證券代號", "證券簡稱"];
+  const indices = required.map((name) => body.fields.indexOf(name));
+  if (indices.some((index) => index < 0) || new Set(body.fields).size !== body.fields.length)
+    throw new Error("Missing or duplicate ETF catalog columns");
+  const seen = new Set();
+  const result = body.data.map((row) => {
+    if (!Array.isArray(row) || row.length !== body.fields.length) throw new Error("Invalid ETF catalog row");
+    // Dual-currency counters share one table cell. This app quotes TWD: select
+    // the primary TWD counter, never relabel the foreign-currency counter TWD.
+    const cells = indices.map((index) => {
+      if (typeof row[index] !== "string") throw new Error("Invalid ETF catalog cell");
+      return row[index].split(/<br\s*\/?\s*>/i)[0].trim();
+    });
+    const date = cells[0].match(/^(\d{4})[./-](\d{2})[./-](\d{2})(?:\(新臺幣\))?$/);
+    const symbol = cells[1].replace(/\(新臺幣\)$/, "").trim();
+    const name = cells[2].replace(/\(新臺幣\)$/, "").trim();
+    const listedOn = date ? `${date[1]}-${date[2]}-${date[3]}` : null;
+    if (!validSymbol(symbol) || !symbol.startsWith("00") || !name || /<|>/.test(name) || !validDate(listedOn) || seen.has(symbol))
+      throw new Error(`Invalid or duplicate ETF identity: ${symbol}`);
+    seen.add(symbol);
+    return { symbol, name, sector: "ETF", market: "上市", listedOn, assetType: "etf", currency: "TWD" };
+  });
+  return result.sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
+export function combineCatalogs(companies, etfs) {
+  const stocks = [...companies, ...etfs];
+  if (new Set(stocks.map((stock) => stock.symbol)).size !== stocks.length) throw new Error("Duplicate combined security identity");
+  return stocks.sort((a, b) => a.symbol.localeCompare(b.symbol));
 }
 
 function checkReport(body, date) {
@@ -149,10 +183,14 @@ export function marketDay(catalog, prices, flows) {
     if (!institutions) missingInstitutions.push(stock.symbol);
     records[stock.symbol] = [prices.date, ...values, ...(institutions ?? Array(6).fill(null))];
   }
-  const eligible = catalog.filter((stock) => stock.listedOn <= prices.date).length;
-  if (eligible > 100 && (Object.keys(records).length < eligible * 0.9 ||
-      missingInstitutions.length > Object.keys(records).length * 0.2))
-    throw new Error("Unexpectedly low whole-market coverage; preserve last good data");
+  // A new ETF feed cannot mask missing stock data (or vice versa).
+  for (const etf of [false, true]) {
+    const eligible = catalog.filter((stock) => isEtf(stock) === etf && stock.listedOn <= prices.date);
+    const traded = eligible.filter((stock) => records[stock.symbol]);
+    const missing = traded.filter((stock) => missingInstitutions.includes(stock.symbol));
+    if (eligible.length > 100 && (traded.length < eligible.length * 0.9 || missing.length > traded.length * 0.2))
+      throw new Error("Unexpectedly low whole-market coverage; preserve last good data");
+  }
   return { date: prices.date, records, coverage: { companies: catalog.length, traded: Object.keys(records).length,
     missingPrices, inactive, missingInstitutions } };
 }

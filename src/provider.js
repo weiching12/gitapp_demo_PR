@@ -1,4 +1,4 @@
-import { expandStock, SHARD_COUNT, HISTORY_LIMIT } from "./market-codec.js";
+import { expandStock, SHARD_COUNT, HISTORY_LIMIT, shardOf, validSymbol, isEtf } from "./market-codec.js";
 
 const validDate = (date) => typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
   Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
@@ -24,8 +24,11 @@ export function validateManifest(manifest) {
     throw new Error("Invalid TWSE market manifest");
   const seen = new Set();
   for (const stock of manifest.stocks) {
-    if (!/^\d{4,6}$/.test(stock?.symbol) || !stock.name || !stock.sector || stock.market !== "上市" ||
+    if (!validSymbol(stock?.symbol) || !stock.name || !stock.sector || stock.market !== "上市" ||
       !validDate(stock.listedOn) || seen.has(stock.symbol)) throw new Error("Invalid listed-company identity");
+    if (stock.assetType && !["stock", "etf"].includes(stock.assetType)) throw new Error("Invalid asset type");
+    if (isEtf(stock) && (stock.assetType !== "etf" || stock.sector !== "ETF" || stock.currency !== "TWD"))
+      throw new Error("Invalid ETF identity");
     seen.add(stock.symbol);
   }
   return manifest;
@@ -36,7 +39,7 @@ function decodeChunk(manifest, chunk, index, expected) {
     throw new Error("Mixed or invalid market generation");
   const compact = new Map();
   for (const stock of chunk.stocks) {
-    if (Number(stock.symbol) % SHARD_COUNT !== index || compact.has(stock.symbol) || !validRows(stock.history, manifest.asOf))
+    if (shardOf(stock.symbol) !== index || compact.has(stock.symbol) || !validRows(stock.history, manifest.asOf))
       throw new Error("Invalid stock history chunk");
     compact.set(stock.symbol, stock.history);
   }
@@ -49,7 +52,7 @@ function marketDataset(manifest, stocks) {
   return { stocks, dates: manifest.dates, info: {
     mode: "twse", label: "每日收盤資料", asOf: manifest.asOf, updatedAt: manifest.updatedAt,
     coverage: manifest.coverage,
-    note: "資料來源：臺灣證券交易所。上市公司名錄、每日收盤行情與三大法人買賣超日報；價格未還原、非即時報價。外資不含外資自營商，自營商合計自行買賣與避險。未提供行情或法人明細時保留缺漏，不補零。",
+    note: "資料來源：臺灣證券交易所。上市公司與新臺幣交易 ETF 名錄、每日收盤行情與三大法人買賣超日報；價格未還原、非即時報價。外資不含外資自營商，自營商合計自行買賣與避險。ETF 自加入日起逐日累積歷史，資料不足時不計算指標。法人買株僅統計產業個股，不含 ETF。未提供行情或法人明細時保留缺漏，不補零。",
   } };
 }
 
@@ -58,7 +61,7 @@ export function combineChunks(manifest, chunks) {
   if (chunks.length !== manifest.chunks.length) throw new Error("Incomplete market chunks");
   const decoded = new Map();
   for (const [index, chunk] of chunks.entries())
-    for (const stock of decodeChunk(manifest, chunk, index, manifest.stocks.filter((stock) => Number(stock.symbol) % SHARD_COUNT === index)))
+    for (const stock of decodeChunk(manifest, chunk, index, manifest.stocks.filter((stock) => shardOf(stock.symbol) === index)))
       decoded.set(stock.symbol, stock);
   return marketDataset(manifest, manifest.stocks.map((stock) => decoded.get(stock.symbol)));
 }
@@ -73,10 +76,10 @@ export async function loadApiDataset(fetcher = fetch, { onManifest, onChunk, pri
   const manifest = validateManifest(await get("/api/market"));
   const dataset = marketDataset(manifest, manifest.stocks.map((stock) => ({ ...stock, history: [], tradingDates: manifest.dates })));
   const positions = new Map(manifest.stocks.map((stock, index) => [stock.symbol, index]));
-  const priorities = new Set(prioritySymbols.filter((symbol) => positions.has(symbol)).map((symbol) => Number(symbol) % SHARD_COUNT));
+  const priorities = new Set(prioritySymbols.filter((symbol) => positions.has(symbol)).map(shardOf));
   const order = [...new Set([...priorities, ...manifest.chunks.map((_, index) => index)])];
   const expected = Array.from({ length: SHARD_COUNT }, () => []);
-  for (const stock of manifest.stocks) expected[Number(stock.symbol) % SHARD_COUNT].push(stock);
+  for (const stock of manifest.stocks) expected[shardOf(stock.symbol)].push(stock);
   await onManifest?.(dataset);
   let cursor = 0, loaded = 0, completed = 0, stopped = false;
   const workers = Array.from({ length: 6 }, async () => {

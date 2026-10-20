@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import { combineChunks } from "../src/provider.js";
 import { MANIFEST_KEY, shardKey } from "../cloudflare/twse.js";
+import { isEtf } from "../src/market-codec.js";
 
 const args = Object.fromEntries(process.argv.slice(2).map((arg) => arg.replace(/^--/, "").split("=")));
 const entries = JSON.parse(await readFile(args.file ?? ".wrangler/market-seed.json", "utf8"));
@@ -77,7 +78,8 @@ if (args.calendars) {
 }
 
 const report = { verifiedAt: new Date().toISOString(), source: manifest.source, asOf: manifest.asOf,
-  companies: stocks.length, ordinaryCompanies: stocks.filter((stock) => stock.sector !== "存託憑證").length,
+  securities: stocks.length, companies: stocks.filter((stock) => !isEtf(stock)).length,
+  etfs: stocks.filter(isEtf).length, ordinaryCompanies: stocks.filter((stock) => !isEtf(stock) && stock.sector !== "存託憑證").length,
   depositoryReceipts: stocks.filter((stock) => stock.sector === "存託憑證").length,
   marketSessions: dates.length, historyFrom: dates[0], totalBars, with260Sessions,
   tradedAtLatestDate: traded, missingLatestInstitutions: partialInstitutions,

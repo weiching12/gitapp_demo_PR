@@ -1,5 +1,15 @@
 export const SHARD_COUNT = 128;
 export const HISTORY_LIMIT = 260;
+export const validSymbol = (symbol) => typeof symbol === "string" && /^(?:\d{4,6}|\d{5}[A-Z])$/.test(symbol);
+export const isEtf = (stock) => stock?.assetType === "etf" || stock?.sector === "ETF";
+export function shardOf(symbol) {
+  if (!validSymbol(symbol)) throw new Error("Invalid security symbol");
+  // Preserve every existing numeric URL; letter-suffixed ETFs use a stable hash.
+  if (/^\d+$/.test(symbol)) return Number(symbol) % SHARD_COUNT;
+  let hash = 2166136261;
+  for (const char of symbol) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
+  return hash % SHARD_COUNT;
+}
 
 export function expandStock(metadata, rows) {
   return { ...metadata, history: rows.map((row) => ({

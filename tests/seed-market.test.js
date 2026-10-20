@@ -32,7 +32,7 @@ test("bulk historical ingestion spaces requests, skips explicit holidays and res
     return Response.json(body);
   };
   try {
-    const options = { t86Store: testStore().store, directory, end: "2026-10-18", sessions: 2, output: join(directory, "seed.json"), fetcher,
+    const options = { includeEtfs: false, t86Store: testStore().store, directory, end: "2026-10-18", sessions: 2, output: join(directory, "seed.json"), fetcher,
       now: () => clock, wait: async (ms) => { clock += ms; }, log: () => {} };
     const result = await seedMarket(options);
     assert.deepEqual(result.manifest.dates, ["2026-10-14", "2026-10-16"]);

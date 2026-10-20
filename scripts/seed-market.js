@@ -4,8 +4,8 @@ import { pathToFileURL } from "node:url";
 import { syncT86, acceptedT86 } from "../cloudflare/t86-sync.js";
 import { T86Store } from "../cloudflare/t86-store.js";
 import { t86FlowReport } from "../cloudflare/t86-validator.js";
-import { CATALOG_URL, MANIFEST_KEY, SHARD_COUNT, createManifest, fetchJson, marketDay,
-  mergeShard, normalizeCatalog, normalizePrices, reportUrl, shardKey, taipeiDate, validDate } from "../cloudflare/twse.js";
+import { CATALOG_URL, ETF_CATALOG_URL, MANIFEST_KEY, SHARD_COUNT, createManifest, fetchJson, marketDay,
+  mergeShard, normalizeCatalog, normalizeEtfCatalog, combineCatalogs, normalizePrices, reportUrl, shardKey, taipeiDate, validDate } from "../cloudflare/twse.js";
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const readJson = async (path) => {
@@ -20,7 +20,7 @@ async function saveJson(path, value) {
 /** Sequential, resumable bulk download. Cache only successful JSON replies. */
 export async function seedMarket({ end = taipeiDate(), sessions = 90, interval = 10000,
   directory = ".wrangler/twse-cache", output = ".wrangler/market-seed.json", offline = false,
-  fetcher = fetch, wait = sleep, now = () => Date.now(), log = console.log, t86Store, t86Env = {} } = {}) {
+  fetcher = fetch, wait = sleep, now = () => Date.now(), log = console.log, t86Store, t86Env = {}, includeEtfs = true } = {}) {
   if (!validDate(end) || end > taipeiDate() || !Number.isInteger(sessions) || sessions < 1 || sessions > 260 || interval < 10000)
     throw new Error("Use a valid --end date, 1–260 --sessions, and --interval >= 10000 ms");
   if (!t86Store) throw new Error("Historical ingestion requires T86Store; no validation bypass is allowed");
@@ -44,7 +44,19 @@ export async function seedMarket({ end = taipeiDate(), sessions = 90, interval =
     cachedCatalog = { checkedOn: taipeiDate(), rows };
     await saveJson(catalogPath, cachedCatalog);
   }
-  const catalog = normalizeCatalog(cachedCatalog.rows);
+  const companies = normalizeCatalog(cachedCatalog.rows);
+  let catalog = companies;
+  if (includeEtfs) {
+    const etfPath = `${directory}/etfs.json`;
+    let cachedEtfs = await readJson(etfPath);
+    if (!cachedEtfs || (!offline && cachedEtfs.checkedOn !== taipeiDate())) {
+      const rows = await request(ETF_CATALOG_URL);
+      normalizeEtfCatalog(rows);
+      cachedEtfs = { checkedOn: taipeiDate(), rows };
+      await saveJson(etfPath, cachedEtfs);
+    }
+    catalog = combineCatalogs(companies, normalizeEtfCatalog(cachedEtfs.rows));
+  }
   const days = [];
   const cursor = new Date(`${end}T00:00:00Z`);
   for (let scanned = 0; days.length < sessions && scanned < 600; scanned++, cursor.setUTCDate(cursor.getUTCDate() - 1)) {

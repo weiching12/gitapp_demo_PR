@@ -2,6 +2,7 @@ import "./styles.css";
 import "./typography.css";
 import { loadDataset } from "./provider.js";
 import { startPresence } from "./presence.js";
+import { isEtf } from "./market-codec.js";
 import {
   DEFAULT_SETTINGS,
   getSnapshot,
@@ -572,6 +573,7 @@ function renderSectorOverview() {
   }
   const groups = new Map();
   for (const stock of latestSnapshots) {
+    if (isEtf(stock)) continue;
     if (!groups.has(stock.sector)) groups.set(stock.sector, []);
     groups.get(stock.sector).push(stock);
   }
@@ -629,7 +631,7 @@ function renderSectorOverview() {
 }
 
 function renderSectorDialog(name) {
-  const stocks = latestSnapshots.filter((stock) => stock.sector === name);
+  const stocks = latestSnapshots.filter((stock) => !isEtf(stock) && stock.sector === name);
   if (!stocks.length) return;
   const periods = [["day", "當日"], ["5", "5 日"], ["20", "20 日"]];
   const tradingDates = dataset.dates.filter((date) => date <= dataset.info.asOf);
@@ -835,6 +837,11 @@ function technicalSignalGuide() {
     <p class="helper-text">這是本網站訂定、尚未回測的觀察規則；${isDemo ? "目前使用模擬行情；" : ""}沒有預測報酬或交易保證。概念參考：<a class="signal-source" href="https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/slow-stochastic" target="_blank" rel="noopener noreferrer">Fidelity 隨機指標說明 ↗</a>；本網站沿用原有遞迴 KD 算法，MA20 確認為額外條件。</p>`;
 }
 
+function marketScope() {
+  const etfs = dataset.stocks.filter(isEtf).length;
+  return `${dataset.stocks.length - etfs} 家上市公司（含存託憑證）及 ${etfs} 檔新臺幣交易 ETF；不含上櫃與外幣交易櫃檯。法人買株僅統計產業個股，不含 ETF；ETF 歷史自加入日起逐日累積。`;
+}
+
 function openDialog(type) {
   const content = document.querySelector("#dialog-content");
   if (type === "settings") {
@@ -846,7 +853,7 @@ function openDialog(type) {
   } else if (type === "source" && !isDemo) {
     const syncNote = import.meta.env.VITE_SYNC_NOTE || "平日台灣時間 18:30、20:30 檢核全市場法人報表，驗證通過後分批更新快取，全部完成才發布；失敗保留上一份已驗證資料，基準不足時等待確認。";
     const checkedAt = new Date(dataset.info.updatedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
-    content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由臺灣證券交易所取得上市公司名錄、每日收盤行情及三大法人買賣超日報，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${dataset.stocks.length} 家上市公司（依官方名錄，含存託憑證）；不含上櫃與 ETF</dd></div><div><dt>市場報表交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>整批資料發布時間</dt><dd>${esc(checkedAt)}（台灣時間）；未提供行情的公司不列入當日排行</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>${esc(syncNote)}</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
+    content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由臺灣證券交易所取得上市公司名錄、每日收盤行情及三大法人買賣超日報，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${esc(marketScope())}</dd></div><div><dt>市場報表交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>整批資料發布時間</dt><dd>${esc(checkedAt)}（台灣時間）；未提供行情的公司不列入當日排行</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>${esc(syncNote)}</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
   } else if (type === "source") {
     content.innerHTML = `<h2 id="dialog-heading">資料透明，觀察才有依據。</h2><p class="dialog-intro">這是可操作的前端示範版，目前沒有連接交易所或即時行情服務。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>14 檔台灣上市、上櫃股票與 ETF 範例</dd></div><div><dt>示範資料截止日</dt><dd>${dataset.info.asOf}（固定資料，不會自動更新）</dd></div><div><dt>買賣量定義</dt><dd>外資、投信、自營商買進與賣出股數；畫面換算成張</dd></div><div><dt>指標計算方式</dt><dd>由模擬 OHLC 歷史資料在瀏覽器計算，並非硬填指標數值</dd></div><div><dt>下一階段</dt><dd>確認正式行情與三大法人資料來源，接上 API，再設定 Cloudflare 部署。</dd></div></dl><p class="helper-text">正式資料需涵蓋交易日曆、除權息還原與法人分類定義。此版資料未經還原，不能用於實際交易。</p>`;
   } else {

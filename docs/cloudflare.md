@@ -5,6 +5,7 @@
 ## 資料範圍與來源
 
 - 公司名錄：`https://openapi.twse.com.tw/v1/opendata/t187ap03_L`。2026-10-18 實測有 1,096 筆，包含官方名錄內的存託憑證；以每日實際回應為準，不固定檔數。不包含上櫃及 ETF。
+- ETF 名錄：`https://www.twse.com.tw/rwd/zh/ETF/list?response=json`。以完整欄名讀取上市日期、代號與簡稱；雙幣櫃檯只取主要新臺幣代號，支援 `00632R`、`00981A` 等字母代碼，另以 `assetType: "etf"`、`sector: "ETF"`、`currency: "TWD"` 明確標記。法人買株不納入 ETF 的家數、金額、排行或產業明細。
 - 每日價量：`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?response=json&date=YYYYMMDD&type=ALLBUT0999`。
 - 每日三大法人：`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=YYYYMMDD&selectType=ALLBUT0999`。
 - 後兩項是證交所網站的 JSON 報表介面。`ALLBUT0999` 排除權證等大量無關商品，再以公司名錄精確篩選；不僅依代碼長度判斷股票。歷史行情兼容 `tables` 及 `fields9/data9` 格式。
@@ -45,6 +46,10 @@ npm.cmd run dev:cloudflare
 端點不快取、不允許跨站寫入；無法取得時顯示錯誤，不以 0 或舊數字冒充即時值。`tests/presence.test.js` 驗證重複心跳、90 秒到期、重建物件保留資料、異常輸入與跨站阻擋；瀏覽器測試驗證真實本機 Durable Object、手機顯示、定時更新及欄位載入／失敗狀態。
 
 ## 每日股票排程
+
+每輪先驗證法人，再取得公司名錄、ETF 名錄及價量；各階段分開到不同 Cron 分鐘，不增加逐檔上游請求。公司與 ETF 各自檢查資料涵蓋率，ETF 不能掩蓋個股資料缺漏。數字代碼維持原分組；字母代碼採前後端共用的固定雜湊。
+
+ETF 初次加入採最新資料先上線，從 2026-10-19 起逐日累積，原有 1,096 家公司歷史逐檔比對並完整保留。當日官方名錄中有 236 檔已上市新臺幣 ETF，235 檔有一般交易價量；未提供行情的標的仍保留缺漏，歷史不足不顯示假指標。`scripts/prepare-etfs.js` 驗證官方原始報表與五日筆數基準、準備新版分組及獨立索引檔；發布時先寫 128 組、等待傳播並驗證全部分組，確認舊索引未被其他排程變更後才切換。初次加入不重寫原股票歷史，也不將完整歷史重匯至正式 D1。
 
 程式已改為台灣時間 18:30、20:30 兩輪，先以共用 T86DataValidator 驗證完整報表，再由 D1 交易式暫存／Upsert／版本紀錄保護，最後分批更新 KV。此程式版本需先完成 D1 migration 與初始基準確認，部署後才在正式站生效；完整規則、錯誤保護、狀態、歷史回補及操作步驟請看 [T86 同步](t86-sync.md)。
 

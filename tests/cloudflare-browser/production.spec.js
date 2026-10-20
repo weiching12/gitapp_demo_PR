@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { getSnapshot } from "../../src/indicators.js";
+import { isEtf } from "../../src/market-codec.js";
 
 test("TWSE full listed-company API renders current-day prices in viewport batches with no per-stock browser requests", async ({ page, request }) => {
   const manifest = await (await request.get("/api/market")).json();
@@ -9,15 +10,15 @@ test("TWSE full listed-company API renders current-day prices in viewport batche
   page.on("request", (request) => urls.push(request.url()));
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
-  await expect(page.locator("#load-status")).toBeHidden({ timeout: 30000 });
+  await expect(page.locator('[data-page-panel="market"]')).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
   const initialRows = await page.locator("#stock-rows tr").count();
   expect(initialRows).toBeGreaterThan(0);
-  expect(initialRows).toBeLessThanOrEqual(30);
+  expect(initialRows).toBeLessThan(manifest.coverage.traded);
   await expect(page.locator("#table-summary")).toContainText(`/ ${manifest.coverage.traded} 檔`);
   await page.locator("#table-load-trigger").scrollIntoViewIfNeeded();
   await expect.poll(() => page.locator("#stock-rows tr").count()).toBeGreaterThan(initialRows);
   await expect(page.locator(".demo-badge")).toHaveText("每日收盤資料");
-  await expect(page.locator(".watch-card")).toHaveCount(3);
+  await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
   expect(urls.filter((url) => /\/api\/stocks\//.test(url))).toEqual([]);
   expect(urls.filter((url) => /\/api\/market\//.test(url))).toHaveLength(128);
   expect(urls.some((url) => /finmind|twse\.com\.tw/i.test(new URL(url).hostname))).toBe(false);
@@ -31,7 +32,7 @@ test("TWSE full listed-company API renders current-day prices in viewport batche
   await page.getByRole("button", { name: "資料說明", exact: true }).click();
   const dialog = page.locator("#info-dialog");
   await expect(dialog).toContainText("臺灣證券交易所");
-  await expect(dialog).toContainText(`${manifest.stocks.length} 家上市公司`);
+  await expect(dialog).toContainText(`${manifest.stocks.filter((stock) => !isEtf(stock)).length} 家上市公司`);
   await expect(dialog).not.toContainText("FinMind");
   for (const time of process.env.STOCK_SYNC_PROFILE === "legacy" ? ["21:00"] : ["18:30", "20:30"])
     await expect(dialog).toContainText(time);
@@ -43,7 +44,8 @@ test("real TWSE institutional day/5/20 sums agree with cached histories at curre
   const stocks = await Promise.all(["2330", "2317", "3026"].map(async (symbol) =>
     (await (await request.get(`/api/stocks/${symbol}`)).json()).stock));
   await page.goto("/");
-  await expect(page.locator(".watch-card")).toHaveCount(3, { timeout: 30000 });
+  await expect(page.locator('[data-page-panel="market"]')).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
+  await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
   await page.locator('[data-page="favorites"]').click();
   await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
   for (const dateIndex of [0, 5]) {
@@ -66,9 +68,11 @@ test("real TWSE institutional day/5/20 sums agree with cached histories at curre
   }
 });
 
-test("full-market phone controls, filters, sector and institution details retain their layouts", async ({ page }, testInfo) => {
+test("full-market phone controls, filters, sector and institution details retain their layouts", async ({ page, request }, testInfo) => {
+  const manifest = await (await request.get("/api/market")).json();
   await page.goto("/");
-  await expect(page.locator(".watch-card")).toHaveCount(3, { timeout: 30000 });
+  await expect(page.locator('[data-page-panel="market"]')).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
+  await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.locator('[data-page="market"]').click();

@@ -9,6 +9,7 @@ import { combineChunks, loadApiDataset } from "../src/provider.js";
 import { getSnapshot } from "../src/indicators.js";
 
 import { testStore } from "./helpers/t86-db.js";
+import { etfCatalog } from "./helpers/etf-catalog.js";
 const syncMarket = (env, options) => {
   env.MARKET_DATA.testStore ??= testStore().store;
   return runSyncMarket(env, { ...options, t86Store: env.MARKET_DATA.testStore });
@@ -215,7 +216,7 @@ test("failed T86 acquisition runs once per round and preserves the public manife
   assert.equal(kv.writes.filter((key) => key === MANIFEST_KEY).length, 0);
 });
 
-test("full nightly sync makes three spaced upstream calls and publishes only after all history shards", async () => {
+test("full nightly sync makes four spaced upstream calls and publishes only after all history shards", async () => {
   // Expand real field structures to an entire market, keeping this integration deterministic.
   const companies = Array.from({ length: 1000 }, (_, index) => ({ 公司代號: String(1000 + index), 公司簡稱: `公司${index}`, 產業別: "24", 上市日期: "20000101" }));
   const prices = structuredClone(fixture.prices), flows = structuredClone(fixture.flows);
@@ -227,19 +228,20 @@ test("full nightly sync makes three spaced upstream calls and publishes only aft
   let currentMinute = 0;
   const fetcher = async (input) => {
     const url = new URL(input); calls.push({ minute: currentMinute, url: url.href });
+    if (url.pathname.endsWith("/ETF/list")) return Response.json(etfCatalog);
     return Response.json(url.href === CATALOG_URL ? companies : url.pathname.includes("T86") ? flows : prices);
   };
   for (; currentMinute < 72; currentMinute++) {
     await syncMarket({ MARKET_DATA: kv }, { now: new Date(Date.UTC(2026, 9, 16, 13, currentMinute)), fetcher });
     if (currentMinute < 68) assert.equal(kv.data.has(MANIFEST_KEY), false);
   }
-  assert.deepEqual(calls.map((call) => call.minute), [0, 1, 2]);
-  assert.equal(calls.length, 3);
+  assert.deepEqual(calls.map((call) => call.minute), [0, 1, 2, 3]);
+  assert.equal(calls.length, 4);
   const manifest = await kv.get(MANIFEST_KEY, "json");
-  assert.equal(manifest.stocks.length, 1000);
+  assert.equal(manifest.stocks.length, 1001);
   assert.equal(manifest.asOf, date);
   const chunks = await Promise.all(manifest.chunks.map((_, i) => kv.get(shardKey(manifest.generation, i), "json")));
-  assert.equal(combineChunks(manifest, chunks).stocks.length, 1000);
+  assert.equal(combineChunks(manifest, chunks).stocks.length, 1001);
   assert.ok(kv.writes.length < 250);
   assert.equal((await kv.get(SYNC_KEY, "json")).phase, "done");
 });
@@ -274,6 +276,7 @@ for (const holiday of [false, true]) test(`nightly catch-up preserves missed ses
   const fetcher = async (input) => {
     const url = new URL(input); requests.push(url.href);
     if (url.href === CATALOG_URL) return Response.json(companies);
+    if (url.pathname.endsWith("/ETF/list")) return Response.json(etfCatalog);
     const date = url.searchParams.get("date");
     if (holiday && date === "20261009") return Response.json({ stat: "很抱歉，沒有符合條件的資料!" });
     return Response.json({ ...(url.pathname.includes("T86") ? flows : prices), date });
@@ -283,9 +286,9 @@ for (const holiday of [false, true]) test(`nightly catch-up preserves missed ses
   const next = await kv.get(MANIFEST_KEY, "json");
   assert.deepEqual(next.dates, holiday ? ["2026-10-08", "2026-10-12"] : ["2026-10-08", "2026-10-09", "2026-10-12"]);
   assert.equal(next.asOf, "2026-10-12");
-  assert.equal(requests.length, holiday ? 4 : 5);
+  assert.equal(requests.length, holiday ? 5 : 6);
   const currentChunks = await Promise.all(next.chunks.map((_, i) => kv.get(shardKey(next.generation, i), "json")));
-  assert.equal(combineChunks(next, currentChunks).stocks[0].history.length, holiday ? 2 : 3);
+  assert.equal(combineChunks(next, currentChunks).stocks.find((stock) => stock.symbol === "1000").history.length, holiday ? 2 : 3);
 });
 
 test("a failed KV shard write keeps the old market public and resumes at its checkpoint", async () => {
