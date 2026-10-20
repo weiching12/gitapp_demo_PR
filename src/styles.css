@@ -22,6 +22,7 @@ body {
   margin: 0;
   overflow-anchor: none;
 }
+.pull-refresh { display: none; }
 button,
 input,
 select {
@@ -2577,6 +2578,16 @@ dialog.institution-dialog {
   .table-scroll .favorite-button {
     width: var(--table-favorite-width);
   }
+  .table-scroll .favorite-button:hover,
+  .table-scroll .favorite-button:active {
+    background: transparent;
+  }
+  .table-scroll tbody tr:hover,
+  .table-scroll tbody tr:active,
+  .table-scroll tbody tr:hover > td:first-child,
+  .table-scroll tbody tr:hover > th {
+    background: #fff;
+  }
   .table-scroll .stock-name {
     min-width: 0;
     width: 100%;
@@ -3141,12 +3152,53 @@ dialog.sector-dialog {
 .institution-sparkline line { stroke: var(--border); }
 .institution-sparkline rect { fill: currentColor; }
 .sector-detail-heading .sector-chart-note { margin-top: 5px; }
-.sector-dialog-handle { display: none; }
+.sector-dialog-handle,
+.institution-dialog-handle { display: none; }
 .sector-dialog-footer { padding-bottom: max(13px, env(safe-area-inset-bottom)); }
 .date-control [hidden] { display: none; }
 .table-scroll { scroll-margin-top: 90px; }
 
 @media (max-width: 700px) {
+  html,
+  body {
+    touch-action: manipulation;
+    overscroll-behavior-y: contain;
+  }
+  .pull-refresh {
+    position: fixed;
+    top: max(6px, env(safe-area-inset-top));
+    left: 50%;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 11px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--muted);
+    box-shadow: 0 4px 14px rgb(15 23 42 / 12%);
+    font-size: var(--text-secondary);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, calc(-100% - 16px));
+    transition: transform 160ms ease, opacity 160ms ease;
+  }
+  .pull-refresh > span {
+    width: 13px;
+    height: 13px;
+    border: 2px solid #cbd5e1;
+    border-top-color: var(--accent);
+    border-radius: 50%;
+  }
+  .pull-refresh.is-pulling,
+  .pull-refresh.is-ready,
+  .pull-refresh.is-refreshing {
+    opacity: 1;
+    transform: translate(-50%, min(var(--pull-distance, 52px), 52px));
+  }
+  .pull-refresh.is-refreshing > span { animation: pull-refresh-spin 700ms linear infinite; }
+  @keyframes pull-refresh-spin { to { transform: rotate(360deg); } }
   .sector-summary-grid { grid-template-columns: minmax(0, 1fr); }
   .sector-detail-heading { gap: 10px; }
   .sector-summary-period { padding: 12px; }
@@ -3184,6 +3236,17 @@ dialog.sector-dialog {
   .sector-stock-period-label { display: block; margin-bottom: 3px; }
 }
 @media (max-width: 520px) {
+  dialog.institution-dialog {
+    position: fixed;
+    inset: auto 10px max(12px, env(safe-area-inset-bottom));
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+    margin: 0;
+    border-radius: 18px;
+    transform: translateY(var(--mobile-drag-y, 0px));
+    transition: transform 180ms ease-out;
+  }
   dialog.sector-dialog {
     position: fixed;
     inset: auto 0 0;
@@ -3195,13 +3258,15 @@ dialog.sector-dialog {
     border-bottom: 0;
     border-left: 0;
     border-radius: 18px 18px 0 0;
-    transform: translateY(var(--sector-drag-y, 0px));
+    transform: translateY(var(--mobile-drag-y, 0px));
     transition: transform 180ms ease-out;
   }
+  dialog.institution-dialog.is-dragging,
   dialog.sector-dialog.is-dragging {
     transition: none;
   }
-  .sector-dialog-handle {
+  .sector-dialog-handle,
+  .institution-dialog-handle {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3210,26 +3275,31 @@ dialog.sector-dialog {
     touch-action: none;
     cursor: grab;
   }
-  .sector-dialog-handle:focus-visible {
+  .sector-dialog-handle:focus-visible,
+  .institution-dialog-handle:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -3px;
     border-radius: 18px 18px 0 0;
   }
-  .sector-dialog-handle::before {
+  .sector-dialog-handle::before,
+  .institution-dialog-handle::before {
     content: "";
     width: 40px;
     height: 5px;
     border-radius: 999px;
     background: #cbd5e1;
   }
-  dialog.sector-dialog.is-dragging .sector-dialog-handle {
+  dialog.sector-dialog.is-dragging .sector-dialog-handle,
+  dialog.institution-dialog.is-dragging .institution-dialog-handle {
     cursor: grabbing;
   }
+  .institution-dialog-top { padding-top: 0; }
   .sector-dialog-top {
     gap: 10px;
     padding: 0 16px 14px;
   }
-  #close-sector-dialog { display: none; }
+  #close-sector-dialog,
+  #close-institution-dialog { display: none; }
   .sector-dialog-body { padding: 15px 16px 20px; }
   .sector-summary-grid { gap: 8px; }
   .sector-detail-heading { align-items: flex-start; }

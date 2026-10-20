@@ -194,6 +194,7 @@ function shell() {
           .join(
             "",
           )}</select></div></section>
+        <div id="pull-refresh" class="pull-refresh" aria-hidden="true"><span></span>下拉重新整理</div>
         <div id="app-status" class="app-status" role="status" hidden><span></span><button class="text-button" id="apply-update" hidden>立即更新</button></div>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
         <section id="watchlist" data-page-panel="favorites" aria-label="自選股票" hidden>
@@ -243,7 +244,7 @@ function shell() {
       </main>
     </div>
     <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div></dialog>
-    <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向">${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
+    <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><div class="institution-dialog-handle" role="button" tabindex="0" aria-label="關閉法人動向，可向下拖曳"></div><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向">${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
     <dialog id="sector-dialog" class="sector-dialog" aria-labelledby="sector-dialog-heading" aria-describedby="sector-dialog-meta"><div class="sector-dialog-handle" role="button" tabindex="0" aria-label="關閉產業明細，可向下拖曳"></div><header class="institution-dialog-top sector-dialog-top"><div><span class="eyebrow">SECTOR INSTITUTIONAL FLOWS</span><h2 id="sector-dialog-heading">產業法人買賣超</h2><p id="sector-dialog-meta"></p></div><button class="icon-button" id="close-sector-dialog" aria-label="關閉產業明細">${icon("close")}</button></header><div id="sector-dialog-content" class="sector-dialog-body"></div><footer class="institution-dialog-footer sector-dialog-footer">正值為買超、負值為賣超 · 1 張 = 1,000 股 · 僅統計目前研究標的</footer></dialog>
     <div id="toast" role="status" class="toast"></div>`;
   stopPresence?.();
@@ -750,8 +751,8 @@ function openInstitutionDialog(symbol, focusClose = true) {
   const dialog = document.querySelector("#institution-dialog");
   if (!dialog.open) dialog.showModal();
   dialog.scrollTop = 0;
-  const close = dialog.querySelector("#close-institution-dialog");
-  if (focusClose) close.focus({ preventScroll: true });
+  const focusTarget = dialog.querySelector(matchMedia("(max-width: 520px)").matches ? ".institution-dialog-handle" : "#close-institution-dialog");
+  if (focusClose) focusTarget.focus({ preventScroll: true });
   else if (dialog.contains(document.activeElement)) document.activeElement.blur();
 }
 
@@ -986,6 +987,50 @@ function bindEvents() {
   document.addEventListener("pointerdown", (event) => inputMode(event.pointerType === "touch"), { capture: true, passive: true });
   document.addEventListener("touchstart", () => inputMode(true), { capture: true, passive: true });
   document.addEventListener("keydown", () => inputMode(false), true);
+  const pullRefresh = document.querySelector("#pull-refresh");
+  let pullGesture = null;
+  const resetPullRefresh = () => {
+    pullGesture = null;
+    pullRefresh.classList.remove("is-pulling", "is-ready", "is-refreshing");
+    pullRefresh.style.removeProperty("--pull-distance");
+    pullRefresh.lastChild.textContent = "下拉重新整理";
+  };
+  document.addEventListener("touchstart", (event) => {
+    const touch = event.touches[0];
+    const blocked = event.touches.length !== 1 || window.scrollY > 0 ||
+      document.querySelector("dialog[open]") || event.target.closest("button, a, input, select, .table-scroll, .watchlist-grid, .institution-overview-rows");
+    if (blocked || !touch || !matchMedia("(max-width: 700px)").matches) return;
+    pullGesture = { x: touch.clientX, y: touch.clientY, distance: 0 };
+  }, { passive: true });
+  document.addEventListener("touchmove", (event) => {
+    if (!pullGesture || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const vertical = touch.clientY - pullGesture.y;
+    const horizontal = Math.abs(touch.clientX - pullGesture.x);
+    if (vertical <= 0 || vertical <= horizontal) return;
+    event.preventDefault();
+    pullGesture.distance = Math.min(104, vertical * 0.55);
+    pullRefresh.style.setProperty("--pull-distance", `${pullGesture.distance}px`);
+    pullRefresh.classList.add("is-pulling");
+    const ready = pullGesture.distance >= 68;
+    pullRefresh.classList.toggle("is-ready", ready);
+    pullRefresh.lastChild.textContent = ready ? "放開即可更新" : "下拉重新整理";
+  }, { passive: false });
+  document.addEventListener("touchend", () => {
+    if (!pullGesture) return;
+    if (pullGesture.distance < 68) {
+      resetPullRefresh();
+      return;
+    }
+    pullRefresh.classList.remove("is-pulling", "is-ready");
+    pullRefresh.classList.add("is-refreshing");
+    pullRefresh.lastChild.textContent = "正在更新資料";
+    pullGesture = null;
+    const refreshEvent = new CustomEvent("stockapps:refresh", { cancelable: true });
+    if (window.dispatchEvent(refreshEvent)) window.location.reload();
+    else resetPullRefresh();
+  }, { passive: true });
+  document.addEventListener("touchcancel", resetPullRefresh, { passive: true });
   document.addEventListener("keydown", (event) => {
     const card = event.target.closest?.("#sector-grid [data-sector-details]");
     if (!card || (event.key !== "Enter" && event.key !== " ")) return;
@@ -1186,48 +1231,53 @@ function bindEvents() {
       if (document.activeElement === focusTarget) focusTarget.blur();
     } else focusTarget?.focus({ preventScroll: true });
   });
-  const sectorDialog = document.querySelector("#sector-dialog");
-  const sectorHandle = sectorDialog.querySelector(".sector-dialog-handle");
-  let sectorDrag = null;
-  let suppressSectorHandleClickUntil = 0;
-  const resetSectorDrag = () => {
-    sectorDrag = null;
-    sectorDialog.classList.remove("is-dragging");
-    sectorDialog.style.removeProperty("--sector-drag-y");
+  const bindMobileDragDismiss = (dialog, handle) => {
+    let drag = null;
+    let suppressClickUntil = 0;
+    const reset = () => {
+      drag = null;
+      dialog.classList.remove("is-dragging");
+      dialog.style.removeProperty("--mobile-drag-y");
+    };
+    handle.addEventListener("pointerdown", (event) => {
+      if (!dialog.open || !matchMedia("(max-width: 520px)").matches || event.button !== 0) return;
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      dialog.classList.add("is-dragging");
+      handle.setPointerCapture(event.pointerId);
+    });
+    handle.addEventListener("pointermove", (event) => {
+      if (event.pointerId !== drag?.id) return;
+      const distance = event.clientY - drag.y;
+      const horizontal = Math.abs(event.clientX - drag.x);
+      dialog.style.setProperty("--mobile-drag-y", `${distance > horizontal ? Math.max(0, distance) : 0}px`);
+    });
+    handle.addEventListener("pointerup", (event) => {
+      if (event.pointerId !== drag?.id) return;
+      const distance = event.clientY - drag.y;
+      const horizontal = Math.abs(event.clientX - drag.x);
+      if (Math.hypot(distance, horizontal) > 8) suppressClickUntil = performance.now() + 350;
+      reset();
+      if (distance >= 90 && distance > horizontal) dialog.close();
+    });
+    handle.addEventListener("pointercancel", reset);
+    handle.addEventListener("click", () => {
+      if (dialog.open && performance.now() >= suppressClickUntil) dialog.close();
+    });
+    handle.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      dialog.close();
+    });
+    dialog.addEventListener("close", () => {
+      reset();
+      suppressClickUntil = 0;
+    });
   };
-  sectorHandle.addEventListener("pointerdown", (event) => {
-    if (!sectorDialog.open || !matchMedia("(max-width: 520px)").matches || event.button !== 0) return;
-    sectorDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
-    sectorDialog.classList.add("is-dragging");
-    sectorHandle.setPointerCapture(event.pointerId);
-  });
-  sectorHandle.addEventListener("pointermove", (event) => {
-    if (event.pointerId !== sectorDrag?.id) return;
-    const distance = event.clientY - sectorDrag.y;
-    const horizontal = Math.abs(event.clientX - sectorDrag.x);
-    sectorDialog.style.setProperty("--sector-drag-y", `${distance > horizontal ? Math.max(0, distance) : 0}px`);
-  });
-  sectorHandle.addEventListener("pointerup", (event) => {
-    if (event.pointerId !== sectorDrag?.id) return;
-    const distance = event.clientY - sectorDrag.y;
-    const horizontal = Math.abs(event.clientX - sectorDrag.x);
-    if (Math.hypot(distance, horizontal) > 8) suppressSectorHandleClickUntil = performance.now() + 350;
-    resetSectorDrag();
-    if (distance >= 90 && distance > horizontal) sectorDialog.close();
-  });
-  sectorHandle.addEventListener("pointercancel", resetSectorDrag);
-  sectorHandle.addEventListener("click", () => {
-    if (sectorDialog.open && performance.now() >= suppressSectorHandleClickUntil)
-      sectorDialog.close();
-  });
-  sectorHandle.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    sectorDialog.close();
-  });
+  const institutionDialog = document.querySelector("#institution-dialog");
+  bindMobileDragDismiss(institutionDialog, institutionDialog.querySelector(".institution-dialog-handle"));
+  const sectorDialog = document.querySelector("#sector-dialog");
+  bindMobileDragDismiss(sectorDialog, sectorDialog.querySelector(".sector-dialog-handle"));
   sectorDialog.addEventListener("close", () => {
-    resetSectorDrag();
-    suppressSectorHandleClickUntil = 0;
     const name = state.sectorName;
     state.sectorName = null;
     const trigger = [...document.querySelectorAll("#sector-grid [data-sector-details]")]

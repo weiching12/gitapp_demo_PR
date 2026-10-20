@@ -19,7 +19,9 @@ async function openInstitutionDetails(page, symbol) {
   return dialog;
 }
 async function closeInstitutionDetails(page) {
-  await page.locator("#close-institution-dialog").click();
+  const close = page.locator("#close-institution-dialog");
+  if (await close.isVisible()) await close.click();
+  else await page.locator("#institution-dialog .institution-dialog-handle").click();
   await expect(page.locator("#institution-dialog")).not.toBeVisible();
 }
 const formatted = (value, digits = 0) => value.toLocaleString("en-US", {
@@ -815,6 +817,54 @@ test("mobile sector details close after a deliberate downward pull on the handle
   expect(await card.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
 });
 
+test("mobile favorite institution details use the pull-down handle instead of a close button", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openPage(page, "favorites");
+  await page.locator('[data-overview="institutions"]').click();
+  const details = detailsButtonFor(page, "2330");
+  await details.click();
+  const dialog = page.locator("#institution-dialog");
+  const handle = dialog.locator(".institution-dialog-handle");
+  await expect(dialog.locator("#close-institution-dialog")).toBeHidden();
+  await expect(handle).toBeVisible();
+  expect((await handle.boundingBox()).height).toBeGreaterThanOrEqual(44);
+
+  const box = await handle.boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + 125, { steps: 8 });
+  await page.mouse.up();
+  await expect(dialog).not.toBeVisible();
+  await expect(details).toBeFocused();
+});
+
+test("mobile page supports pull to refresh without enabling double-tap zoom", async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: "http://127.0.0.1:5173", viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  await page.goto("/");
+  await expect(page.locator("body")).toHaveCSS("touch-action", "manipulation");
+
+  const refreshed = await page.evaluate(async () => {
+    window.scrollTo(0, 0);
+    let requested = false;
+    window.addEventListener("stockapps:refresh", (event) => {
+      requested = true;
+      event.preventDefault();
+    }, { once: true });
+    const target = document.querySelector(".page-heading");
+    const touch = (y) => new Touch({ identifier: 1, target, clientX: 190, clientY: y });
+    target.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [touch(90)] }));
+    target.dispatchEvent(new TouchEvent("touchmove", { bubbles: true, cancelable: true, touches: [touch(230)] }));
+    target.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, touches: [], changedTouches: [touch(230)] }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return requested;
+  });
+  expect(refreshed).toBe(true);
+  await context.close();
+});
+
 test("market headings use clean sort icons and compact phone date controls", async ({ page }, testInfo) => {
   await openPage(page, "market");
   await expect(page.locator(".table-scroll-hint, #date-hint")).toHaveCount(0);
@@ -1045,6 +1095,10 @@ test("favorite changes stay on the market page and preserve the table position",
     await settleLayout(page);
     await expect(page.locator('[data-page="market"]')).toHaveAttribute("aria-current", "page");
     await expect(star).toBeFocused();
+    if (width <= 700) {
+      await expect(star).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await expect(row).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    }
     expect(Math.abs((await row.boundingBox()).y - before.top), `Added row moved at ${width}px`).toBeLessThanOrEqual(2);
     expect(await table.evaluate((element) => element.scrollLeft)).toBe(before.left);
 
@@ -1435,7 +1489,10 @@ test("touch closes ranking details without leaving a focus ring", async ({ brows
   await expect(page.locator('#institution-dialog')).toBeVisible();
   expect((await page.locator('#institution-dialog').boundingBox()).y).toBeGreaterThanOrEqual(15);
   await expect(page.locator('#institution-dialog :focus-visible')).toHaveCount(0);
-  await page.locator('#close-institution-dialog').tap();
+  const institutionHandle = page.locator('.institution-dialog-handle');
+  await expect(page.locator('#close-institution-dialog')).toBeHidden();
+  expect((await institutionHandle.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await institutionHandle.tap();
   await expect(page.locator('#institution-dialog')).not.toBeVisible();
   await expect(details).not.toBeFocused();
   expect(await details.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
