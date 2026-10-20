@@ -60,9 +60,11 @@ npm.cmd run t86:admin -- --approve=上一步的RunId --confirmed-by=實際確認
 
 建立基準時，**依交易日期從舊到新**匯入並逐筆確認至少 5 份完整報表。若要 seed 90 日，基準的日期須早於最早目標日期；否則該歷史日期仍會待確認。seed 需要本機 D1 migration 與基準，通過後才輸出可匯入 KV 的檔案。原始快取不足時仍循序請求、至少相隔 10 秒，並使用同一個 `syncT86()`；HTTP／驗證錯誤都會保留同步紀錄，不會繞過檢核。歷史回補通常使用已下載的原始檔，避免重複呼叫 TWSE。
 
-## 正式啟用（尚未由本次修改執行）
+## 正式啟用與後續維護
 
-1. `npx.cmd wrangler d1 create stockapps-t86`，將回傳的真正 `database_id` 補到 `wrangler.jsonc` 的 `T86_DB`；目前刻意未填，不偽造遠端 ID。
+2026-10-20 已於正式環境建立 `stockapps-t86`、套用兩份 migration，並核對官方 2026-10-13、14、15、16、19 五個交易日報表後建立確切 Hash 基準。正式 Worker 已綁定 `T86_DB`；以下建立流程適用於新環境，既有正式資料庫不必重建。
+
+1. 新環境先執行 `npx.cmd wrangler d1 create stockapps-t86`，將回傳的真正 `database_id` 補到 `wrangler.jsonc` 的 `T86_DB`；目前設定已包含本專案正式資料庫 ID，請勿用其他帳號的資料庫覆蓋。
 2. `npm.cmd run t86:admin -- --migrate --remote`，套用交易式 migration。`d1_migrations` 使用 Wrangler 標準 migration 名稱追蹤，已套用不重跑。
 3. 對最近 5 個、早於預定首輪交易日的完整官方快取，依日期匯入與人工核對，使用上述 `--file`、`--approve` 命令加 `--remote`。未提供 `database_id` 時管理命令會拒絕遠端操作。只有本機基準不會自動成為正式基準。
 4. `npm.cmd test`、`npm.cmd run test:t86-runtime`、`npm.cmd run build:cloudflare`、`npx.cmd wrangler deploy --dry-run`。

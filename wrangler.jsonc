@@ -11,7 +11,7 @@
     "run_worker_first": ["/api/*"]
   },
   "kv_namespaces": [{ "binding": "MARKET_DATA", "id": "0894cb2466e84600ba35b848e748dc9a" }],
-  "d1_databases": [{ "binding": "T86_DB", "database_name": "stockapps-t86", "migrations_dir": "cloudflare/migrations" }],
+  "d1_databases": [{ "binding": "T86_DB", "database_name": "stockapps-t86", "database_id": "e3f87bdd-aff2-427f-9894-ac89bd9f5905", "migrations_dir": "cloudflare/migrations" }],
   "vars": { "T86_HISTORY_RATIO": "0.90", "T86_EVENING_RATIO": "0.95" },
   "triggers": { "crons": ["30-59 10 * * mon-fri", "* 11-15 * * mon-fri"] },
   "observability": { "enabled": true }
