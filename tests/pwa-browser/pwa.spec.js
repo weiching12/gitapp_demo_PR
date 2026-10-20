@@ -30,3 +30,30 @@ test("installed shell starts offline and identifies saved data", async ({ page, 
   await expect(page.locator("#app-status")).toContainText(/目前離線，顯示 \d{4}-\d{2}-\d{2} 已保存資料/);
   await expect(page.locator("#app-status")).toBeVisible();
 });
+
+test("returning to a backgrounded app checks for a service worker update", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+
+  const canObserveRegistration = await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.ready;
+    try {
+      window.__pwaUpdateChecks = 0;
+      const observeUpdate = async () => {
+        window.__pwaUpdateChecks += 1;
+      };
+      registration.update = observeUpdate;
+      return registration.update === observeUpdate;
+    } catch {
+      return false;
+    }
+  });
+  test.skip(!canObserveRegistration, "Browser does not allow observing ServiceWorkerRegistration.update");
+
+  await page.evaluate(() => {
+    const currentTime = Date.now();
+    Date.now = () => currentTime + 61_000;
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+  });
+  await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBeGreaterThan(0);
+});
