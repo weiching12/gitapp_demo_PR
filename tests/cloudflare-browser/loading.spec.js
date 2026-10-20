@@ -20,6 +20,7 @@ test("shell and usable rows appear before completion without losing filters, fav
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/presence") return route.fulfill({ json: { online: 2 } });
     if (path === "/api/market") {
       await metadata.promise;
       return route.fulfill({ json: manifest });
@@ -36,12 +37,19 @@ test("shell and usable rows appear before completion without losing filters, fav
     metadata.resolve();
     const row = page.locator('#stock-rows [data-symbol="2330"]');
     await expect(row).toBeVisible();
-    await expect(page.locator('#stock-rows [data-symbol="3026"]')).toHaveCount(0);
+    await expect(page.locator('#stock-rows [data-symbol="3026"]')).toHaveAttribute("aria-busy", "true");
+    await expect(page.locator('#stock-rows [data-symbol="3026"] .loading-spinner')).toHaveCount(6);
+    await page.screenshot({ path: testInfo.outputPath("field-icons-390.png") });
     await expect(page.locator("#load-status")).toBeVisible();
     await expect(page.locator("#table-empty")).toBeHidden();
     await expect(page.locator("#favorite-count")).toHaveText("2");
+    await page.locator('[data-page="favorites"]').click();
+    await expect(page.locator('[data-watch-symbol="3026"] .loading-spinner')).toHaveCount(4);
+    await page.locator("#watchlist-institutions-tab").click();
+    await expect(page.locator('[data-overview-symbol="3026"] .loading-spinner')).toHaveCount(4);
     await page.locator('[data-page="sectors"]').click();
     await expect(page.locator("#sector-grid .sector-card")).toHaveCount(0);
+    await expect(page.locator("#sector-grid .loading-spinner")).toHaveCount(3);
     await expect(page.locator("#load-status")).toContainText("產業統計將於載入完成後顯示");
     await page.locator('[data-page="market"]').click();
     await page.locator("#stock-search").fill("2330");
@@ -51,6 +59,7 @@ test("shell and usable rows appear before completion without losing filters, fav
     await page.screenshot({ path: testInfo.outputPath("progressive-loading-390.png") });
     rest.resolve();
     await expect(page.locator("#load-status")).toBeHidden();
+    await expect(page.locator("#stock-rows .loading-spinner")).toHaveCount(0);
     await expect(page.locator("#stock-search")).toHaveValue("2330");
     await expect(page.locator("#stock-rows tr")).toHaveCount(1);
     expect(await page.evaluate(() => window.progressiveRow === document.querySelector('#stock-rows [data-symbol="2330"]'))).toBe(true);
@@ -80,6 +89,8 @@ test("a failed shard keeps validated rows marked incomplete and retry reloads wi
     await expect(page.locator('#stock-rows [data-symbol="2330"]')).toBeVisible();
     failed.resolve();
     await expect(page.locator("#load-status")).toContainText("資料尚未完整載入");
+    await expect(page.locator("#stock-rows .loading-spinner")).toHaveCount(0);
+    await expect(page.locator('#stock-rows [data-symbol="3026"]')).toContainText("載入失敗");
     await expect(page.locator('#stock-rows [data-symbol="2330"]')).toBeVisible();
     await page.locator('[data-page="sectors"]').click();
     await expect(page.locator("#sector-grid .sector-card")).toHaveCount(0);

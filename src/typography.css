@@ -20,6 +20,7 @@
   font-weight: 400;
   line-height: var(--leading-reading);
 }
+.online-count, .field-load-error, .sector-loading-fields { font-size: var(--text-meta); line-height: var(--leading-control); }
 
 /* Titles: page -> section/dialog -> stock/subsection. */
 h1 {

@@ -2757,6 +2757,24 @@ dialog.institution-dialog {
 }
 .sector-ranking .sector-total i.up { background: var(--up); }
 .sector-ranking .sector-total i.down { background: var(--down); }
+.online-count { display: inline-flex; align-items: center; gap: 6px; color: #456b5b; white-space: nowrap; }
+.online-count[data-state="error"] { color: var(--muted); }
+.field-loading { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; color: #687d8a; vertical-align: middle; }
+.loading-spinner { width: 18px; height: 18px; flex: 0 0 18px; stroke: currentColor; stroke-width: 2; animation: field-spin 1s linear infinite; }
+.loading-spinner circle { opacity: .18; }
+.loading-spinner path { stroke-linecap: round; }
+.field-load-error { color: var(--muted); }
+.pending-card .metric-value { min-height: 46px; }
+.sector-loading-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; padding: 24px 16px; color: var(--muted); }
+.sector-loading-fields > div { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+#date-loading[hidden] { display: none; }
+@keyframes field-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-spinner { animation: none; } }
+@media (max-width: 700px) {
+  .topbar { display: flex; flex-wrap: wrap; justify-content: flex-end; min-height: 36px; padding: 6px 16px; gap: 8px; }
+  .topbar .breadcrumb { display: none; }
+  .topbar-actions { gap: 8px; }
+}
 .initial-load { padding: 32px; color: var(--muted); }
 .load-status {
   display: flex;

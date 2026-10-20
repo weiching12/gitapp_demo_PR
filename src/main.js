@@ -1,6 +1,7 @@
 import "./styles.css";
 import "./typography.css";
 import { loadDataset } from "./provider.js";
+import { startPresence } from "./presence.js";
 import {
   DEFAULT_SETTINGS,
   getSnapshot,
@@ -35,6 +36,8 @@ const icons = {
 };
 const icon = (name, cls = "") =>
   `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] ?? icons.chart}</svg>`;
+const loadingIcon = (label = "資料載入中") => `<span class="field-loading" role="status" aria-label="${label}"><svg class="loading-spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 9 9"/></svg></span>`;
+const pendingField = () => loading ? loadingIcon() : '<span class="field-load-error">載入失敗</span>';
 const esc = (value) =>
   String(value).replace(
     /[&<>"']/g,
@@ -113,6 +116,8 @@ let pendingPaint, previousFavorites;
 let tableVisibleLimit = TABLE_BATCH_SIZE, tableViewKey = "", tableObserver;
 let toastTimer;
 let isDemo;
+let stopPresence, previousWatchLoading;
+const pendingSymbols = new Set();
 
 function readPreferences() {
   try {
@@ -174,7 +179,7 @@ function shell() {
       <div class="sidebar-bottom"><button class="nav-item" data-dialog="settings" aria-label="指標設定">${icon("settings")}<span>指標設定</span></button><div class="workspace-status"><span class="status-dot"></span>${isDemo ? "前端示範版" : "每日收盤資料"} <span>v0.2</span></div></div>
     </aside>
     <div class="workspace">
-      <header class="topbar"><div class="breadcrumb">研究工作台 ${icon("chevron")} <span id="breadcrumb-current">市場觀察清單</span></div><div class="topbar-actions"><span class="demo-badge"><span></span>${esc(dataset.info.label)}</span></div></header>
+      <header class="topbar"><div class="breadcrumb">研究工作台 ${icon("chevron")} <span id="breadcrumb-current">市場觀察清單</span></div><div class="topbar-actions"><span id="online-count" class="online-count" role="status" title="最近 90 秒內活躍的瀏覽器，同一瀏覽器多分頁計一次">${loadingIcon("正在取得在線人數")}<span>在線人數</span></span><span class="demo-badge"><span></span>${esc(dataset.info.label)}</span></div></header>
       <main id="main" tabindex="-1">
         <section class="page-heading"><div><div class="eyebrow" id="page-eyebrow">TAIWAN STOCK EXPLORER</div><h1 id="page-title">市場觀察清單<span class="heading-dot">.</span></h1><p id="page-description">比較全部標的的價量、技術指標與法人籌碼。</p></div><div class="date-control"><label for="trade-date">${icon("calendar")} 資料交易日</label><select id="trade-date">${dataset.dates
           .slice(-30)
@@ -237,6 +242,8 @@ function shell() {
     <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向" autofocus>${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
     <dialog id="sector-dialog" class="sector-dialog" aria-labelledby="sector-dialog-heading" aria-describedby="sector-dialog-meta"><div class="sector-dialog-handle" role="button" tabindex="0" aria-label="關閉產業明細，可向下拖曳"></div><header class="institution-dialog-top sector-dialog-top"><div><span class="eyebrow">SECTOR INSTITUTIONAL FLOWS</span><h2 id="sector-dialog-heading">產業法人買賣超</h2><p id="sector-dialog-meta"></p></div><button class="icon-button" id="close-sector-dialog" aria-label="關閉產業明細">${icon("close")}</button></header><div id="sector-dialog-content" class="sector-dialog-body"></div><footer class="institution-dialog-footer sector-dialog-footer">正值為買超、負值為賣超 · 1 張 = 1,000 股 · 僅統計目前研究標的</footer></dialog>
     <div id="toast" role="status" class="toast"></div>`;
+  stopPresence?.();
+  stopPresence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
 }
 
 function refreshData() {
@@ -275,6 +282,13 @@ function renderLoadState() {
     : loadProgress.total ? `股票資料載入中 · ${loadProgress.loaded}／${loadProgress.total} 檔${state.page === "sectors" ? "；產業統計將於載入完成後顯示" : ""}`
       : "正在取得股票資料…";
   status.querySelector("button").hidden = !loadFailed;
+  let dateIcon = document.querySelector("#date-loading");
+  if (!dateIcon) {
+    dateIcon = document.createElement("span"); dateIcon.id = "date-loading";
+    dateIcon.innerHTML = loadingIcon("交易日載入中");
+    document.querySelector(".date-control").append(dateIcon);
+  }
+  dateIcon.hidden = !loading || dataset.dates.length > 0;
   for (const panel of document.querySelectorAll("[data-page-panel]")) panel.setAttribute("aria-busy", String(loading));
 }
 
@@ -330,15 +344,17 @@ function renderWatchlist() {
   const previousSymbol = previousCards[previousIndex]?.dataset.watchSymbol;
   const favorites = state.favorites
     .map((symbol) => snapshots.find((stock) => stock.symbol === symbol))
-    .filter((stock) => stock?.latest);
+    .filter((stock) => stock?.latest || (stock && pendingSymbols.has(stock.symbol)));
   document.querySelector("#favorite-count").textContent = state.favorites.length;
   document.querySelector("#watchlist-empty").hidden = favorites.length > 0 || ((loading || loadFailed) && state.favorites.length > 0);
-  if (previousFavorites?.length === favorites.length && previousFavorites.every((stock, index) => stock === favorites[index])) return;
+  if (previousWatchLoading === loading && previousFavorites?.length === favorites.length && previousFavorites.every((stock, index) => stock === favorites[index])) return;
+  previousWatchLoading = loading;
   previousFavorites = favorites;
   if (state.institutionSymbol && !favorites.some((stock) => stock.symbol === state.institutionSymbol))
     document.querySelector("#institution-dialog").close();
   document.querySelector("#watchlist-grid").innerHTML = favorites.map((stock) => {
     const { latest: bar, signal } = stock;
+    if (!bar) return `<article class="watch-card pending-card" data-watch-symbol="${stock.symbol}" aria-busy="${loading}"><header class="watch-card-heading"><div><span class="watch-symbol">${stock.symbol}</span><h3>${esc(stock.name)}</h3></div></header><div class="metrics">${["收盤價", "成交量", "KD 值", "股價與季線"].map((label) => `<div class="metric-card"><div class="metric-label">${label}</div><div class="metric-value">${pendingField()}</div></div>`).join("")}</div></article>`;
     const kStatus = bar.k === null ? "資料不足" : bar.k > 80 ? "高檔區間" : bar.k < 20 ? "低檔區間" : "中性區間";
     return `<article class="watch-card" data-watch-symbol="${stock.symbol}" aria-labelledby="watch-title-${stock.symbol}" tabindex="-1">
       <header class="watch-card-heading"><div><span class="watch-symbol">${stock.symbol} <span>${esc(stock.market)} · ${esc(stock.sector)}</span></span><h3 id="watch-title-${stock.symbol}">${esc(stock.name)}</h3></div><button class="icon-button favorite-button is-favorite" data-favorite="${stock.symbol}" aria-label="移除${esc(stock.name)}自選" aria-pressed="true">${icon("star")}</button></header>
@@ -502,6 +518,7 @@ function renderInstitutionOverview(favorites) {
     button.setAttribute("aria-pressed", button.dataset.institutionWindow === state.institutionWindow));
   document.querySelector("#institution-overview-rows").innerHTML = favorites.map((stock) => {
     const { latest: bar, institutionalSummary: summary } = stock;
+    if (!bar) return `<article class="institution-overview-row pending-card" data-overview-symbol="${stock.symbol}" aria-busy="${loading}"><header class="institution-overview-stock"><div><span class="watch-symbol">${stock.symbol}</span><h3>${esc(stock.name)}</h3></div></header><dl class="institution-overview-metrics">${["合計買賣超", "外資", "投信", "自營商"].map((label) => `<div class="overview-metric"><dt>${label}</dt><dd>${pendingField()}</dd></div>`).join("")}</dl></article>`;
     const day = state.institutionWindow === "day";
     const total = day ? bar.institutionalNet : summary.total[`net${state.institutionWindow}`];
     const metric = (name, value, streak = "") => `<div class="overview-metric${name === "total" ? " overview-total" : ""}"><dt>${name === "total" ? "合計買賣超" : esc(name)}</dt><dd>${institutionalFigures(stockMoney(stock, name, state.institutionWindow), value, `data-overview-amount="${name}"`, `data-overview-net="${name}"`)}</dd>${streak}</div>`;
@@ -550,7 +567,8 @@ function updateInstitutionOverviewWindow() {
 
 function renderSectorOverview() {
   if (loading || loadFailed) {
-    document.querySelector("#sector-grid").replaceChildren();
+    document.querySelector("#sector-grid").innerHTML = loading
+      ? `<div class="sector-loading-fields" aria-label="產業統計載入中">${["產業排名", "當日平均漲跌", "法人淨買賣超金額"].map((label) => `<div><span>${label}</span>${loadingIcon()}</div>`).join("")}</div>` : "";
     return;
   }
   const groups = new Map();
@@ -714,6 +732,13 @@ function renderTable() {
       if (bv === null) return -1;
       return (av - bv) * state.sortDirection;
     });
+  if (["all", "favorites"].includes(state.view)) {
+    const query = state.query.trim().toLocaleLowerCase();
+    visibleStocks.push(...snapshots.filter((stock) => pendingSymbols.has(stock.symbol) &&
+      (state.sector === "all" || stock.sector === state.sector) &&
+      (state.view !== "favorites" || state.favorites.includes(stock.symbol)) &&
+      (!query || `${stock.symbol} ${stock.name}`.toLocaleLowerCase().includes(query))));
+  }
   const nextViewKey = [state.date, state.view, state.sector, state.query, state.sort, state.sortDirection].join("|");
   if (nextViewKey !== tableViewKey) {
     tableViewKey = nextViewKey;
@@ -729,7 +754,14 @@ function renderTable() {
     const favorite = state.favorites.includes(stock.symbol);
     let row = rows.get(stock.symbol);
     const cached = row && tableRowCache.get(row);
-    if (!cached || cached.stock !== stock || cached.favorite !== favorite) {
+    if (!stock.latest) {
+      if (!cached || cached.stock !== stock || cached.favorite !== favorite || cached.loading !== loading) {
+        row ??= document.createElement("tr");
+        row.dataset.symbol = stock.symbol;
+        row.innerHTML = `<td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}</span></div></th>${Array.from({ length: 6 }, () => `<td>${pendingField()}</td>`).join("")}`;
+        tableRowCache.set(row, { stock, favorite, loading });
+      }
+    } else if (!cached || cached.stock !== stock || cached.favorite !== favorite) {
       const { latest: bar, signal } = stock;
       const leader = getDominantInstitution(bar.institutions);
       const leaderLabel = bar.institutionalNet === null ? "" : !leader ? "合計持平"
@@ -741,9 +773,11 @@ function renderTable() {
       else row = holder.firstElementChild;
       tableRowCache.set(row, { stock, favorite });
     }
+    row.setAttribute("aria-busy", String(!stock.latest && loading));
     if (row === cursor) cursor = cursor.nextElementSibling;
     else body.insertBefore(row, cursor);
   });
+  if (loading && !dataset.stocks.length) body.innerHTML = `<tr class="initial-field-row" aria-busy="true"><td></td><th scope="row">股票資料</th>${Array.from({ length: 6 }, () => `<td>${loadingIcon()}</td>`).join("")}</tr>`;
   document.querySelector("#table-empty").hidden = visibleStocks.length !== 0 || loading || loadFailed;
   document.querySelector("#favorite-count").textContent =
     state.favorites.length;
@@ -1151,11 +1185,14 @@ async function init() {
     loading = true; isDemo = false;
     dataset = { stocks: [], dates: [], info: { mode: "twse", label: "資料載入中", asOf: "" } };
     snapshots = []; latestSnapshots = [];
+    pendingSymbols.clear();
     shell(); bindEvents(); refreshData();
   }
   dataset = await loadDataset({ prioritySymbols: state.favorites,
     onManifest: async (next) => {
       dataset = next;
+      pendingSymbols.clear();
+      for (const stock of dataset.stocks) pendingSymbols.add(stock.symbol);
       prepare();
       loadProgress = { loaded: 0, total: dataset.stocks.length };
       document.querySelector(".demo-badge").innerHTML = `<span></span>${esc(dataset.info.label)}`;
@@ -1165,12 +1202,14 @@ async function init() {
         [...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("");
       await scheduleRefresh();
     },
-    onChunk: async ({ loaded, total }) => {
+    onChunk: async ({ loaded, total, stocks }) => {
+      for (const stock of stocks) pendingSymbols.delete(stock.symbol);
       loadProgress = { loaded, total };
       await scheduleRefresh();
     },
   });
   loading = false;
+  pendingSymbols.clear();
   if (!apiMode) {
     isDemo = dataset.info.mode === "demo";
     prepare(); shell(); bindEvents();
@@ -1183,7 +1222,7 @@ init().catch((error) => {
   console.error("Unable to initialize stock dashboard", error);
   if (document.querySelector("#load-status")) {
     loading = false; loadFailed = true;
-    renderLoadState(); renderTable(); renderSectorOverview();
+    renderLoadState(); renderWatchlist(); renderTable(); renderSectorOverview();
     return;
   }
   document.querySelector("#app").innerHTML =

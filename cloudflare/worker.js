@@ -1,6 +1,8 @@
 import { MANIFEST_KEY, SHARD_COUNT, shardKey, shardOf } from "./twse.js";
 import { syncMarket } from "./sync.js";
 import { expandStock } from "../src/market-codec.js";
+import { presenceResponse } from "./presence.js";
+export { OnlinePresence } from "./presence.js";
 
 const json = (body, status = 200) => Response.json(body, {
   status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
@@ -10,6 +12,7 @@ export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith("/api/")) return env.ASSETS.fetch(request);
+    if (path === "/api/presence") return presenceResponse(request, env);
     if (request.method !== "GET" && request.method !== "HEAD")
       return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
     try {
