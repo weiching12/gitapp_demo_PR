@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 async function loadFixture(page) {
-  await page.route("**/src/provider.js", (route) => route.fulfill({ contentType: "application/javascript",
+  await page.route("**/src/provider.js*", (route) => route.fulfill({ contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
       export async function loadDataset() {
         const data = await demoProvider.load();

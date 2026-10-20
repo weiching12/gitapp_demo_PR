@@ -216,7 +216,7 @@ test("failed T86 acquisition runs once per round and preserves the public manife
   assert.equal(kv.writes.filter((key) => key === MANIFEST_KEY).length, 0);
 });
 
-test("full nightly sync makes four spaced upstream calls and publishes only after all history shards", async () => {
+test("full nightly sync makes four spaced upstream calls and publishes a complete generation within ten minutes", async () => {
   // Expand real field structures to an entire market, keeping this integration deterministic.
   const companies = Array.from({ length: 1000 }, (_, index) => ({ 公司代號: String(1000 + index), 公司簡稱: `公司${index}`, 產業別: "24", 上市日期: "20000101" }));
   const prices = structuredClone(fixture.prices), flows = structuredClone(fixture.flows);
@@ -231,9 +231,9 @@ test("full nightly sync makes four spaced upstream calls and publishes only afte
     if (url.pathname.endsWith("/ETF/list")) return Response.json(etfCatalog);
     return Response.json(url.href === CATALOG_URL ? companies : url.pathname.includes("T86") ? flows : prices);
   };
-  for (; currentMinute < 72; currentMinute++) {
+  for (; currentMinute < 11; currentMinute++) {
     await syncMarket({ MARKET_DATA: kv }, { now: new Date(Date.UTC(2026, 9, 16, 13, currentMinute)), fetcher });
-    if (currentMinute < 68) assert.equal(kv.data.has(MANIFEST_KEY), false);
+    if (currentMinute < 10) assert.equal(kv.data.has(MANIFEST_KEY), false);
   }
   assert.deepEqual(calls.map((call) => call.minute), [0, 1, 2, 3]);
   assert.equal(calls.length, 4);
@@ -316,6 +316,6 @@ test("a failed KV shard write keeps the old market public and resumes at its che
   assert.ok(kv.deletes.includes(shardKey("older-retired", 0)));
   assert.ok(!kv.deletes.some((key) => key.startsWith("twse:v2:old-active:")));
   assert.equal((await syncMarket({ MARKET_DATA: kv }, { ...options, now: new Date("2026-10-16T13:05:00Z") })).nextShard, 1);
-  assert.equal((await syncMarket({ MARKET_DATA: kv }, { ...options, now: new Date("2026-10-16T13:35:00Z") })).nextShard, 3);
+  assert.equal((await syncMarket({ MARKET_DATA: kv }, { ...options, now: new Date("2026-10-16T13:35:00Z") })).nextShard, 33);
   assert.equal((await kv.get(MANIFEST_KEY, "json")).generation, "old-active");
 });

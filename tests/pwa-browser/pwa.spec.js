@@ -57,3 +57,20 @@ test("returning to a backgrounded app checks for a service worker update", async
   });
   await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBeGreaterThan(0);
 });
+
+test("standalone app shows the branded launch animation once per session", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
+    if (!sessionStorage.getItem("splash-test-ready")) {
+      sessionStorage.removeItem("stock-insight-splash-seen");
+      sessionStorage.setItem("splash-test-ready", "1");
+    }
+  });
+  await page.goto("/");
+  const splash = page.locator("#app-splash");
+  await expect(splash).toBeVisible();
+  await expect(splash).toContainText("株研");
+  await expect(splash).toHaveCount(0, { timeout: 2_000 });
+  await page.reload();
+  await expect(page.locator("#app-splash")).toBeHidden();
+});

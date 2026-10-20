@@ -62,7 +62,7 @@ test("favorite institution cards and their details keep money primary when inter
 });
 
 test("sector ranking and TOP1 follow money when net share volume has the opposite sign", async ({ page }) => {
-  await page.route("**/src/provider.js", (route) => route.fulfill({ contentType: "application/javascript",
+  await page.route("**/src/provider.js*", (route) => route.fulfill({ contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
       export async function loadDataset() {
         const data = await demoProvider.load();

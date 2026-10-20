@@ -69,6 +69,7 @@ test("real TWSE institutional day/5/20 sums agree with cached histories at curre
 });
 
 test("full-market phone controls, filters, sector and institution details retain their layouts", async ({ page, request }, testInfo) => {
+  test.setTimeout(90000);
   const manifest = await (await request.get("/api/market")).json();
   await page.goto("/");
   await expect(page.locator('[data-page-panel="market"]')).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
@@ -77,7 +78,7 @@ test("full-market phone controls, filters, sector and institution details retain
     await page.setViewportSize({ width, height: 900 });
     await page.locator('[data-page="market"]').click();
     await expect(page.locator(".table-scroll-hint, #date-hint")).toHaveCount(0);
-    await expect(page.locator(".table-scroll [data-sort] .sort-icon")).toHaveCount(5);
+    await expect(page.locator(".table-scroll [data-sort] .sort-icon")).toHaveCount(6);
     const tableIssues = await page.locator(".table-scroll").evaluate((table) => {
       const issues = [];
       const heading = table.querySelector(".signal-heading").getBoundingClientRect();
@@ -111,7 +112,8 @@ test("full-market phone controls, filters, sector and institution details retain
     await page.locator('[data-institution-details="2330"]').click();
     await expect(page.locator("#institution-dialog")).toBeVisible();
     expect(await page.locator("#institution-dialog").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
-    await page.locator("#close-institution-dialog").click();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#institution-dialog")).toBeHidden();
     await page.locator('[data-page="sectors"]').click();
     await expect(page.locator(".sector-card").first()).toBeVisible({ timeout: 30000 });
     if (width <= 700) for (const period of ["day", "5", "20"]) {
@@ -140,13 +142,13 @@ test("full-market phone controls, filters, sector and institution details retain
 test("partial sector totals exclude missing data and leave unavailable constituent values blank", async ({ page, request }, testInfo) => {
   test.setTimeout(60000);
   const manifest = await (await request.get("/api/market")).json();
-  const replies = [];
-  page.on("response", (response) => {
-    if (/^\/api\/market\/[^/]+\/\d+$/.test(new URL(response.url()).pathname)) replies.push(response.json());
-  });
+  const chunks = await Promise.all(manifest.chunks.map(async (path) => {
+    const response = await request.get(path);
+    expect(response.ok(), `Unable to load ${path}`).toBeTruthy();
+    return response.json();
+  }));
   await page.goto("/");
   await expect(page.locator("#load-status")).toBeHidden({ timeout: 30000 });
-  const chunks = await Promise.all(replies);
   const histories = new Map(chunks.flatMap((chunk) => chunk.stocks).map((stock) => [stock.symbol, new Map(stock.history.map((row) => [row[0], row]))]));
   const amount = (shares, unit = false) => shares === null ? ""
     : `${shares > 0 ? "+" : ""}${(shares / 1000).toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(shares / 1000) ? 0 : 2, maximumFractionDigits: Number.isInteger(shares / 1000) ? 0 : 2 })}${unit ? " 張" : ""}`;

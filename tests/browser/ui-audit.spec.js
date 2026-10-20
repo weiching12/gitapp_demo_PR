@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { demoProvider } from "../../src/data.js";
 
 async function loadMarket(page, count = 150, initialCount = 30) {
-  await page.route("**/src/provider.js", (route) => route.fulfill({
+  await page.route("**/src/provider.js*", (route) => route.fulfill({
     contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
       export async function loadDataset() {
@@ -92,8 +92,13 @@ test("market filters and empty results keep page and column widths stable with n
       await page.setViewportSize({ width, height: 900 });
       await page.locator('[data-view="all"]').click();
       const original = await measure();
-      if (width > 700)
-        expect(original.columns[5][1], 'Technical descriptions need more width than stock names').toBeGreaterThan(original.columns[1][1] * 1.5);
+      if (width > 700) {
+        const widths = await page.locator(".table-scroll").evaluate((table) => ({
+          stock: table.querySelector(".stock-column").getBoundingClientRect().width,
+          signal: table.querySelector(".signal-column").getBoundingClientRect().width,
+        }));
+        expect(widths.signal, 'Technical descriptions need more width than stock names').toBeGreaterThan(widths.stock * 1.5);
+      }
       const check = async state => {
         const current = await measure();
         expect(current.overflow, `${width}px / ${state}: page overflow`).toBe(false);
@@ -116,7 +121,7 @@ test("market filters and empty results keep page and column widths stable with n
 });
 
 test("market prices and long names fit their cells on phones and desktops", async ({ page }) => {
-  await page.route("**/src/provider.js", (route) => route.fulfill({
+  await page.route("**/src/provider.js*", (route) => route.fulfill({
     contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
       export async function loadDataset() {
@@ -149,7 +154,7 @@ test("market prices and long names fit their cells on phones and desktops", asyn
 });
 
 test("phone sector identity stays compact while amounts and percentages align for every period", async ({ page }) => {
-  await page.route("**/src/provider.js", (route) => route.fulfill({
+  await page.route("**/src/provider.js*", (route) => route.fulfill({
     contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
       export async function loadDataset() {

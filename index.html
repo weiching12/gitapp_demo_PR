@@ -15,8 +15,23 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script>
+      try {
+        if (matchMedia("(display-mode: standalone)").matches || navigator.standalone === true)
+          document.documentElement.classList.add("is-standalone");
+        if (sessionStorage.getItem("stock-insight-splash-seen"))
+          document.documentElement.classList.add("app-splash-seen");
+      } catch {}
+    </script>
   </head>
   <body>
+    <div id="app-splash" class="app-splash" aria-hidden="true">
+      <div class="app-splash-brand">
+        <svg class="app-splash-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="12"></rect><path d="M10 28V19m10 9V10m10 18V15"></path></svg>
+        <div class="app-splash-name">株研<span>STOCK INSIGHT</span></div>
+        <div class="app-splash-line"></div>
+      </div>
+    </div>
     <a class="skip-link" href="#main">跳至主要內容</a>
     <div id="app"><main class="initial-load" aria-busy="true"><p role="status">正在載入股票資料…</p></main></div>
     <script type="module" src="/src/main.js"></script>

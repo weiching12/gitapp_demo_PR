@@ -51,6 +51,7 @@ function decodeChunk(manifest, chunk, index, expected) {
 function marketDataset(manifest, stocks) {
   return { stocks, dates: manifest.dates, info: {
     mode: "twse", label: "每日收盤資料", asOf: manifest.asOf, updatedAt: manifest.updatedAt,
+    generation: manifest.generation,
     coverage: manifest.coverage,
     note: "資料來源：臺灣證券交易所。上市公司與新臺幣交易 ETF 名錄、每日收盤行情與三大法人買賣超日報；價格未還原、非即時報價。外資不含外資自營商，自營商合計自行買賣與避險。ETF 自加入日起逐日累積歷史，資料不足時不計算指標。法人買株僅統計產業個股，不含 ETF。未提供行情或法人明細時保留缺漏，不補零。",
   } };

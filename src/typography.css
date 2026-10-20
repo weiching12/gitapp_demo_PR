@@ -282,6 +282,10 @@ thead th button,
   .search-box input {
     font-size: var(--text-secondary);
   }
+  .filter-tabs button.active,
+  .overview-tabs [aria-selected="true"] {
+    font-weight: 700;
+  }
   .sector-sort-tabs button,
   .sector-period button {
     font-size: var(--text-secondary);

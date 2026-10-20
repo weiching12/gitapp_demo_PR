@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("missing institution windows do not contribute to totals, coverage or ranking while real zero stays valid", async ({ page }) => {
-  await page.route("**/src/provider.js", (route) => route.fulfill({ contentType: "application/javascript",
+  await page.route("**/src/provider.js*", (route) => route.fulfill({ contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
       export async function loadDataset() {
         const data = await demoProvider.load();
@@ -69,8 +69,10 @@ test("missing institution windows do not contribute to totals, coverage or ranki
   }
   await page.locator('[data-page="market"]').click();
   const row = page.locator('#stock-rows [data-symbol="9003"]');
-  await expect(row.locator('.institution-net')).toHaveText("");
-  await expect(row.locator('.institution-leader')).toHaveText("");
+  await expect(row.locator('.net-cell-mobile .institution-net')).toHaveText("");
+  await expect(row.locator('.net-cell-desktop .institution-net')).toHaveText("");
+  await expect(row.locator('.net-cell-mobile .institution-leader')).toHaveText("");
+  await expect(row.locator('.net-cell-desktop .institution-leader')).toHaveText("");
   await row.locator('[data-favorite]').click();
   await page.locator('[data-page="favorites"]').click();
   await page.locator('[data-overview="institutions"]').click();

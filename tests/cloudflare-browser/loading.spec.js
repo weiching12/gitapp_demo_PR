@@ -38,7 +38,7 @@ test("shell and usable rows appear before completion without losing filters, fav
     const row = page.locator('#stock-rows [data-symbol="2330"]');
     await expect(row).toBeVisible();
     await expect(page.locator('#stock-rows [data-symbol="3026"]')).toHaveAttribute("aria-busy", "true");
-    await expect(page.locator('#stock-rows [data-symbol="3026"] .loading-spinner')).toHaveCount(6);
+    await expect(page.locator('#stock-rows [data-symbol="3026"] .loading-spinner')).toHaveCount(7);
     await page.screenshot({ path: testInfo.outputPath("field-icons-390.png") });
     await expect(page.locator("#load-status")).toBeHidden();
     await expect(page.locator("#table-empty")).toBeHidden();

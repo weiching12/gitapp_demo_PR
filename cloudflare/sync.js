@@ -6,6 +6,7 @@ import { acceptedT86, syncT86 } from "./t86-sync.js";
 import { t86FlowReport } from "./t86-validator.js";
 
 const put = (kv, key, value) => kv.put(key, JSON.stringify(value));
+export const SHARDS_PER_TICK = 32;
 
 export function syncSlot(now) {
   const local = new Date(now.getTime() + 28800000);
@@ -34,7 +35,8 @@ export function scheduledDates(manifest, through, checkedThrough) {
 }
 
 /** One phase per minute, one whole-market upstream call at most per invocation.
- * Two small history shards per subsequent invocation keep CPU/memory bounded.
+ * Thirty-two history shards per subsequent invocation publish a normal daily
+ * generation within ten minutes while retaining resumable checkpoints.
  * The public manifest switches only after all immutable shards have been written.
  */
 export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86Store } = {}) {
@@ -134,7 +136,7 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
         kv.get(stageKey(state.generation, "catalog"), "json"), kv.get(stageKey(state.generation, "days"), "json"),
       ]);
       if (!catalog || !days?.length) throw new Error("Staged market days not visible yet");
-      for (let count = 0; count < 2 && state.nextShard < SHARD_COUNT; count++) {
+      for (let count = 0; count < SHARDS_PER_TICK && state.nextShard < SHARD_COUNT; count++) {
         const index = state.nextShard;
         const previous = manifest ? await kv.get(shardKey(manifest.generation, index), "json") : null;
         if (manifest && !previous) throw new Error("Last good history shard unavailable; do not replace it with one day");

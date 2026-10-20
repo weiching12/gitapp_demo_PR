@@ -234,20 +234,36 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
     expect(columns.offset).toBeCloseTo(0, 0);
     await expect(page.locator('[data-sort-heading="close"]')).toContainText("收盤／漲跌");
     await expect(page.locator('#stock-rows tr').first().locator(".mobile-change")).toBeVisible();
+    await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-net")).toContainText("億");
+    await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-lots")).toContainText("張");
+    await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-leader")).toBeVisible();
     const mergedChange = await page.locator('#stock-rows tr').first().evaluate((row) => {
       const volume = getComputedStyle(row.querySelector(".stock-volume"));
       const change = getComputedStyle(row.querySelector(".mobile-change"));
+      const close = getComputedStyle(row.querySelector(".stock-close"));
+      const net = getComputedStyle(row.querySelector(".net-cell-mobile .institution-net"));
+      const lots = getComputedStyle(row.querySelector(".net-cell-mobile .institution-lots"));
+      const closeBox = row.querySelector(".stock-close").getBoundingClientRect();
+      const changeBox = row.querySelector(".mobile-change").getBoundingClientRect();
       return {
         oldColumnWidth: row.querySelector(".change-cell").getBoundingClientRect().width,
         fontSize: [change.fontSize, volume.fontSize],
         fontWeight: [change.fontWeight, volume.fontWeight],
         lineHeight: [change.lineHeight, volume.lineHeight],
+        primary: [close.fontSize, close.fontWeight, close.lineHeight, close.display],
+        institutionPrimary: [net.fontSize, net.fontWeight, net.lineHeight, net.display],
+        secondary: [volume.fontSize, volume.fontWeight, volume.lineHeight, volume.marginTop],
+        institutionSecondary: [lots.fontSize, lots.fontWeight, lots.lineHeight, lots.marginTop],
+        priceIsStacked: changeBox.top >= closeBox.bottom,
       };
     });
     expect(mergedChange.oldColumnWidth).toBe(0);
     expect(new Set(mergedChange.fontSize).size).toBe(1);
     expect(new Set(mergedChange.fontWeight).size).toBe(1);
     expect(new Set(mergedChange.lineHeight).size).toBe(1);
+    expect(mergedChange.institutionPrimary).toEqual(mergedChange.primary);
+    expect(mergedChange.institutionSecondary).toEqual(mergedChange.secondary);
+    expect(mergedChange.priceIsStacked).toBe(true);
     await page.locator(".table-scroll").evaluate((element) => { element.scrollLeft = 0; });
     const issues = await page.locator(".table-scroll").evaluate((element) => {
       const rightEdge = element.getBoundingClientRect().right;
@@ -374,6 +390,13 @@ test("technical suggestions explain each stock on the selected historical date",
   await page.locator('#stock-rows [data-favorite="2603"]').click();
   await openPage(page, "favorites");
   await expect(cardFor(page, "2603").locator(".signal-badge")).toHaveText("反彈觀察");
+});
+
+test("technical and seasonal-position badges use borderless color fills", async ({ page }) => {
+  const signal = page.locator("#stock-rows .signal-badge").first();
+  const position = page.locator("#stock-rows .position-tag").first();
+  await expect(signal).toHaveCSS("border-top-width", "0px");
+  await expect(position).toHaveCSS("border-top-width", "0px");
 });
 
 test("desktop overview screenshot and keyboard search shortcut", async ({ page }, testInfo) => {
@@ -869,7 +892,7 @@ test("market headings use clean sort icons and compact phone date controls", asy
   await openPage(page, "market");
   await expect(page.locator(".table-scroll-hint, #date-hint")).toHaveCount(0);
   await expect(page.locator("#trade-date")).not.toHaveAttribute("aria-describedby", "date-hint");
-  await expect(page.locator(".table-scroll [data-sort] svg.sort-icon")).toHaveCount(5);
+  await expect(page.locator(".table-scroll [data-sort] svg.sort-icon")).toHaveCount(6);
   await expect(page.locator(".table-scroll thead")).not.toContainText("↕");
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -890,13 +913,34 @@ test("market headings use clean sort icons and compact phone date controls", asy
       expect(placement.gap).toBeGreaterThanOrEqual(4);
       expect(placement.overlap).toBeGreaterThan(10);
       expect(placement.titleHeight).toBeLessThanOrEqual(24);
+      await expect(page.locator('.filter-tabs [data-view="all"] .filter-label-mobile')).toBeVisible();
+      await expect(page.locator('.filter-tabs [data-view="all"] .filter-label-mobile')).toHaveText("全部");
+      await expect(page.locator('.filter-tabs [data-view="favorites"] .filter-label-mobile')).toHaveText("自選");
+      await expect(page.locator('.filter-tabs [data-view="all"]')).toHaveCSS("font-weight", "700");
+      await expect(page.locator(".net-heading-mobile")).toBeVisible();
+      await expect(page.locator(".net-heading-desktop")).toBeHidden();
+      const firstScreenColumns = await page.evaluate(() => {
+        const viewport = document.querySelector(".table-scroll").getBoundingClientRect();
+        const stock = document.querySelector(".table-scroll thead th:nth-child(2)").getBoundingClientRect();
+        const close = document.querySelector('[data-sort-heading="close"]').getBoundingClientRect();
+        const net = document.querySelector(".net-heading-mobile").getBoundingClientRect();
+        return { order: [stock.left, close.left, net.left], netRight: net.right, viewportRight: viewport.right };
+      });
+      expect(firstScreenColumns.order[0]).toBeLessThan(firstScreenColumns.order[1]);
+      expect(firstScreenColumns.order[1]).toBeLessThan(firstScreenColumns.order[2]);
+      expect(firstScreenColumns.netRight).toBeCloseTo(firstScreenColumns.viewportRight, 0);
     } else {
+      await expect(page.locator(".net-heading-mobile")).toBeHidden();
+      await expect(page.locator(".net-heading-desktop")).toBeVisible();
       await expect(note).toBeVisible();
       await expect(page.locator('.signal-note [data-dialog="signals"]')).toBeVisible();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     if (width === 390) await page.screenshot({ path: testInfo.outputPath("market-heading-390.png") });
   }
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.locator('.filter-tabs [data-view="favorites"]').click();
+  await expect(page.locator('.filter-tabs [data-view="favorites"]')).toHaveCSS("font-weight", "700");
   const heading = page.locator('[data-sort-heading="close"]');
   await heading.locator("button").click();
   await expect(heading).toHaveAttribute("aria-sort", "descending");
@@ -1147,6 +1191,24 @@ test("primary navigation keeps market, favorites and sectors as separate pages",
   await expect(page.locator(".stocks-panel")).toBeVisible();
   await expect(page.locator("#page-title")).toContainText("市場觀察清單");
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test("page titles keep one anchor across market, favorites and sector pages", async ({ page }) => {
+  for (const width of [320, 390, 700]) {
+    await page.setViewportSize({ width, height: 900 });
+    const positions = [];
+    for (const name of ["market", "favorites", "sectors"]) {
+      await openPage(page, name);
+      await settleLayout(page);
+      const box = await page.locator("#page-title").boundingBox();
+      positions.push({ name, x: box.x, y: box.y });
+    }
+    const comparisons = width === 320 ? positions.filter(({ name }) => name === "sectors") : positions.slice(1);
+    for (const position of comparisons) {
+      expect(Math.abs(position.x - positions[0].x), `${position.name} title x at ${width}px`).toBeLessThanOrEqual(1);
+      expect(Math.abs(position.y - positions[0].y), `${position.name} title y at ${width}px`).toBeLessThanOrEqual(1);
+    }
+  }
 });
 
 test("phone and tablet controls remain touch-sized with readable sticky navigation and pinned stock columns", async ({ page }, testInfo) => {

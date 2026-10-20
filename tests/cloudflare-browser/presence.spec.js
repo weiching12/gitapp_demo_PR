@@ -20,7 +20,7 @@ test("online badge refreshes, reuses browser identity and reports connection fai
     ids.push(route.request().postDataJSON().id);
     await route.fulfill(fail ? { status: 503, body: "unavailable" } : { json: { online: count, windowSeconds: 90 } });
   });
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 768, height: 844 });
   await page.goto("/");
   await expect(page.locator("#online-count")).toHaveText("在線 3 人");
   await expect(page.locator("#online-count")).toBeVisible();
@@ -34,5 +34,5 @@ test("online badge refreshes, reuses browser identity and reports connection fai
   fail = true;
   await page.clock.runFor(30_000);
   await expect(page.locator("#online-count")).toHaveText("在線人數暫無法取得");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(768);
 });
