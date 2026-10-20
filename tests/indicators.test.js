@@ -45,6 +45,7 @@ test("sector leaders follow aggregate buy or sell direction, independent of page
   assert.deepEqual(getDirectionalLeader(candidates, -20), { stock: "strong-seller", value: -45 });
   assert.deepEqual(getDirectionalLeader(candidates, 0), { stock: "strong-buyer", value: 80 });
   assert.deepEqual(getDirectionalLeader([{ stock: "missing", value: null }], null), { stock: null, value: null });
+  assert.deepEqual(getDirectionalLeader(candidates, null), { stock: null, value: null });
 });
 const bar = (close, date = "2026-10-01") => ({
   date,
@@ -102,6 +103,29 @@ test("sectors with no available values remain unknown, while fully observed zero
   }
   const zero = getSnapshot({ history: [{ ...bar(20), institutions: bar(20).institutions.map((row) => ({ ...row, buy: 0, sell: 0 })) }] }, "2026-10-01");
   assert.equal(getSectorInstitutionSummary([zero], "day").total, 0);
+});
+
+test("sector share totals and coverage exclude the same missing-price and missing-flow windows as money", () => {
+  const dates = Array.from({ length: 20 }, (_, i) => `2026-09-${String(i + 1).padStart(2, "0")}`);
+  const history = dates.map((date) => bar(20, date));
+  const flowGap = structuredClone(history), priceGap = structuredClone(history);
+  flowGap.at(-2).institutions = [];
+  priceGap.at(-2).close = 0;
+  const zero = history.map((row) => ({ ...row,
+    institutions: row.institutions.map((item) => ({ ...item, buy: 0, sell: 0 })),
+  }));
+  const stocks = [history, flowGap, priceGap, zero].map((rows) =>
+    getSnapshot({ history: rows, tradingDates: dates }, dates.at(-1)));
+  for (const [window, available, total] of [["day", 4, 6000], ["5", 2, 10000], ["20", 2, 40000]]) {
+    const summary = getSectorInstitutionSummary(stocks, window, dates);
+    const estimate = getSectorInstitutionEstimate(stocks, window, dates);
+    assert.equal(summary.available, available);
+    assert.equal(summary.expected, 4);
+    assert.equal(summary.available, estimate.available);
+    assert.equal(summary.total, total);
+    assert.equal(summary.total, summary.外資 + summary.投信 + summary.自營商);
+    assert.equal(estimate.amount, total * 20);
+  }
 });
 
 test("sector monetary estimates weight each day's shares by that day's price", () => {

@@ -83,6 +83,7 @@ export function getDominantInstitution(institutions) {
 
 /** Pick the strongest same-direction stock for an aggregate sector flow. */
 export function getDirectionalLeader(candidates, total) {
+  if (!Number.isFinite(total)) return { stock: null, value: null };
   let leader = null;
   const direction = total < 0 ? 1 : -1;
   for (const candidate of candidates) {
@@ -124,9 +125,11 @@ export function getStockInstitutionValue(stock, name, window) {
 /** Use one complete-stock cohort for the total and all three institutions.
  * Missing sessions stay unknown; a stock contributes only its full window.
  */
-export function getSectorInstitutionSummary(stocks, window) {
+export function getSectorInstitutionSummary(stocks, window, tradingDates) {
   const names = ["total", "外資", "投信", "自營商"];
-  const rows = stocks.map((stock) => names.map((name) => getStockInstitutionValue(stock, name, window)))
+  const rows = stocks
+    .filter((stock) => !tradingDates || Number.isFinite(getStockInstitutionEstimate(stock, "total", window, tradingDates)))
+    .map((stock) => names.map((name) => getStockInstitutionValue(stock, name, window)))
     .filter((values) => values.every(Number.isFinite));
   return { available: rows.length, expected: stocks.length,
     ...Object.fromEntries(names.map((name, index) => [name,

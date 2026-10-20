@@ -223,10 +223,8 @@ thead th button,
 .sidebar-note p {
   font-size: var(--text-body);
 }
-.sector-coverage { font-size: var(--text-meta); }
 .sector-breadth,
 .institution-volume-ratio,
-.institution-chart-empty,
 .sector-detail-heading .sector-chart-note {
   font-size: var(--text-meta);
   font-weight: 400;

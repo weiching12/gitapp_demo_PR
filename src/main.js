@@ -59,26 +59,27 @@ const direction = (value) =>
 const percent = (value) =>
   value === null || value === undefined ? "—" : `${signed(value)}%`;
 const institutionalAmount = (value) => value === null
-  ? "資料不足"
+  ? ""
   : `${signed(value / 1000, Number.isInteger(value / 1000) ? 0 : 2)} 張`;
-const institutionalMoney = (value) => value === null ? "資料不足" : `${signed(value / 100000000)} 億`;
+const institutionalMoney = (value) => value === null ? "" : `${signed(value / 100000000)} 億`;
 const stockMoney = (stock, name, window, asOf = state.date) => getStockInstitutionEstimate(stock, name, window,
   dataset.dates.filter((date) => date <= asOf));
 const institutionalFigures = (amount, shares, moneyAttribute = "", sharesAttribute = "") =>
   `<strong class="institution-money ${direction(amount)}" ${moneyAttribute}>${institutionalMoney(amount)}</strong><small class="institution-lots" ${sharesAttribute}>${institutionalAmount(shares)}</small>`;
 function institutionSparkline(stock, tradingDates) {
   const series = getStockInstitutionSeries(stock, tradingDates);
-  if (!series.length) return '<small class="institution-chart-empty">近 5 日資料不足</small>';
+  if (!series.some(({ amount }) => Number.isFinite(amount))) return "";
   const max = Math.max(1, ...series.map(({ amount }) => Math.abs(amount ?? 0)));
-  const description = series.map(({ date, amount }) => `${date} ${institutionalMoney(amount)}`).join("；");
+  const description = series.filter(({ amount }) => Number.isFinite(amount)).map(({ date, amount }) => `${date} ${institutionalMoney(amount)}`).join("；");
   return `<span class="institution-sparkline" role="img" aria-label="近 5 個交易日每日法人淨買賣超金額，由左至右由舊至新；各股獨立比例尺。${esc(description)}"><svg viewBox="0 0 100 36" aria-hidden="true"><line x1="0" y1="18" x2="100" y2="18"/>${series.map(({ date, amount }, index) => {
-    const height = amount === null ? 4 : amount === 0 ? 1 : Math.max(1, Math.abs(amount) / max * 16);
-    const y = amount === null ? 16 : amount === 0 ? 17.5 : amount > 0 ? 18 - height : 18;
-    return `<rect class="${amount === null ? "unknown" : direction(amount)}" data-flow-date="${date}" data-flow-amount="${amount ?? ""}" x="${8 + index * 18}" y="${y}" width="12" height="${height}" rx="1"><title>${date} ${institutionalMoney(amount)}</title></rect>`;
+    if (amount === null) return "";
+    const height = amount === 0 ? 1 : Math.max(1, Math.abs(amount) / max * 16);
+    const y = amount === 0 ? 17.5 : amount > 0 ? 18 - height : 18;
+    return `<rect class="${direction(amount)}" data-flow-date="${date}" data-flow-amount="${amount}" x="${8 + index * 18}" y="${y}" width="12" height="${height}" rx="1"><title>${date} ${institutionalMoney(amount)}</title></rect>`;
   }).join("")}</svg></span>`;
 }
 const institutionalStreak = ({ direction, days, atLeast }) => {
-  if (direction === "unknown") return "資料不足";
+  if (direction === "unknown") return "";
   if (direction === "neutral") return "當日持平";
   return `${atLeast ? "至少" : ""}連${direction === "buy" ? "買" : "賣"}${days}日`;
 };
@@ -547,9 +548,6 @@ function updateInstitutionOverviewWindow() {
   });
 }
 
-const sectorCoverage = ({ available, expected }) => available < expected
-  ? `<p class="sector-coverage" data-sector-coverage>已統計 ${available}／${expected} 檔，部分資料缺漏</p>` : "";
-
 function renderSectorOverview() {
   if (loading || loadFailed) {
     document.querySelector("#sector-grid").replaceChildren();
@@ -571,7 +569,7 @@ function renderSectorOverview() {
   const sectors = [...groups].map(([name, stocks]) => {
     const priced = stocks.filter((stock) => stock.latest);
     const returns = priced.map(stockReturn).filter(Number.isFinite);
-    const summary = getSectorInstitutionSummary(stocks, state.sectorWindow);
+    const summary = getSectorInstitutionSummary(stocks, state.sectorWindow, dataset.dates);
     return {
       name,
       stocks,
@@ -596,7 +594,8 @@ function renderSectorOverview() {
   document.querySelector("#sector-change-label").textContent = days === 1
     ? "當日平均漲跌" : `${days} 日平均漲跌`;
   const maxAmount = Math.max(1, ...sectors.map((sector) => Math.abs(sector.estimate.amount ?? 0)));
-  document.querySelector("#sector-grid").innerHTML = sectors.map((sector, index) => {
+  let rank = 0;
+  document.querySelector("#sector-grid").innerHTML = sectors.map((sector) => {
     const candidates = sector.stocks.map((stock) => ({
       stock,
       value: stockMoney(stock, "total", state.sectorWindow, dataset.info.asOf),
@@ -604,9 +603,10 @@ function renderSectorOverview() {
     const { stock: leader, value: leaderValue } = getDirectionalLeader(candidates, sector.estimate.amount);
     const periodLabel = days === 1 ? "" : `${days} 日 `;
     const leaderChange = leader ? stockReturn(leader) : null;
-    const leaderText = leaderValue === null ? "資料不足" : `TOP1·${leader.name}`;
-    const barWidth = `${Math.max(4, Math.round((Math.abs(sector.estimate.amount ?? 0) / maxAmount) * 100))}%`;
-    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${index + 1}</span><span class="sector-marker ${direction(sector.estimate.amount)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel}<span>${esc(leaderText)}</span> <span class="${direction(leaderChange)}">${percent(leaderChange)}</span></p><small class="sector-breadth" data-sector-breadth title="所選區間淨買賣超金額為正的家數／金額資料完整的有效家數">買超 ${sector.estimate.available ? sector.estimate.buying : "—"}／${sector.estimate.available} 檔</small></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total">${institutionalFigures(sector.estimate.amount, sector.total, 'data-sector-amount', 'data-sector-lots')}<i class="${direction(sector.estimate.amount)}" style="--sector-bar:${barWidth}"></i></div></div>${sectorCoverage(sector.summary)}</article>`;
+    const leaderText = leaderValue === null ? "" : `TOP1·${leader.name}`;
+    const ranked = Number.isFinite(sector.estimate.amount);
+    const bar = ranked ? `<i class="${direction(sector.estimate.amount)}" style="--sector-bar:${Math.max(4, Math.round((Math.abs(sector.estimate.amount) / maxAmount) * 100))}%"></i>` : "";
+    return `<article class="sector-card" data-sector-name="${esc(sector.name)}" data-sector-details="${esc(sector.name)}" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="sector-dialog" aria-label="查看${esc(sector.name)}產業個股與法人買賣超"><div class="sector-main"><span class="sector-rank">${ranked ? ++rank : ""}</span><span class="sector-marker ${direction(sector.estimate.amount)}"></span><div class="sector-identity"><h3>${esc(sector.name)}</h3><p>${periodLabel}<span>${esc(leaderText)}</span> <span class="${direction(leaderChange)}">${leader ? percent(leaderChange) : ""}</span></p><small class="sector-breadth" data-sector-breadth title="所選區間淨買賣超金額為正的家數／金額資料完整的有效家數">${sector.estimate.available ? `買超 ${sector.estimate.buying}／${sector.estimate.available} 檔` : ""}</small></div><strong class="sector-change ${direction(sector.change)}">${percent(sector.change)}</strong><div class="sector-total">${institutionalFigures(sector.estimate.amount, sector.total, 'data-sector-amount', 'data-sector-lots')}${bar}</div></div></article>`;
   }).join("");
   if (document.querySelector("#sector-dialog")?.open) renderSectorDialog(state.sectorName);
 }
@@ -631,10 +631,10 @@ function renderSectorDialog(name) {
     <section class="sector-detail-summary" aria-labelledby="sector-summary-heading">
       <div class="sector-detail-heading"><div><h3 id="sector-summary-heading">法人淨買賣超金額</h3><p>當日與近 5／20 個交易日累計；金額：億，張數為輔</p></div></div>
       <div class="sector-summary-grid">${periods.map(([key, label]) => {
-        const summary = getSectorInstitutionSummary(stocks, key);
+        const summary = getSectorInstitutionSummary(stocks, key, dataset.dates);
         const total = summary.total;
         const amount = getSectorInstitutionEstimate(stocks, key, dataset.dates).amount;
-        return `<article class="sector-summary-period" data-sector-period="${key}" aria-label="${label}法人買賣超"><header><h4>${label}</h4><div class="sector-summary-values">${institutionalFigures(amount, total, 'data-sector-money="total"', 'data-sector-summary="total"')}</div></header>${sectorCoverage(summary)}<dl>${["外資", "投信", "自營商"].map((institution) => {
+        return `<article class="sector-summary-period" data-sector-period="${key}" aria-label="${label}法人買賣超"><header><h4>${label}</h4><div class="sector-summary-values">${institutionalFigures(amount, total, 'data-sector-money="total"', 'data-sector-summary="total"')}</div></header><dl>${["外資", "投信", "自營商"].map((institution) => {
           const value = summary[institution];
           const money = getSectorInstitutionEstimate(stocks, key, dataset.dates, institution).amount;
           return `<div><dt>${institution}</dt><dd>${institutionalFigures(money, value, `data-sector-money="${institution}"`, `data-sector-summary="${institution}"`)}</dd></div>`;
@@ -642,13 +642,13 @@ function renderSectorDialog(name) {
       }).join("")}</div>
     </section>
     <section class="sector-stock-section" aria-labelledby="sector-stock-heading">
-      <div class="sector-detail-heading"><div><h3 id="sector-stock-heading">產業個股</h3><p>依當日淨買賣超金額排序；金額：億，張數為輔</p><p class="sector-chart-note">5 日柱圖：每日淨額，左舊右新、各股獨立比例尺；空心為缺漏。法人占量＝當日淨買賣超股數／成交股數。</p></div></div>
+      <div class="sector-detail-heading"><div><h3 id="sector-stock-heading">產業個股</h3><p>依當日淨買賣超金額排序；金額：億，張數為輔</p><p class="sector-chart-note">5 日柱圖：每日淨額，左舊右新、各股獨立比例尺。法人占量＝當日淨買賣超股數／成交股數。</p></div></div>
       <div class="sector-stock-scroll" tabindex="0" role="region" aria-label="${esc(name)}個股股價與法人買賣超">
         <table class="sector-stock-table"><caption class="sr-only">${esc(name)}各股最新收盤價、日漲跌幅及當日、5 日、20 日法人淨買賣超金額（億）與張數（張）</caption><colgroup><col class="sector-stock-name-column"><col class="sector-stock-price-column">${periods.map(() => '<col class="sector-stock-net-column">').join("")}</colgroup><thead><tr><th scope="col">股票</th><th scope="col">收盤價／日漲跌</th>${periods.map(([, label]) => `<th scope="col">${label}金額／張數</th>`).join("")}</tr></thead><tbody>${members.map(({ stock }) => `<tr data-sector-stock="${stock.symbol}"><th scope="row"><span class="sector-stock-name"><strong>${esc(stock.name)}</strong><small>${stock.symbol}</small></span></th><td class="sector-stock-price"><span class="sector-stock-close">${number(stock.latest?.close, 2)}</span><small class="sector-stock-change ${direction(stock.latest?.changePercent)}">${percent(stock.latest?.changePercent)}</small></td>${periods.map(([key, label]) => {
           const value = stockInstitutionValue(stock, "total", key);
           const ratio = key === "day" ? getInstitutionVolumeRatio(stock.latest) : null;
           const extra = key === "day"
-            ? `<small class="institution-volume-ratio" data-institution-ratio title="當日三大法人淨買賣超股數 ÷ 當日成交股數 × 100%">法人占量 <span class="${direction(ratio)}">${ratio === null ? "資料不足" : percent(ratio)}</span></small>`
+            ? `<small class="institution-volume-ratio" data-institution-ratio title="當日三大法人淨買賣超股數 ÷ 當日成交股數 × 100%">${ratio === null ? "" : `法人占量 <span class="${direction(ratio)}">${percent(ratio)}</span>`}</small>`
             : key === "5" ? institutionSparkline(stock, tradingDates) : "";
           return `<td class="sector-stock-net" data-sector-net="${key}"><span class="sector-stock-period-label" aria-hidden="true">${label}</span>${institutionalFigures(stockMoney(stock, "total", key, dataset.info.asOf), value)}${extra}</td>`;
         }).join("")}</tr>`).join("")}</tbody></table>
@@ -674,7 +674,7 @@ function institutionalDetails(stock) {
   const sell = bar.institutionalNet === null ? null : bar.institutions.reduce((sum, item) => sum + item.sell, 0);
   const max = Math.max(...bar.institutions.flatMap((item) => [item.buy, item.sell]), 1);
   return `<section class="watch-flow" data-institution-symbol="${stock.symbol}" aria-label="${esc(stock.name)}三大法人動向"><div class="watch-flow-heading"><h3>買賣超金額與累計</h3><span>金額：億；張數為輔</span></div>
-        <div class="institution-summary"><div class="watch-flow-total"><div><span>合計買賣超</span>${institutionalFigures(stockMoney(stock, "total", "day"), bar.institutionalNet)}</div><div class="watch-flow-amounts"><span>買進 ${buy === null ? "—" : number(buy / 1000)} 張</span><span>賣出 ${sell === null ? "—" : number(sell / 1000)} 張</span></div></div>
+        <div class="institution-summary"><div class="watch-flow-total"><div><span>合計買賣超</span>${institutionalFigures(stockMoney(stock, "total", "day"), bar.institutionalNet)}</div><div class="watch-flow-amounts"><span>${buy === null ? "" : `買進 ${number(buy / 1000)} 張`}</span><span>${sell === null ? "" : `賣出 ${number(sell / 1000)} 張`}</span></div></div>
         <div class="watch-total-history" aria-label="三大法人累計買賣超">${institutionalHistory(institutionalSummary.total, stock)}</div></div><p class="watch-history-note">累計含資料日；金額按每日收盤價換算，非實際成交金額</p>
         <div class="watch-flow-legend"><span><i class="buy-key"></i>買進</span><span><i class="sell-key"></i>賣出</span><span>右側為買賣超</span></div>
         <div class="watch-institutions">${bar.institutions.map((item) => {
@@ -732,9 +732,9 @@ function renderTable() {
     if (!cached || cached.stock !== stock || cached.favorite !== favorite) {
       const { latest: bar, signal } = stock;
       const leader = getDominantInstitution(bar.institutions);
-      const leaderLabel = bar.institutionalNet === null ? "資料不足" : !leader ? "合計持平"
+      const leaderLabel = bar.institutionalNet === null ? "" : !leader ? "合計持平"
         : `${leader.names.join("、")}${leader.direction === "buy" ? "買超" : "賣超"}最多`;
-      const html = `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell"><span class="stock-price-line"><span class="stock-close">${number(bar.close, 2)}</span><span class="mobile-change change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}"><span class="institution-net">${bar.institutionalNet === null ? "—" : signed(bar.institutionalNet / 1000, 0)}</span><small class="institution-leader">${leaderLabel}</small></td></tr>`;
+      const html = `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell"><span class="stock-price-line"><span class="stock-close">${number(bar.close, 2)}</span><span class="mobile-change change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}"><span class="institution-net">${bar.institutionalNet === null ? "" : signed(bar.institutionalNet / 1000, 0)}</span><small class="institution-leader">${leaderLabel}</small></td></tr>`;
       const holder = document.createElement("tbody");
       holder.innerHTML = html;
       if (row) row.replaceChildren(...holder.firstElementChild.childNodes);
@@ -813,7 +813,7 @@ function openDialog(type) {
   } else if (type === "source" && !isDemo) {
     const syncNote = import.meta.env.VITE_SYNC_NOTE || "平日台灣時間 18:30、20:30 檢核全市場法人報表，驗證通過後分批更新快取，全部完成才發布；失敗保留上一份已驗證資料，基準不足時等待確認。";
     const checkedAt = new Date(dataset.info.updatedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
-    content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由臺灣證券交易所取得上市公司名錄、每日收盤行情及三大法人買賣超日報，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${dataset.stocks.length} 家上市公司（依官方名錄，含存託憑證）；不含上櫃與 ETF</dd></div><div><dt>市場報表交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>整批資料發布時間</dt><dd>${esc(checkedAt)}（台灣時間）；未提供行情的公司不列入當日排行，缺少法人明細時顯示資料不足</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>${esc(syncNote)}</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
+    content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由臺灣證券交易所取得上市公司名錄、每日收盤行情及三大法人買賣超日報，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${dataset.stocks.length} 家上市公司（依官方名錄，含存託憑證）；不含上櫃與 ETF</dd></div><div><dt>市場報表交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>整批資料發布時間</dt><dd>${esc(checkedAt)}（台灣時間）；未提供行情的公司不列入當日排行</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>${esc(syncNote)}</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
   } else if (type === "source") {
     content.innerHTML = `<h2 id="dialog-heading">資料透明，觀察才有依據。</h2><p class="dialog-intro">這是可操作的前端示範版，目前沒有連接交易所或即時行情服務。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>14 檔台灣上市、上櫃股票與 ETF 範例</dd></div><div><dt>示範資料截止日</dt><dd>${dataset.info.asOf}（固定資料，不會自動更新）</dd></div><div><dt>買賣量定義</dt><dd>外資、投信、自營商買進與賣出股數；畫面換算成張</dd></div><div><dt>指標計算方式</dt><dd>由模擬 OHLC 歷史資料在瀏覽器計算，並非硬填指標數值</dd></div><div><dt>下一階段</dt><dd>確認正式行情與三大法人資料來源，接上 API，再設定 Cloudflare 部署。</dd></div></dl><p class="helper-text">正式資料需涵蓋交易日曆、除權息還原與法人分類定義。此版資料未經還原，不能用於實際交易。</p>`;
   } else {

@@ -23,7 +23,7 @@ async function loadFixture(page) {
 
 test("sector breadth follows the selected complete monetary window", async ({ page }) => {
   await loadFixture(page);
-  for (const [period, text] of [["day", "買超 2／4 檔"], ["5", "買超 1／3 檔"], ["20", "買超 —／0 檔"]]) {
+  for (const [period, text] of [["day", "買超 2／4 檔"], ["5", "買超 1／3 檔"], ["20", ""]]) {
     await page.locator(`[data-sector-window="${period}"]`).click();
     await expect(page.locator('[data-sector-breadth]')).toHaveText(text);
   }
@@ -33,7 +33,7 @@ test("stock ratios and mini bars distinguish signed, zero and missing values", a
   await loadFixture(page);
   await page.locator('.sector-card').click();
   const row = (symbol) => page.locator(`[data-sector-stock="${symbol}"]`);
-  for (const [symbol, text] of [["9001", "法人占量 +10.00%"], ["9002", "法人占量 -20.00%"], ["9003", "法人占量 0.00%"], ["9004", "法人占量 資料不足"]])
+  for (const [symbol, text] of [["9001", "法人占量 +10.00%"], ["9002", "法人占量 -20.00%"], ["9003", "法人占量 0.00%"], ["9004", ""]])
     await expect(row(symbol).locator('[data-institution-ratio]')).toHaveText(text);
   const bars = row("9001").locator('.institution-sparkline rect');
   await expect(bars).toHaveCount(5);
@@ -41,8 +41,10 @@ test("stock ratios and mini bars distinguish signed, zero and missing values", a
     .toEqual([1200000, -400000, 0, 4000000, 2500000]);
   expect(await bars.evaluateAll((elements) => elements.map((bar) => bar.getAttribute("class"))))
     .toEqual(["up", "down", "neutral", "up", "up"]);
-  await expect(row("9004").locator('.institution-sparkline .unknown')).toHaveCount(1);
-  await expect(row("9004").locator('[data-sector-net="5"] .institution-money')).toHaveText("資料不足");
+  await expect(row("9004").locator('.institution-sparkline .unknown')).toHaveCount(0);
+  expect(await row("9004").locator('.institution-sparkline rect').evaluateAll((bars) => bars.map((bar) => bar.getAttribute("x"))))
+    .toEqual(["8", "26", "62", "80"]);
+  await expect(row("9004").locator('[data-sector-net="5"] .institution-money')).toHaveText("");
   await expect(row("9003").locator('.institution-sparkline .neutral')).toHaveCount(5);
   await expect(row("9001").locator('.institution-sparkline')).toHaveAccessibleName(/左至右由舊至新.*獨立比例尺/);
 });

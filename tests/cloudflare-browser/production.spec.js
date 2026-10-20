@@ -59,7 +59,7 @@ test("real TWSE institutional day/5/20 sums agree with cached histories at curre
           return bar?.institutions.length === 3 ? bar.institutions.reduce((n, row) => n + row.buy - row.sell, 0) : null;
         });
         const cell = page.locator(`[data-overview-symbol="${stock.symbol}"] [data-overview-net="total"]`);
-        if (dates.length !== count || values.includes(null)) await expect(cell).toHaveText("資料不足");
+        if (dates.length !== count || values.includes(null)) await expect(cell).toHaveText("");
         else expect(Math.abs(Number((await cell.innerText()).replaceAll(",", "").replace("張", "").trim()) - values.reduce((a, b) => a + b, 0) / 1000)).toBeLessThanOrEqual(0.005001);
       }
     }
@@ -133,7 +133,7 @@ test("full-market phone controls, filters, sector and institution details retain
   }
 });
 
-test("partial sector totals disclose window coverage and keep missing constituent data unknown", async ({ page, request }, testInfo) => {
+test("partial sector totals exclude missing data and leave unavailable constituent values blank", async ({ page, request }, testInfo) => {
   test.setTimeout(60000);
   const manifest = await (await request.get("/api/market")).json();
   const replies = [];
@@ -144,9 +144,9 @@ test("partial sector totals disclose window coverage and keep missing constituen
   await expect(page.locator("#load-status")).toBeHidden({ timeout: 30000 });
   const chunks = await Promise.all(replies);
   const histories = new Map(chunks.flatMap((chunk) => chunk.stocks).map((stock) => [stock.symbol, new Map(stock.history.map((row) => [row[0], row]))]));
-  const amount = (shares, unit = false) => shares === null ? "資料不足"
+  const amount = (shares, unit = false) => shares === null ? ""
     : `${shares > 0 ? "+" : ""}${(shares / 1000).toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(shares / 1000) ? 0 : 2, maximumFractionDigits: Number.isInteger(shares / 1000) ? 0 : 2 })}${unit ? " 張" : ""}`;
-  const money = (value) => value === null ? "資料不足" : `${value > 0 ? "+" : ""}${(value / 100000000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 億`;
+  const money = (value) => value === null ? "" : `${value > 0 ? "+" : ""}${(value / 100000000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 億`;
   const expected = (sector, days) => {
     const stocks = manifest.stocks.filter((stock) => stock.sector === sector);
     const dates = manifest.dates.slice(-days);
@@ -169,9 +169,7 @@ test("partial sector totals disclose window coverage and keep missing constituen
       const card = page.locator(`[data-sector-details="${sector}"]`);
       await expect(card.locator("[data-sector-lots]")).toHaveText(amount(result.total, true));
       await expect(card.locator("[data-sector-amount]")).toHaveText(money(result.money));
-      if (result.available < result.expected)
-        await expect(card.locator("[data-sector-coverage]")).toHaveText(`已統計 ${result.available}／${result.expected} 檔，部分資料缺漏`);
-      else await expect(card.locator("[data-sector-coverage]")).toHaveCount(0);
+      await expect(card.locator("[data-sector-coverage]")).toHaveCount(0);
     }
     await page.locator(`[data-sector-details="${sector}"]`).click();
     for (const [key, days] of [["day", 1], ["5", 5], ["20", 20]]) {
@@ -183,17 +181,16 @@ test("partial sector totals disclose window coverage and keep missing constituen
         await expect(summary.locator(`[data-sector-summary="${name}"]`)).toHaveText(amount(result.parts[i], true));
         await expect(summary.locator(`[data-sector-money="${name}"]`)).toHaveText(money(result.cash[i]));
       }
-      if (result.available < result.expected)
-        await expect(summary.locator("[data-sector-coverage]")).toContainText(`${result.available}／${result.expected}`);
+      await expect(summary.locator("[data-sector-coverage]")).toHaveCount(0);
     }
     if (sector === unpriced?.sector) {
       const row = page.locator(`[data-sector-stock="${unpriced.symbol}"]`);
       await expect(row.locator(".sector-stock-close")).toHaveText("—");
-      await expect(row.locator('[data-sector-net="day"] strong')).toHaveText("資料不足");
+      await expect(row.locator('[data-sector-net="day"] strong')).toHaveText("");
     }
     if (sector === "電子零組件業") {
       if (manifest.coverage.missingInstitutions.includes("4943"))
-        await expect(page.locator('[data-sector-stock="4943"] [data-sector-net="day"] strong')).toHaveText("資料不足");
+        await expect(page.locator('[data-sector-stock="4943"] [data-sector-net="day"] strong')).toHaveText("");
       for (const width of [320, 390, 1440]) {
         await page.setViewportSize({ width, height: 900 });
         expect(await page.locator("#sector-dialog").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
