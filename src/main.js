@@ -119,6 +119,7 @@ let tableVisibleLimit = TABLE_BATCH_SIZE, tableViewKey = "", tableObserver;
 let toastTimer;
 let isDemo;
 let stopPresence, previousWatchLoading, usingCachedData = false;
+let touchInteraction = false;
 const pendingSymbols = new Set();
 
 function readPreferences() {
@@ -168,7 +169,7 @@ function toast(message) {
 function shell() {
   document.querySelector("#app").innerHTML = `
     <aside class="sidebar">
-      <a class="brand" href="#main" aria-label="株研首頁"><span class="brand-mark">${icon("chart")}</span><span>株研<span class="brand-en">STOCK INSIGHT</span></span></a>
+      <a class="brand" href="#main" data-home aria-label="返回市場觀察清單頂端"><span class="brand-mark">${icon("chart")}</span><span>株研<span class="brand-en">STOCK INSIGHT</span></span></a>
       <div class="nav-caption">WORKSPACE <span>研究工作台</span></div>
       <nav aria-label="主要導覽">
         <button class="nav-item active" data-page="market" aria-label="市場觀察清單">${icon("grid")}<span class="nav-label">市場觀察清單</span><span class="nav-label-mobile" aria-hidden="true">市場</span><span class="nav-dot"></span></button>
@@ -242,7 +243,7 @@ function shell() {
       </main>
     </div>
     <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div></dialog>
-    <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向" autofocus>${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
+    <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向">${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
     <dialog id="sector-dialog" class="sector-dialog" aria-labelledby="sector-dialog-heading" aria-describedby="sector-dialog-meta"><div class="sector-dialog-handle" role="button" tabindex="0" aria-label="關閉產業明細，可向下拖曳"></div><header class="institution-dialog-top sector-dialog-top"><div><span class="eyebrow">SECTOR INSTITUTIONAL FLOWS</span><h2 id="sector-dialog-heading">產業法人買賣超</h2><p id="sector-dialog-meta"></p></div><button class="icon-button" id="close-sector-dialog" aria-label="關閉產業明細">${icon("close")}</button></header><div id="sector-dialog-content" class="sector-dialog-body"></div><footer class="institution-dialog-footer sector-dialog-footer">正值為買超、負值為賣超 · 1 張 = 1,000 股 · 僅統計目前研究標的</footer></dialog>
     <div id="toast" role="status" class="toast"></div>`;
   stopPresence?.();
@@ -742,25 +743,20 @@ function renderInstitutionDialog() {
   document.querySelector("#institution-content").innerHTML = institutionalDetails(stock);
 }
 
-function openInstitutionDialog(symbol) {
+function openInstitutionDialog(symbol, focusClose = true) {
   if (!state.favorites.includes(symbol)) return;
   state.institutionSymbol = symbol;
   renderInstitutionDialog();
   const dialog = document.querySelector("#institution-dialog");
   if (!dialog.open) dialog.showModal();
   dialog.scrollTop = 0;
+  const close = dialog.querySelector("#close-institution-dialog");
+  if (focusClose) close.focus({ preventScroll: true });
+  else if (dialog.contains(document.activeElement)) document.activeElement.blur();
 }
 
 function renderTable() {
   const visibleStocks = filterStocks(snapshots, state);
-  if (state.sort)
-    visibleStocks.sort((a, b) => {
-      const av = a.latest[state.sort],
-        bv = b.latest[state.sort];
-      if (av === null) return bv === null ? 0 : 1;
-      if (bv === null) return -1;
-      return (av - bv) * state.sortDirection;
-    });
   if (["all", "favorites"].includes(state.view)) {
     const query = state.query.trim().toLocaleLowerCase();
     visibleStocks.push(...snapshots.filter((stock) => pendingSymbols.has(stock.symbol) &&
@@ -768,6 +764,23 @@ function renderTable() {
       (state.view !== "favorites" || state.favorites.includes(stock.symbol)) &&
       (!query || `${stock.symbol} ${stock.name}`.toLocaleLowerCase().includes(query))));
   }
+  if (state.sort)
+    visibleStocks.sort((a, b) => {
+      if (!a.latest) return b.latest ? 1 : 0;
+      if (!b.latest) return -1;
+      const av = a.latest[state.sort], bv = b.latest[state.sort];
+      if (av === null) return bv === null ? 0 : 1;
+      if (bv === null) return -1;
+      return (av - bv) * state.sortDirection;
+    });
+  else visibleStocks.sort((a, b) => {
+    const favoriteDifference = Number(state.favorites.includes(b.symbol)) - Number(state.favorites.includes(a.symbol));
+    if (favoriteDifference) return favoriteDifference;
+    const av = a.latest?.changePercent, bv = b.latest?.changePercent;
+    if (av === null || av === undefined) return bv === null || bv === undefined ? a.symbol.localeCompare(b.symbol) : 1;
+    if (bv === null || bv === undefined) return -1;
+    return bv - av || a.symbol.localeCompare(b.symbol);
+  });
   const nextViewKey = [state.date, state.view, state.sector, state.query, state.sort, state.sortDirection].join("|");
   if (nextViewKey !== tableViewKey) {
     tableViewKey = nextViewKey;
@@ -787,7 +800,7 @@ function renderTable() {
       if (!cached || cached.stock !== stock || cached.favorite !== favorite || cached.loading !== loading) {
         row ??= document.createElement("tr");
         row.dataset.symbol = stock.symbol;
-        row.innerHTML = `<td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}</span></div></th>${Array.from({ length: 6 }, () => `<td>${pendingField()}</td>`).join("")}`;
+        row.innerHTML = `<td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${stock.symbol}</strong><span>${esc(stock.name)}</span></div></th>${Array.from({ length: 6 }, () => `<td>${pendingField()}</td>`).join("")}`;
         tableRowCache.set(row, { stock, favorite, loading });
       }
     } else if (!cached || cached.stock !== stock || cached.favorite !== favorite) {
@@ -795,7 +808,7 @@ function renderTable() {
       const leader = getDominantInstitution(bar.institutions);
       const leaderLabel = bar.institutionalNet === null ? "" : !leader ? "合計持平"
         : `${leader.names.join("、")}${leader.direction === "buy" ? "買超" : "賣超"}最多`;
-      const html = `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${esc(stock.name)}</strong><span>${stock.symbol}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell"><span class="stock-price-line"><span class="stock-close">${number(bar.close, 2)}</span><span class="mobile-change change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}"><span class="institution-net">${bar.institutionalNet === null ? "" : signed(bar.institutionalNet / 1000, 0)}</span><small class="institution-leader">${leaderLabel}</small></td></tr>`;
+      const html = `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${stock.symbol}</strong><span>${esc(stock.name)}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell"><span class="stock-price-line"><span class="stock-close">${number(bar.close, 2)}</span><span class="mobile-change change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="${direction(bar.institutionalNet)}"><span class="institution-net">${bar.institutionalNet === null ? "" : signed(bar.institutionalNet / 1000, 0)}</span><small class="institution-leader">${leaderLabel}</small></td></tr>`;
       const holder = document.createElement("tbody");
       holder.innerHTML = html;
       if (row) row.replaceChildren(...holder.firstElementChild.childNodes);
@@ -870,7 +883,7 @@ function marketScope() {
   return `${dataset.stocks.length - etfs} 家上市公司（含存託憑證）及 ${etfs} 檔新臺幣交易 ETF；不含上櫃與外幣交易櫃檯。法人買株僅統計產業個股，不含 ETF；ETF 歷史自加入日起逐日累積。`;
 }
 
-function openDialog(type) {
+function openDialog(type, focusClose = true) {
   const content = document.querySelector("#dialog-content");
   if (type === "settings") {
     content.innerHTML = `<h2 id="dialog-heading">讓指標符合你的觀察習慣</h2><p class="dialog-intro">調整後，自選總覽與市場觀察清單會一起重新計算。設定會保存在這個瀏覽器。</p><form id="settings-form"><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 儲存並重新計算</button></div></form>`;
@@ -887,7 +900,11 @@ function openDialog(type) {
   } else {
     content.innerHTML = `<h2 id="dialog-heading">讀懂價格背後的訊號</h2><p class="dialog-intro">指標提供觀察角度。搭配價量與籌碼，建立更完整的判斷。</p><article class="guide-item"><span>01</span><div><h3>季線 MA60</h3><p>最近 60 個交易日收盤價的簡單移動平均，包含選定資料日。股價高於季線時，位置顯示為正值。</p><code>乖離率 = (收盤價 ÷ MA60 − 1) × 100%</code></div></article><article class="guide-item"><span>02</span><div><h3>KD 隨機指標</h3><p>預設以 9 日最高、最低與當日收盤價計算 RSV，再以平滑係數 3 遞推 K、D。K、D 初始值為 50；不足 9 日不顯示。最高與最低相同時 RSV 採 50。</p><code>RSV = (收盤 − 最低) ÷ (最高 − 最低) × 100<br>K = 前日 K × 2/3 + RSV × 1/3<br>D = 前日 D × 2/3 + 當日 K × 1/3</code><p>K &gt; 80 為高檔區，K &lt; 20 為低檔區，不能單獨視為買賣訊號。你可以在指標設定調整參數。</p></div></article><article class="guide-item"><span>03</span><div><h3>三大法人買賣超</h3><p>外資、投信及自營商的買進股數減去賣出股數。正值為買超，負值為賣超。1 張 = 1,000 股；法人買賣量與全市場成交量的統計範圍不同。近 5／20 日累計包含資料日，依實際交易日加總後換算為張；資料不足不補零。外資、投信的連買／連賣日數從資料日回溯，遇反向、持平或缺漏即中止；若回溯到資料起點或缺漏，顯示「至少」。</p></div></article><article class="guide-item"><span>04</span><div><h3>前一交易日</h3><p>目前預設資料日為 ${dataset.info.asOf}。日期選單可回看最近 30 個${isDemo ? "模擬" : "實際"}交易日，所有指標僅使用選定日及之前的資料。</p></div></article><article class="guide-item"><span>05</span><div><h3>KD 技術建議</h3>${technicalSignalGuide()}</div></article>`;
   }
-  document.querySelector("#info-dialog").showModal();
+  const dialog = document.querySelector("#info-dialog");
+  dialog.showModal();
+  const close = dialog.querySelector("#close-dialog");
+  if (focusClose) close.focus({ preventScroll: true });
+  else if (dialog.contains(document.activeElement)) document.activeElement.blur();
 }
 
 function resetFilters() {
@@ -962,10 +979,13 @@ function bindEvents() {
   };
   arrangeSearchControls();
   phoneLayout.addEventListener("change", arrangeSearchControls);
-  let touchInteraction = false;
-  document.addEventListener("pointerdown", (event) => { touchInteraction = event.pointerType === "touch"; }, { capture: true, passive: true });
-  document.addEventListener("touchstart", () => { touchInteraction = true; }, { capture: true, passive: true });
-  document.addEventListener("keydown", () => { touchInteraction = false; }, true);
+  const inputMode = (touch) => {
+    touchInteraction = touch;
+    document.documentElement.dataset.inputMode = touch ? "touch" : "keyboard";
+  };
+  document.addEventListener("pointerdown", (event) => inputMode(event.pointerType === "touch"), { capture: true, passive: true });
+  document.addEventListener("touchstart", () => inputMode(true), { capture: true, passive: true });
+  document.addEventListener("keydown", () => inputMode(false), true);
   document.addEventListener("keydown", (event) => {
     const card = event.target.closest?.("#sector-grid [data-sector-details]");
     if (!card || (event.key !== "Enter" && event.key !== " ")) return;
@@ -973,6 +993,16 @@ function bindEvents() {
     openSectorDialog(card.dataset.sectorDetails);
   });
   document.addEventListener("click", (event) => {
+    const home = event.target.closest("[data-home]");
+    if (home) {
+      event.preventDefault();
+      state.page = "market";
+      renderPage();
+      window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+      if (touchInteraction) home.blur();
+      else document.querySelector("#main").focus({ preventScroll: true });
+      return;
+    }
     const sectorCard = event.target.closest("#sector-grid [data-sector-details]");
     if (sectorCard) {
       openSectorDialog(sectorCard.dataset.sectorDetails, !touchInteraction);
@@ -981,7 +1011,7 @@ function bindEvents() {
     const button = event.target.closest("button");
     if (!button) return;
     if (button.id === "reload-data") { window.location.reload(); return; }
-    if (button.dataset.dialog) openDialog(button.dataset.dialog);
+    if (button.dataset.dialog) openDialog(button.dataset.dialog, !touchInteraction);
     if (button.dataset.overview) {
       state.overview = button.dataset.overview;
       renderOverviewVisibility();
@@ -1008,7 +1038,7 @@ function bindEvents() {
       renderPage();
       window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     }
-    if (button.dataset.institutionDetails) openInstitutionDialog(button.dataset.institutionDetails);
+    if (button.dataset.institutionDetails) openInstitutionDialog(button.dataset.institutionDetails, !touchInteraction);
     if (button.id === "close-sector-dialog")
       document.querySelector("#sector-dialog").close();
     if (button.id === "close-institution-dialog")

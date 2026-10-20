@@ -184,6 +184,21 @@ test("table filters and sorting keep the full favorites overview unchanged", asy
   await expect(cardFor(page, "2317")).toBeVisible();
 });
 
+test("market defaults to favorites first, then highest gain, with symbol above company name", async ({ page }) => {
+  const { stocks, info } = await demoProvider.load();
+  const favorites = new Set(["2330", "2317", "0050", "3026", "6488"]);
+  const expected = stocks.map((stock) => ({
+    symbol: stock.symbol,
+    favorite: favorites.has(stock.symbol),
+    change: getSnapshot(stock, info.asOf).latest.changePercent,
+  })).sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.change - a.change || a.symbol.localeCompare(b.symbol));
+  expect(await page.locator("#stock-rows tr").evaluateAll((rows) => rows.map((row) => row.dataset.symbol)))
+    .toEqual(expected.map((stock) => stock.symbol));
+  const identity = page.locator('#stock-rows tr[data-symbol="2330"] .stock-name');
+  await expect(identity.locator("strong")).toHaveText("2330");
+  await expect(identity.locator(":scope > span")).toContainText("台積電");
+});
+
 test("mobile table keeps prices and daily changes visible with volume beneath each close", async ({ page }) => {
   const { stocks, info } = await demoProvider.load();
   await expect(page.locator('[data-sort-heading="changePercent"]')).toHaveText(/日漲跌幅/);
@@ -1074,6 +1089,10 @@ test("primary navigation keeps market, favorites and sectors as separate pages",
   await expect(page.locator("#sector-grid .sector-card")).toHaveCount(5);
   await expect(page.locator("#page-title")).toContainText("法人買株");
   await expect(page.locator("#sector-page h1, #sector-page h2")).toHaveCount(0);
+  await page.locator(".brand").click();
+  await expect(page.locator(".stocks-panel")).toBeVisible();
+  await expect(page.locator("#page-title")).toContainText("市場觀察清單");
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
 
 test("phone and tablet controls remain touch-sized with readable sticky navigation and pinned stock columns", async ({ page }, testInfo) => {
@@ -1402,6 +1421,7 @@ test("touch closes ranking details without leaving a focus ring", async ({ brows
   await card.tap();
   await expect(page.locator("#sector-dialog")).toBeVisible();
   const handle = page.locator(".sector-dialog-handle");
+  expect((await handle.boundingBox()).height).toBeGreaterThanOrEqual(44);
   await expect(handle).not.toBeFocused();
   expect(await handle.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
   await handle.tap();
@@ -1413,6 +1433,8 @@ test("touch closes ranking details without leaving a focus ring", async ({ brows
   const details = page.locator('#institution-overview [data-institution-details="2330"]');
   await details.tap();
   await expect(page.locator('#institution-dialog')).toBeVisible();
+  expect((await page.locator('#institution-dialog').boundingBox()).y).toBeGreaterThanOrEqual(15);
+  await expect(page.locator('#institution-dialog :focus-visible')).toHaveCount(0);
   await page.locator('#close-institution-dialog').tap();
   await expect(page.locator('#institution-dialog')).not.toBeVisible();
   await expect(details).not.toBeFocused();
@@ -1422,5 +1444,9 @@ test("touch closes ranking details without leaving a focus ring", async ({ brows
   await favorite.tap();
   await expect(favorite).not.toBeFocused();
   expect(await favorite.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
+  await page.getByRole("button", { name: "資料說明", exact: true }).tap();
+  await expect(page.locator("#info-dialog")).toBeVisible();
+  await expect(page.locator("#info-dialog :focus-visible")).toHaveCount(0);
+  await page.locator("#close-dialog").tap();
   await context.close();
 });

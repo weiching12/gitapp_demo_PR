@@ -60,6 +60,11 @@ select:focus-visible,
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
+html[data-input-mode="touch"] button:focus,
+html[data-input-mode="touch"] a:focus,
+html[data-input-mode="touch"] [role="button"]:focus {
+  outline: none;
+}
 button .icon {
   flex-shrink: 0;
 }
@@ -1418,7 +1423,9 @@ dialog h2 {
   }
   dialog {
     padding: 18px 20px 23px;
-    max-height: 88dvh;
+    max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+    margin-top: max(16px, env(safe-area-inset-top));
+    margin-bottom: max(12px, env(safe-area-inset-bottom));
   }
   .source-details > div {
     grid-template-columns: 90px 1fr;
@@ -1859,7 +1866,9 @@ dialog.institution-dialog {
   dialog.institution-dialog {
     width: calc(100vw - 20px);
     max-width: calc(100vw - 20px);
-    max-height: calc(100dvh - 24px);
+    max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+    margin-top: max(16px, env(safe-area-inset-top));
+    margin-bottom: max(12px, env(safe-area-inset-bottom));
     border-radius: 12px;
   }
   .institution-dialog-top {
@@ -3180,7 +3189,7 @@ dialog.sector-dialog {
     inset: auto 0 0;
     width: 100vw;
     max-width: 100vw;
-    max-height: 88dvh;
+    max-height: min(88dvh, calc(100dvh - max(16px, env(safe-area-inset-top))));
     margin: 0;
     border-right: 0;
     border-bottom: 0;
@@ -3197,7 +3206,7 @@ dialog.sector-dialog {
     align-items: center;
     justify-content: center;
     width: 100%;
-    height: 28px;
+    height: 48px;
     touch-action: none;
     cursor: grab;
   }
@@ -3218,7 +3227,7 @@ dialog.sector-dialog {
   }
   .sector-dialog-top {
     gap: 10px;
-    padding: 8px 16px 14px;
+    padding: 0 16px 14px;
   }
   #close-sector-dialog { display: none; }
   .sector-dialog-body { padding: 15px 16px 20px; }
