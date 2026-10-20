@@ -275,12 +275,11 @@ function refreshData() {
 
 function renderLoadState() {
   const status = document.querySelector("#load-status");
-  status.hidden = !loading && !loadFailed;
+  status.hidden = !loadFailed;
   status.querySelector("span").textContent = loadFailed
-    ? loadProgress.total ? `資料尚未完整載入，已取得 ${loadProgress.loaded}／${loadProgress.total} 檔。請重新載入再試一次。`
+    ? loadProgress.total ? "資料尚未完整載入，請重新載入再試一次。"
       : "無法取得股票資料，請重新載入再試一次。"
-    : loadProgress.total ? `股票資料載入中 · ${loadProgress.loaded}／${loadProgress.total} 檔${state.page === "sectors" ? "；產業統計將於載入完成後顯示" : ""}`
-      : "正在取得股票資料…";
+    : "";
   status.querySelector("button").hidden = !loadFailed;
   let dateIcon = document.querySelector("#date-loading");
   if (!dateIcon) {
