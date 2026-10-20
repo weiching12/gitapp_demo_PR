@@ -10,6 +10,7 @@
     "test": "node --experimental-sqlite --test tests/*.test.js",
     "test:t86-runtime": "node tests/t86-runtime.mjs",
     "test:e2e": "playwright test",
+    "test:pwa": "npm run build && playwright test --config playwright.pwa.config.js",
     "test:cloudflare": "playwright test --config playwright.cloudflare.config.js",
     "build:cloudflare": "vite build --mode cloudflare --configLoader runner",
     "dev:cloudflare": "npm run build:cloudflare && wrangler dev --port 8787",

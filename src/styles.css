@@ -2771,12 +2771,12 @@ dialog.institution-dialog {
 @keyframes field-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .loading-spinner { animation: none; } }
 @media (max-width: 700px) {
-  .topbar { display: flex; flex-wrap: wrap; justify-content: flex-end; min-height: 36px; padding: 6px 16px; gap: 8px; }
+  .topbar { display: none; }
   .topbar .breadcrumb { display: none; }
-  .topbar-actions { gap: 8px; }
 }
 .initial-load { padding: 32px; color: var(--muted); }
-.load-status {
+.load-status,
+.app-status {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -2784,7 +2784,23 @@ dialog.institution-dialog {
   margin-bottom: 16px;
   color: var(--muted);
 }
-.load-status[hidden], #reload-data[hidden] { display: none; }
+.app-status {
+  padding: 9px 12px;
+  border: 1px solid #d7e2f0;
+  border-radius: 7px;
+  background: #f5f8fc;
+}
+.load-status[hidden], .app-status[hidden], #reload-data[hidden], #apply-update[hidden] { display: none; }
+
+@media (display-mode: standalone) {
+  @media (max-width: 1100px) {
+    .sidebar { padding-top: max(8px, env(safe-area-inset-top)); }
+  }
+  @media (max-width: 700px) {
+    main { padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+    .toast { bottom: max(28px, env(safe-area-inset-bottom)); }
+  }
+}
 
 @media (max-width: 700px) {
   .sector-ranking {

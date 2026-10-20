@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { demoProvider } from "../../src/data.js";
 import { getSnapshot } from "../../src/indicators.js";
+import { isEtf } from "../../src/market-codec.js";
 
 const cardFor = (page, symbol) => page.locator(`[data-watch-symbol="${symbol}"]`);
 const detailsButtonFor = (page, symbol) => page.locator(`#institution-overview [data-institution-details="${symbol}"]`);
@@ -211,8 +212,8 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
       const cell = table.querySelector('.signal-cell').getBoundingClientRect();
       return { headerWidth: header.width, cellWidth: cell.width, offset: header.left - cell.left };
     });
-    expect(columns.headerWidth).toBeCloseTo(210, 0);
-    expect(columns.cellWidth).toBeCloseTo(210, 0);
+    expect(columns.headerWidth).toBeCloseTo(160, 0);
+    expect(columns.cellWidth).toBeCloseTo(160, 0);
     expect(columns.offset).toBeCloseTo(0, 0);
     await expect(page.locator('[data-sort-heading="close"]')).toContainText("收盤／漲跌");
     await expect(page.locator('#stock-rows tr').first().locator(".mobile-change")).toBeVisible();
@@ -645,15 +646,16 @@ test("institutional overview compares every favorite using independent day, 5 an
 
 test("sector page aggregates institutional flows and sorts industries", async ({ page }) => {
   const { stocks, info } = await demoProvider.load();
+  const companyStocks = stocks.filter((stock) => !isEtf(stock));
   await openPage(page, "sectors");
   await expect(page.locator('[data-sector-sort="name-asc"]')).toHaveAttribute("aria-pressed", "true");
-  const sortedNames = [...new Set(stocks.map((stock) => stock.sector))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  const sortedNames = [...new Set(companyStocks.map((stock) => stock.sector))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
   expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(sortedNames);
   await page.locator('[data-sector-sort="net-desc"]').click();
   const windows = page.getByRole("group", { name: "法人買株累計區間" });
   const expected = (days) => {
     const totals = new Map();
-    for (const stock of stocks) {
+    for (const stock of companyStocks) {
       const history = stock.history.filter((bar) => bar.date <= info.asOf).slice(-days);
       const total = dailyMoney(history);
       totals.set(stock.sector, (totals.get(stock.sector) ?? 0) + total);
@@ -661,7 +663,7 @@ test("sector page aggregates institutional flows and sorts industries", async ({
     return [...totals].sort((a, b) => b[1] - a[1]);
   };
   const expectedLeader = (sector, days) => {
-    const members = stocks.filter((stock) => stock.sector === sector).map((stock) => {
+    const members = companyStocks.filter((stock) => stock.sector === sector).map((stock) => {
       const history = stock.history.filter((bar) => bar.date <= info.asOf).slice(-days);
       const flows = Object.fromEntries(institutionalNames.map((name) => [name,
         history.reduce((sum, bar) => {
@@ -701,7 +703,7 @@ test("sector page aggregates institutional flows and sorts industries", async ({
   const ascending = expected(20).toReversed().map(([name]) => name);
   expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(ascending);
   await page.locator('[data-sector-sort="name-asc"]').click();
-  const names = [...new Set(stocks.map((stock) => stock.sector))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  const names = [...new Set(companyStocks.map((stock) => stock.sector))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
   expect(await page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName))).toEqual(names);
 });
 
@@ -1069,7 +1071,7 @@ test("primary navigation keeps market, favorites and sectors as separate pages",
   await expect(cardFor(page, "2454")).toBeVisible();
   await expect(page.locator("#page-title")).toContainText("自選總覽");
   await openPage(page, "sectors");
-  await expect(page.locator("#sector-grid .sector-card")).toHaveCount(6);
+  await expect(page.locator("#sector-grid .sector-card")).toHaveCount(5);
   await expect(page.locator("#page-title")).toContainText("法人買株");
   await expect(page.locator("#sector-page h1, #sector-page h2")).toHaveCount(0);
 });

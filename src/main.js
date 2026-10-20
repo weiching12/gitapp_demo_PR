@@ -2,6 +2,7 @@ import "./styles.css";
 import "./typography.css";
 import { loadDataset } from "./provider.js";
 import { startPresence } from "./presence.js";
+import { startPwa } from "./pwa.js";
 import { isEtf } from "./market-codec.js";
 import {
   DEFAULT_SETTINGS,
@@ -117,7 +118,7 @@ let pendingPaint, previousFavorites;
 let tableVisibleLimit = TABLE_BATCH_SIZE, tableViewKey = "", tableObserver;
 let toastTimer;
 let isDemo;
-let stopPresence, previousWatchLoading;
+let stopPresence, previousWatchLoading, usingCachedData = false;
 const pendingSymbols = new Set();
 
 function readPreferences() {
@@ -192,6 +193,7 @@ function shell() {
           .join(
             "",
           )}</select></div></section>
+        <div id="app-status" class="app-status" role="status" hidden><span></span><button class="text-button" id="apply-update" hidden>立即更新</button></div>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
         <section id="watchlist" data-page-panel="favorites" aria-label="自選股票" hidden>
           <div class="overview-controls">
@@ -290,6 +292,32 @@ function renderLoadState() {
   }
   dateIcon.hidden = !loading || dataset.dates.length > 0;
   for (const panel of document.querySelectorAll("[data-page-panel]")) panel.setAttribute("aria-busy", String(loading));
+}
+
+function renderConnectionState(online = navigator.onLine) {
+  const status = document.querySelector("#app-status");
+  if (!status) return;
+  const button = status.querySelector("#apply-update");
+  if (!button.hidden) return;
+  const message = !online
+    ? `目前離線${dataset?.info?.asOf ? `，顯示 ${dataset.info.asOf} 已保存資料` : ""}`
+    : usingCachedData ? `連線不穩定，顯示 ${dataset?.info?.asOf || "上次"} 已保存資料` : "";
+  status.querySelector("span").textContent = message;
+  status.hidden = !message;
+}
+
+function enablePwa() {
+  startPwa({
+    onConnection: (online) => renderConnectionState(online),
+    onUpdate: (apply) => {
+      const status = document.querySelector("#app-status");
+      const button = status.querySelector("#apply-update");
+      status.querySelector("span").textContent = "株研已有新版本可用。";
+      button.hidden = false;
+      button.onclick = apply;
+      status.hidden = false;
+    },
+  });
 }
 
 function scheduleRefresh() {
@@ -1192,9 +1220,10 @@ async function init() {
     dataset = { stocks: [], dates: [], info: { mode: "twse", label: "資料載入中", asOf: "" } };
     snapshots = []; latestSnapshots = [];
     pendingSymbols.clear();
-    shell(); bindEvents(); refreshData();
+    shell(); bindEvents(); enablePwa(); refreshData();
   }
   dataset = await loadDataset({ prioritySymbols: state.favorites,
+    onCacheFallback: () => { usingCachedData = true; renderConnectionState(); },
     onManifest: async (next) => {
       dataset = next;
       pendingSymbols.clear();
@@ -1218,9 +1247,10 @@ async function init() {
   pendingSymbols.clear();
   if (!apiMode) {
     isDemo = dataset.info.mode === "demo";
-    prepare(); shell(); bindEvents();
+    prepare(); shell(); bindEvents(); enablePwa();
   }
   refreshData();
+  renderConnectionState();
   savePreferences();
 }
 

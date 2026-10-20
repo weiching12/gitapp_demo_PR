@@ -66,11 +66,12 @@ export function combineChunks(manifest, chunks) {
   return marketDataset(manifest, manifest.stocks.map((stock) => decoded.get(stock.symbol)));
 }
 
-export async function loadApiDataset(fetcher = fetch, { onManifest, onChunk, prioritySymbols = [] } = {}) {
+export async function loadApiDataset(fetcher = fetch, { onManifest, onChunk, onCacheFallback, prioritySymbols = [] } = {}) {
   const controller = new AbortController();
   const get = async (url) => {
     const response = await fetcher(url, { signal: controller.signal });
     if (!response.ok) throw new Error("目前無法載入雲端股票資料，請稍後重試。");
+    if (response.headers.get("X-PWA-Cache") === "fallback") onCacheFallback?.();
     return response.json();
   };
   const manifest = validateManifest(await get("/api/market"));
