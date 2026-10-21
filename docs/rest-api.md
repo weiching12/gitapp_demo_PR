@@ -62,3 +62,14 @@ Errors and presence responses use `no-store`; mutable market resources cache for
 This first version keeps existing snapshot response formats where useful, rather
 than forcing every endpoint into one envelope. API version v1 and stored
 `schemaVersion: 2` describe different contracts.
+## Push notifications
+
+- `GET /api/v1/push/config` returns Web Push availability and the public VAPID key.
+- `POST /api/v1/push/subscriptions` validates and stores a same-origin browser subscription.
+- `DELETE /api/v1/push/subscriptions` removes the subscription by endpoint.
+
+Subscriptions contain only the push endpoint and browser-generated encryption keys.
+After a validated manifest for the current Taipei trade date is published, the sync
+service sends one notification per subscription and trade date. Expired `404`/`410`
+subscriptions are removed automatically. Push delivery failures never roll back the
+market publication.

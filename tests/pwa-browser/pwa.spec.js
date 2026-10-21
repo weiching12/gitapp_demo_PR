@@ -18,6 +18,16 @@ test("manifest and install icons are served with the expected metadata", async (
   }
 });
 
+test("service worker handles market update pushes and notification clicks", async ({ request }) => {
+  const response = await request.get("/sw.js");
+  expect(response.ok()).toBe(true);
+  const source = await response.text();
+  expect(source).toContain('addEventListener("push"');
+  expect(source).toContain('showNotification');
+  expect(source).toContain('addEventListener("notificationclick"');
+  expect(source).toContain('clients.openWindow');
+});
+
 test("installed shell starts offline and identifies saved data", async ({ page, context }) => {
   await page.goto("/");
   await page.evaluate(() => navigator.serviceWorker.ready);

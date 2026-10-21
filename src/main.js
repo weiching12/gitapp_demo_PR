@@ -5,6 +5,7 @@ import "./typography.css";
 import { loadDataset } from "./provider.js";
 import { startPresence } from "./presence.js";
 import { startPwa } from "./pwa.js";
+import { startPushNotifications } from "./push.js";
 import { isEtf } from "./market-codec.js";
 import { createState } from "./ui/state.js";
 import { loadPreferences, persistPreferences, preferenceStorage } from "./ui/preferences.js";
@@ -42,6 +43,7 @@ const icons = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>',
   settings:
     '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>',
   book: '<path d="M12 5v15M3 4c4-1 6-1 9 1 3-2 5-2 9-1v15c-4-1-6-1-9 1-3-2-5-2-9-1Z"/>',
   chevron: '<path d="m9 5 7 7-7 7"/>',
   sort: '<path class="sort-up" d="m8 9 4-4 4 4"/><path class="sort-down" d="m8 15 4 4 4-4"/>',
@@ -229,6 +231,7 @@ function enablePwa() {
       status.hidden = false;
     },
   });
+  startPushNotifications(document.querySelector("#push-notifications"), { onMessage: toast });
 }
 
 function scheduleRefresh() {

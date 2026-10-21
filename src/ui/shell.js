@@ -28,6 +28,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
           .join(
             "",
           )}</select></div></section>
+        <div class="push-controls"><button class="outline-button push-nav-item" id="push-notifications" type="button" aria-label="開啟每日資料更新通知" aria-pressed="false">${icon("bell")}<span>開啟更新通知</span></button></div>
         ${brandIntro()}
         ${aboutPage()}
         <div id="pull-refresh" class="pull-refresh" aria-hidden="true"><span></span>下拉重新整理</div>

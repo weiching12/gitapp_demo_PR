@@ -4,6 +4,7 @@ import { HistoryService } from "../services/history-service.js";
 import { resolveApiRoute } from "./routes.js";
 import { marketController } from "./market-controller.js";
 import { presenceController } from "./presence-controller.js";
+import { pushController } from "./push-controller.js";
 import { apiFailure } from "./errors.js";
 import { json, error } from "./http.js";
 
@@ -17,6 +18,8 @@ export async function routeApi(request, env, injected) {
     const services = injected?.market && typeof injected.market !== "function" ? injected : injected
       ? { market: injected, analysis: new AnalysisService(injected), history: new HistoryService(injected) }
       : createApplicationServices(env);
+    if (route.name === "pushConfig" || route.name === "pushSubscriptions")
+      return await pushController(request, route, services.push);
     const body = await marketController(route, url, services);
     return json(request, body, 200, route.name === "snapshot"
       ? "public, max-age=86400, immutable" : "public, max-age=60");

@@ -6,6 +6,8 @@ const statuses = Object.freeze({ INVALID_QUERY: 400, STOCK_NOT_FOUND: 404, DATA_
 export function apiFailure(request, versioned, cause) {
   if (cause instanceof DomainError && Object.hasOwn(statuses, cause.code))
     return error(request, versioned, cause.code, cause.message, statuses[cause.code]);
+  if (Number.isInteger(cause?.status) && cause.status >= 400 && cause.status < 500)
+    return error(request, versioned, cause.code ?? "INVALID_REQUEST", cause.message, cause.status);
   // Infrastructure errors and unknown application failures never leak details.
   console.error(JSON.stringify({ event: "api-read-failed", path: new URL(request.url).pathname, message: cause?.message }));
   return error(request, versioned, "DATA_UNAVAILABLE", "目前無法讀取股票資料，請稍後重試。", 503);

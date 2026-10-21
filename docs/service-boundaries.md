@@ -58,3 +58,6 @@ no asynchronous boundary between cleanup/upsert/count.
 No migration, market-data write, historical recalculation or new API resource is
 needed for this refactor. Frontend v1 migration, remaining cross-view event handlers
 and independent date-query history models are separate future changes.
+Push subscription transport is handled by `api/push-controller.js`; validation,
+VAPID payload creation and delivery live in `services/push-service.js`, while D1
+persistence is isolated in `repositories/push-repository.js`.

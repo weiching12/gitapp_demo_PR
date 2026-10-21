@@ -6,6 +6,7 @@ import { resolveApiRoute } from "../cloudflare/api/routes.js";
 import { HttpClient, ApiError } from "../src/api/http-client.js";
 import { MarketApiClient, MARKET_API_PATH } from "../src/api/market-client.js";
 import { PresenceApiClient } from "../src/api/presence-client.js";
+import { PushApiClient } from "../src/api/push-client.js";
 
 const root = new URL("..", import.meta.url);
 const files = (directory) => readdirSync(new URL(directory, root), { recursive: true, withFileTypes: true })
@@ -31,7 +32,7 @@ test("OpenAPI v1 operations are routable with the documented methods", () => {
     if (!path.startsWith("/api/v1")) continue;
     const route = resolveApiRoute(sample(path));
     assert.ok(route.name, `OpenAPI path is not routable: ${path}`);
-    for (const method of Object.keys(operations).filter((name) => ["get", "post", "head"].includes(name)))
+    for (const method of Object.keys(operations).filter((name) => ["get", "post", "delete", "head"].includes(name)))
       assert.ok(route.methods.includes(method.toUpperCase()), `${method.toUpperCase()} ${path}`);
   }
 });
@@ -49,4 +50,16 @@ test("frontend API clients use v1 resources and preserve structured failures", a
   await assert.rejects(new HttpClient(async () => Response.json({ error: { code: "NO_DATA", message: "missing" } },
     { status: 503 })).json("/api/v1/market"), (error) =>
     error instanceof ApiError && error.status === 503 && error.code === "NO_DATA" && error.message === "missing");
+});
+
+test("push client uses versioned config and subscription resources", async () => {
+  const calls = [];
+  const client = new PushApiClient(async (path, options = {}) => {
+    calls.push([path, options.method ?? "GET"]);
+    return Response.json(path.endsWith("config") ? { enabled: true, publicKey: "key" } : { subscribed: options.method === "POST" });
+  });
+  await client.config();
+  await client.subscribe({ endpoint: "https://push.example/sub", keys: { p256dh: "abcdefgh", auth: "abcdefgh" } });
+  await client.unsubscribe("https://push.example/sub");
+  assert.deepEqual(calls, [["/api/v1/push/config", "GET"], ["/api/v1/push/subscriptions", "POST"], ["/api/v1/push/subscriptions", "DELETE"]]);
 });

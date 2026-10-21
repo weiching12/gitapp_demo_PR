@@ -883,6 +883,90 @@
           }
         }
       }
+    },
+    "/api/v1/push/config": {
+      "get": {
+        "operationId": "getPushConfig",
+        "responses": {
+          "200": {
+            "description": "Web Push availability and public VAPID key",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/push/subscriptions": {
+      "post": {
+        "operationId": "subscribePush",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription saved",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid subscription"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unsubscribePush",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "endpoint"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription removed",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid endpoint"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1344,6 +1428,39 @@
           },
           "windowSeconds": {
             "const": 90
+          }
+        }
+      },
+      "PushConfig": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "publicKey"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "publicKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "PushSubscriptionState": {
+        "type": "object",
+        "required": [
+          "subscribed"
+        ],
+        "properties": {
+          "subscribed": {
+            "type": "boolean"
           }
         }
       }

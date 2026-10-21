@@ -44,7 +44,7 @@ test("documented market, stock, history and analysis responses match the publish
   for (let index = 0; index < 128; index++) data.set(shardKey("contract", index), { ...mergeShard(catalog, index, null, [day]), generation: "contract", index });
   const env = { MARKET_DATA: { get: async (key) => structuredClone(data.get(key) ?? null) } };
   for (const [path, definition] of Object.entries(spec.paths)) {
-    if (path.endsWith("presence")) continue;
+    if (path.endsWith("presence") || path.includes("/push/")) continue;
     const concrete = path.replace("{symbol}", "2330").replace("{generation}", "contract").replace("{index}", String(shardOf("2330")));
     const response = await worker.fetch(new Request(`https://example.test${concrete}`), env);
     assert.equal(response.status, 200, concrete);

@@ -8,6 +8,7 @@ import * as acquire from "./sync/acquire.js";
 import * as snapshot from "./sync/snapshot.js";
 import { publish } from "./sync/publish.js";
 import { historyRepository } from "./repositories/history-repository.js";
+import { createPushService } from "./composition.js";
 export { syncSlot, pendingDates, scheduledDates } from "./sync/plan.js";
 export { STAGE_TTL, SHARDS_PER_TICK } from "./sync/common.js";
 const phases = { ...acquire, ...snapshot, publish };
@@ -42,7 +43,8 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
     if (state.phase !== "publish" || now.getTime() >= state.publishAfter) {
       const phase = phases[state.phase];
       if (!phase) throw new Error(`Unknown sync phase: ${state.phase}`);
-      await phase({ env, kv, state, manifest, store, now, fetcher, date, slot, history: historyRepository(env) });
+      await phase({ env, kv, state, manifest, store, now, fetcher, date, slot, history: historyRepository(env),
+        notifier: state.phase === "publish" ? createPushService(env) : undefined });
     }
     state.retryAfter = null;
     if (state.t86Status === undefined || acceptedT86(state.t86Status)) state.error = null;

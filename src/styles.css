@@ -343,6 +343,13 @@ button .icon {
   margin-top: auto;
   padding-top: 25px;
 }
+.push-controls { display: none; }
+@media (max-width: 700px) {
+  .push-controls { display: flex; justify-content: flex-end; margin: -4px 0 14px; }
+  .push-nav-item { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 7px 11px; font-size: 12px; }
+  .push-nav-item .icon { width: 16px; height: 16px; }
+  .push-nav-item.push-enabled { color: var(--blue); background: #edf4ff; }
+}
 .workspace-status {
   display: flex;
   align-items: center;
