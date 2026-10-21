@@ -1,5 +1,6 @@
 import { routeApi } from "./api/router.js";
-import { syncMarket } from "./sync.js";
+import { coordinateMarketSync } from "./sync/coordinator.js";
+export { MarketSyncCoordinator } from "./sync/coordinator.js";
 export { OnlinePresence } from "./presence.js";
 
 export default {
@@ -9,7 +10,7 @@ export default {
       ? routeApi(request, env) : env.ASSETS.fetch(request);
   },
   async scheduled(controller, env) {
-    const state = await syncMarket(env, { now: new Date(controller.scheduledTime) });
+    const state = await coordinateMarketSync(env, controller.scheduledTime);
     console.log(JSON.stringify({ event: "twse-sync", date: state.date, slot: state.slot, phase: state.phase,
       t86Status: state.t86Status, nextShard: state.nextShard, failures: state.failures, error: state.error }));
   },

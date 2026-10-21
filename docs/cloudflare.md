@@ -102,9 +102,10 @@ manifest publication and generation cleanup. Missing fingerprints force publicat
 Friday historical corrections and catalog changes are included in the comparison.
 Fingerprints are retained only for the manifest's history window.
 
-For one date and no failures, a changed round uses about 143 KV writes and an unchanged
-round 10. A normal changed/unchanged pair uses about 153 writes and up to 128 deletes,
+For one date and no failures, a coordinated changed round uses 133 KV writes and an unchanged
+round 4. A normal changed/unchanged pair uses about 137 writes and up to 128 deletes,
 versus approximately 288 writes and 272 deletes before this change. Historical rechecks,
-backfills and retries increase usage. Waiting ticks save state only when it changes.
+backfills and retries increase usage. Sync progress is now persisted in the MarketSyncCoordinator Durable Object.
 Existing D1 institutional audit/version storage and public snapshot switching remain.
-Single-writer orchestration and migrating full OHLC history into D1 are future work.
+Single-writer orchestration is implemented; see [sync architecture](sync-architecture.md).
+Migrating full OHLC history into D1 remains future work.

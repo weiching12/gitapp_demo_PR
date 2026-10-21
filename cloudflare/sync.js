@@ -1,52 +1,15 @@
-import { CATALOG_URL, ETF_CATALOG_URL, HISTORY_LIMIT, MANIFEST_KEY, SHARD_COUNT, SYNC_KEY, createManifest, fetchJson,
-  marketDay, mergeShard, normalizeCatalog, normalizeEtfCatalog, combineCatalogs, normalizePrices, reportUrl, shardKey, stageKey, taipeiDate } from "./twse.js";
-import { isEtf } from "../src/market-codec.js";
+import { MANIFEST_KEY, SYNC_KEY, taipeiDate } from "./twse.js";
 import { T86Store } from "./t86-store.js";
-import { acceptedT86, syncT86 } from "./t86-sync.js";
-import { t86FlowReport } from "./t86-validator.js";
+import { acceptedT86 } from "./t86-sync.js";
+import { put } from "./sync/common.js";
+import { syncSlot, scheduledDates } from "./sync/plan.js";
+import * as acquire from "./sync/acquire.js";
+import * as snapshot from "./sync/snapshot.js";
+import { publish } from "./sync/publish.js";
+export { syncSlot, pendingDates, scheduledDates } from "./sync/plan.js";
+export { STAGE_TTL, SHARDS_PER_TICK } from "./sync/common.js";
+const phases = { ...acquire, ...snapshot, publish };
 
-export const STAGE_TTL = 86400;
-const put = (kv, key, value) => kv.put(key, JSON.stringify(value),
-  key === SYNC_KEY || key === MANIFEST_KEY || key.includes(":shard:") ? {} : { expirationTtl: STAGE_TTL });
-async function fingerprint(value) {
-  const canonical = (v) => Array.isArray(v) ? v.map(canonical) : v && typeof v === "object"
-    ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])])) : v;
-  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(canonical(value))));
-  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-export const SHARDS_PER_TICK = 32;
-
-export function syncSlot(now) {
-  const local = new Date(now.getTime() + 28800000);
-  if ([0, 6].includes(local.getUTCDay())) return null;
-  const minute = local.getUTCHours() * 60 + local.getUTCMinutes();
-  return minute >= 20 * 60 + 30 ? "20:30" : minute >= 18 * 60 + 30 ? "18:30" : null;
-}
-
-export function pendingDates(after, through, limit = 10) {
-  const cursor = new Date(`${after ?? through}T00:00:00Z`), dates = [];
-  if (after) cursor.setUTCDate(cursor.getUTCDate() + 1);
-  while (cursor.toISOString().slice(0, 10) <= through && dates.length < limit) {
-    if (![0, 6].includes(cursor.getUTCDay())) dates.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return dates;
-}
-
-export function scheduledDates(manifest, through, checkedThrough) {
-  const pending = pendingDates(checkedThrough ?? manifest?.asOf, through);
-  // Recheck the last two published sessions once a week for late corrections,
-  // instead of re-downloading every stock's two-week history every night.
-  const recheck = manifest && new Date(`${through}T00:00:00Z`).getUTCDay() === 5
-    ? manifest.dates.filter((date) => date < through).slice(-2) : [];
-  return [...new Set([...recheck, ...pending])].sort();
-}
-
-/** One phase per minute, one whole-market upstream call at most per invocation.
- * Thirty-two history shards per subsequent invocation publish a normal daily
- * generation within ten minutes while retaining resumable checkpoints.
- * The public manifest switches only after all immutable shards have been written.
- */
 export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86Store } = {}) {
   const kv = env.MARKET_DATA, date = taipeiDate(now);
   const slot = syncSlot(now);
@@ -55,6 +18,13 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
   let state = await kv.get(SYNC_KEY, "json");
   const manifest = await kv.get(MANIFEST_KEY, "json");
   const originalState = JSON.stringify(state);
+  // Recover a publication whose final progress checkpoint was interrupted.
+  if (state?.phase === "publish" && manifest?.generation === state.generation) {
+    state.phase = "done";
+    state.checkedThrough = state.reportDates.at(-1);
+    state.cleanupGenerations = [];
+    await put(kv, SYNC_KEY, state);
+  }
   if (!state || state.date !== date || state.slot !== slot) {
     const checkedThrough = state?.phase === "done" && state.checkedThrough > manifest?.asOf ? state.checkedThrough : manifest?.asOf;
     const reportDates = [...new Set([...scheduledDates(manifest, date, checkedThrough), date])].sort();
@@ -67,132 +37,10 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
   }
   if (state.phase === "done" || state.failures >= 3 || (state.retryAfter && now.getTime() < state.retryAfter)) return state;
   try {
-    if (state.phase === "t86") {
-      // One acquisition per daily round. Minute ticks only advance the validated
-      // generation; they never poll today's T86 again.
-      const run = await syncT86(env, { tradeDate: date, slot, now, fetcher, store });
-      state.t86Status = run.Status;
-      state.t86VersionId = run.VersionId;
-      state.t86Hash = run.DataHash;
-      if (run.Status === "Running") {
-        // A concurrent invocation owns this round. Keep waiting; syncT86 will
-        // explicitly fail an expired attempt instead of repeating acquisition.
-        state.phase = "t86";
-      } else if (!acceptedT86(run.Status)) {
-        state.phase = "done";
-        state.error = run.ErrorMessage;
-      } else {
-        // T86 only fingerprints institution data. Even an unchanged report must
-        // continue through catalog/prices and scheduled historical rechecks:
-        // price/volume corrections and older T86 revisions have separate lives.
-        // syncT86 still avoids rewriting unchanged institution rows in D1.
-        state.phase = "catalog";
-      }
-    } else if (state.phase === "catalog") {
-      const catalog = normalizeCatalog(await fetchJson(CATALOG_URL, fetcher));
-      if (catalog.length < 900 || (manifest && catalog.length < manifest.stocks.filter((stock) => !isEtf(stock)).length * 0.95))
-        throw new Error("Unexpectedly small TWSE catalog; preserve last good market");
-      await put(kv, stageKey(state.generation, "companies"), catalog);
-      state.phase = "etfs";
-    } else if (state.phase === "etfs") {
-      const etfs = normalizeEtfCatalog(await fetchJson(ETF_CATALOG_URL, fetcher));
-      const priorEtfs = manifest?.stocks.filter(isEtf).length ?? 0;
-      if (etfs.length < priorEtfs * 0.95) throw new Error("Unexpectedly small ETF catalog; preserve last good market");
-      const companies = await kv.get(stageKey(state.generation, "companies"), "json");
-      if (!companies) throw new Error("Staged company catalog not visible yet");
-      const catalog = combineCatalogs(companies, etfs);
-      state.catalogHash = await fingerprint(catalog);
-      await put(kv, stageKey(state.generation, "catalog"), catalog);
-      state.phase = "prices";
-    } else if (state.phase === "prices") {
-      const reportDate = state.reportDates[state.nextDate];
-      const prices = normalizePrices(await fetchJson(reportUrl("prices", reportDate), fetcher), reportDate);
-      if (!prices && reportDate === date) throw new Error("No price report yet (holiday or unpublished); retry only after cooldown");
-      if (!prices) {
-        state.nextDate++;
-        if (state.nextDate === state.reportDates.length) {
-          state.phase = state.dayCount ? "shards" : "done";
-          if (!state.dayCount) state.checkedThrough = reportDate;
-        }
-      } else {
-        if (prices.reportRows < 900) throw new Error("Suspiciously short TWSE price report");
-        await put(kv, stageKey(state.generation, "prices"), prices);
-        state.phase = "flows";
-      }
-    } else if (state.phase === "flows") {
-      const reportDate = state.reportDates[state.nextDate];
-      if (reportDate !== date) {
-        const run = await syncT86(env, { tradeDate: reportDate, slot: "backfill", now, fetcher, store });
-        if (!acceptedT86(run.Status)) throw new Error(`Historical T86 ${run.Status}: ${run.ErrorMessage ?? reportDate}`);
-      }
-      const version = await store.current(reportDate);
-      if (!version || (reportDate === date && version.VersionId !== state.t86VersionId))
-        throw new Error("Validated T86 version unavailable or superseded; preserve public snapshot");
-      const flows = t86FlowReport(JSON.parse(version.RowsJson), reportDate);
-      const [catalog, prices] = await Promise.all([
-        kv.get(stageKey(state.generation, "catalog"), "json"), kv.get(stageKey(state.generation, "prices"), "json"),
-      ]);
-      if (!catalog || !prices) throw new Error("Staged inputs not visible yet");
-      const day = marketDay(catalog, prices, flows);
-      state.dayHashes = { ...state.dayHashes, [day.date]: await fingerprint(day) };
-      const days = await kv.get(stageKey(state.generation, "days"), "json") ?? [];
-      const merged = new Map(days.map((item) => [item.date, item]));
-      merged.set(day.date, day);
-      await put(kv, stageKey(state.generation, "days"), [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)));
-      state.dayCount = merged.size;
-      state.nextDate++;
-      state.phase = state.nextDate === state.reportDates.length ? "shards" : "prices";
-    } else if (state.phase === "shards") {
-      const [catalog, days] = await Promise.all([
-        kv.get(stageKey(state.generation, "catalog"), "json"), kv.get(stageKey(state.generation, "days"), "json"),
-      ]);
-      if (!catalog || !days?.length) throw new Error("Staged market days not visible yet");
-      // Missing fingerprints deliberately force one full baseline publication.
-      if (state.nextShard === 0 && typeof state.catalogHash === "string" && manifest?.catalogHash === state.catalogHash &&
-          days.every((day) => manifest.dayHashes?.[day.date] === state.dayHashes?.[day.date])) {
-        state.phase = "done";
-        state.result = "Unchanged";
-        state.checkedThrough = state.reportDates.at(-1);
-        await put(kv, SYNC_KEY, state);
-        return state;
-      }
-      for (let count = 0; count < SHARDS_PER_TICK && state.nextShard < SHARD_COUNT; count++) {
-        const index = state.nextShard;
-        const previous = manifest ? await kv.get(shardKey(manifest.generation, index), "json") : null;
-        if (manifest && !previous) throw new Error("Last good history shard unavailable; do not replace it with one day");
-        const chunk = { ...mergeShard(catalog, index, previous, days), generation: state.generation, index };
-        await put(kv, shardKey(state.generation, index), chunk);
-        // Keep the currently public generation. Retire only the generation before it.
-        for (const generation of new Set([manifest?.previousGeneration, ...(state.cleanupGenerations ?? [])].filter(Boolean))) {
-          if (generation !== manifest?.generation && generation !== state.generation) {
-            const key = shardKey(generation, index);
-            // Nonexistent-key deletions also consume the free daily quota.
-            if (await kv.get(key) !== null) await kv.delete(key);
-          }
-        }
-        state.nextShard++;
-      }
-      if (state.nextShard === SHARD_COUNT) {
-        state.phase = "publish";
-        // KV is eventually consistent. Leave propagation time before switching readers.
-        state.publishAfter = now.getTime() + 120000;
-      }
-    } else if (state.phase === "publish" && now.getTime() >= state.publishAfter) {
-      const [catalog, days] = await Promise.all([
-        kv.get(stageKey(state.generation, "catalog"), "json"), kv.get(stageKey(state.generation, "days"), "json"),
-      ]);
-      if (!catalog || !days?.length) throw new Error("Cannot publish missing staged inputs");
-      const version = await store.current(date);
-      if (version?.VersionId !== state.t86VersionId) throw new Error("T86 changed during staging; refuse stale publication");
-      const dates = [...new Set([...(manifest?.dates ?? []), ...days.map((day) => day.date)])].sort().slice(-HISTORY_LIMIT);
-      await put(kv, MANIFEST_KEY, { ...createManifest(catalog, dates, state.generation, now.toISOString(), days.at(-1).coverage, manifest?.generation),
-        t86Hash: state.t86Hash, t86VersionId: state.t86VersionId, syncSlot: slot,
-        catalogHash: state.catalogHash,
-        dayHashes: Object.fromEntries(Object.entries({ ...manifest?.dayHashes, ...state.dayHashes }).filter(([day]) => dates.includes(day))) });
-      // Temporary inputs expire; public history never receives a TTL.
-      state.phase = "done";
-      state.checkedThrough = state.reportDates.at(-1);
-      state.cleanupGenerations = [];
+    if (state.phase !== "publish" || now.getTime() >= state.publishAfter) {
+      const phase = phases[state.phase];
+      if (!phase) throw new Error(`Unknown sync phase: ${state.phase}`);
+      await phase({ env, kv, state, manifest, store, now, fetcher, date, slot });
     }
     state.retryAfter = null;
     if (state.t86Status === undefined || acceptedT86(state.t86Status)) state.error = null;

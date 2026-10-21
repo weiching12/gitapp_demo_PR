@@ -5,10 +5,11 @@ import { syncMarket } from "../cloudflare/sync.js";
 import { MANIFEST_KEY, SHARD_COUNT, SYNC_KEY, shardKey, shardOf } from "../cloudflare/twse.js";
 import { testStore } from "./helpers/t86-db.js";
 import { etfCatalog } from "./helpers/etf-catalog.js";
+import { MarketSyncCoordinator } from "../cloudflare/sync/coordinator.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/twse-20261016.json", import.meta.url)));
 
-function setup() {
+function setup(coordinated = false) {
   const { db, store } = testStore(1000);
   const data = new Map(), calls = [], writes = [], deletes = [];
   const companies = Array.from({ length: 1000 }, (_, i) => ({ 公司代號: String(1000 + i),
@@ -43,12 +44,24 @@ function setup() {
       body.data[0][col] = String(Number(body.data[0][col].replaceAll(",", "")) + 100);
     return Response.json(body);
   };
+  const durable = new Map();
+  const coordinator = new MarketSyncCoordinator({ storage: {
+    get: async (key) => structuredClone(durable.get(key)),
+    put: async (key, value) => durable.set(key, structuredClone(value)),
+    delete: async (key) => durable.delete(key),
+  } }, { MARKET_DATA: kv });
+  coordinator.run = (env, options) => syncMarket(env, { ...options, t86Store: store, fetcher });
   const run = async (date, hour, minutes = 85) => {
-    for (let minute = 0; minute < minutes; minute++) await syncMarket({ MARKET_DATA: kv }, {
-      t86Store: store, fetcher,
-      now: new Date(Date.parse(`${date}T${hour}:30:00Z`) + minute * 60000),
-    });
-    assert.equal(JSON.parse(data.get(SYNC_KEY)).phase, "done");
+    for (let minute = 0; minute < minutes; minute++) {
+      const now = new Date(Date.parse(`${date}T${hour}:30:00Z`) + minute * 60000);
+      if (coordinated) {
+        const tick = () => new Request(`https://internal/tick?time=${now.getTime()}`, { method: "POST" });
+        await Promise.all([coordinator.fetch(tick()), coordinator.fetch(tick())]);
+      } else await syncMarket({ MARKET_DATA: kv }, { t86Store: store, fetcher, now });
+    }
+    const finalState = coordinated ? durable.get("progress") : JSON.parse(data.get(SYNC_KEY));
+    assert.equal(finalState.phase, "done");
+    assert.equal(finalState.failures, 0);
     return JSON.parse(data.get(MANIFEST_KEY));
   };
   const history = (manifest) => JSON.parse(data.get(shardKey(manifest.generation, 1000 % SHARD_COUNT)))
@@ -71,6 +84,22 @@ test("20:30 publishes corrected volume even when today's T86 is unchanged", asyn
     assert.equal(f.calls.filter(([p]) => p.includes("T86")).length, 2);
     assert.equal(f.calls.filter(([p]) => p.includes("MI_INDEX")).length, 2);
     assert.equal(f.db.sqlite.prepare("SELECT count(*) n FROM t86_versions WHERE TradeDate='2026-10-19'").get().n, 1);
+  } finally { f.db.sqlite.close(); }
+});
+
+test("coordinated full pipeline publishes once per changed round and never writes progress to KV", async () => {
+  const f = setup(true);
+  try {
+    const first = await f.run("2026-10-19", "10");
+    assert.equal(f.writes.length, 133);
+    const unchanged = await f.run("2026-10-19", "12");
+    assert.equal(f.writes.length, 137);
+    assert.equal(unchanged.generation, first.generation);
+    assert.equal(f.writes.filter(({ key }) => key === MANIFEST_KEY).length, 1);
+    assert.equal(f.writes.filter(({ key }) => key === SYNC_KEY).length, 0);
+    assert.equal(f.calls.filter(([path]) => path.includes("T86")).length, 2);
+    const next = await f.run("2026-10-20", "10");
+    assert.deepEqual(f.history(next).map((row) => row[0]), ["2026-10-19", "2026-10-20"]);
   } finally { f.db.sqlite.close(); }
 });
 
