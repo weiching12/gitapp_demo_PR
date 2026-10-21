@@ -14,17 +14,20 @@ const fixture = JSON.parse(await readFile(new URL("./fixtures/twse-20261016.json
 const date = "2026-10-16", catalog = normalizeCatalog(fixture.companies);
 const day = marketDay(catalog, normalizePrices(fixture.prices, date), normalizeFlows(fixture.flows, date));
 const manifest = createManifest(catalog, [date], "ui-boundaries", "2026-10-16T12:00:00Z", day.coverage);
+const versionedManifest = { ...manifest, chunks: manifest.chunks.map((_, index) =>
+  `/api/v1/market/snapshots/${manifest.generation}/shards/${index}`) };
 const chunks = Array.from({ length: 128 }, (_, index) => ({ ...mergeShard(catalog, index, null, [day]), generation: manifest.generation, index }));
 const dataset = combineChunks(manifest, chunks), snapshots = dataset.stocks.map((stock) => getSnapshot(stock, date));
 const dist = fileURLToPath(new URL("../dist/", import.meta.url));
+const serverErrors = [];
 const server = createServer(async (request, response) => {
   request.resume();
   try {
     const path = new URL(request.url, "http://localhost").pathname;
-    const chunk = path.match(/^\/api\/market\/ui-boundaries\/(\d+)$/);
-    if (path === "/api/market" || path === "/api/presence" || chunk) {
+    const chunk = path.match(/^\/api\/v1\/market\/snapshots\/ui-boundaries\/shards\/(\d+)$/);
+    if (path === "/api/v1/market" || path === "/api/v1/presence" || chunk) {
       response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify(path === "/api/market" ? manifest : path === "/api/presence"
+      response.end(JSON.stringify(path === "/api/v1/market" ? versionedManifest : path === "/api/v1/presence"
         ? { online: 1, windowSeconds: 90 } : chunks[Number(chunk[1])]));
       return;
     }
@@ -34,7 +37,7 @@ const server = createServer(async (request, response) => {
     const contents = await readFile(target);
     response.writeHead(200, { "Content-Type": types[extname(target)] ?? "application/octet-stream" });
     response.end(contents);
-  } catch { if (!response.headersSent) response.writeHead(404); response.end(); }
+  } catch (error) { serverErrors.push({ url: request.url, message: error.message }); if (!response.headersSent) response.writeHead(404); response.end(); }
 });
 await new Promise((done) => server.listen(0, "127.0.0.1", done));
 let browser;
@@ -44,6 +47,8 @@ try {
     const context = await browser.newContext({ viewport: { width, height: 900 }, serviceWorkers: "block" });
     const page = await context.newPage(), errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    page.on("requestfailed", (request) => errors.push(`${request.url()} ${request.failure()?.errorText}`));
     await page.route(/https:\/\/(?:fonts\.googleapis\.com|fonts\.gstatic\.com)\//, (route) => route.abort());
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false");
@@ -51,7 +56,9 @@ try {
     for (const window of ["day", "5", "20"]) {
       await page.locator(`[data-sector-window="${window}"]`).click();
       const expected = getSectorOverview(snapshots, { window, sort: "name-asc", tradingDates: dataset.dates, asOf: date });
-      assert.deepEqual(await page.locator(".sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName)), expected.map((sector) => sector.name));
+      const actual = await page.locator(".sector-card").evaluateAll((cards) => cards.map((card) => card.dataset.sectorName));
+      const loadStatus = await page.locator("#load-status").textContent();
+      assert.deepEqual(actual, expected.map((sector) => sector.name), JSON.stringify({ errors, loadStatus, serverErrors }));
       const amounts = await page.locator(".sector-card [data-sector-amount]").allTextContents();
       assert.deepEqual(amounts, expected.map(({ estimate: { amount } }) => amount === null ? ""
         : `${amount > 0 ? "+" : ""}${(amount / 1e8).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 億`));

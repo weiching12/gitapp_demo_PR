@@ -52,7 +52,7 @@ const cachedFallback = async (request, cacheName) => {
 };
 
 const trimCache = async (cache, limit = 160) => {
-  const keys = (await cache.keys()).filter((key) => /^\\/api\\/market\\/[a-z0-9-]+\\/\\d+$/.test(new URL(key.url).pathname));
+  const keys = (await cache.keys()).filter((key) => /^\\/api\\/(?:v1\\/market\\/snapshots\\/[a-z0-9-]+\\/shards|market\\/[a-z0-9-]+)\\/\\d+$/.test(new URL(key.url).pathname));
   await Promise.all(keys.slice(0, Math.max(0, keys.length - limit)).map((key) => cache.delete(key)));
 };
 
@@ -87,12 +87,13 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname === "/api/presence") return;
-  if (url.pathname === "/api/market" || url.pathname.startsWith("/api/stocks/")) {
+  if (url.pathname === "/api/presence" || url.pathname === "/api/v1/presence") return;
+  if (url.pathname === "/api/market" || url.pathname === "/api/v1/market" ||
+      url.pathname.startsWith("/api/stocks/") || url.pathname.startsWith("/api/v1/stocks/")) {
     event.respondWith(networkFirst(request, DATA_CACHE));
     return;
   }
-  if (/^\\/api\\/market\\/[a-z0-9-]+\\/\\d+$/.test(url.pathname)) {
+  if (/^\\/api\\/(?:v1\\/market\\/snapshots\\/[a-z0-9-]+\\/shards|market\\/[a-z0-9-]+)\\/\\d+$/.test(url.pathname)) {
     event.respondWith(cacheFirst(request, DATA_CACHE));
     return;
   }

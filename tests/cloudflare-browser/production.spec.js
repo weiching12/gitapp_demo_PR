@@ -10,7 +10,7 @@ test("TWSE full listed-company API renders current-day prices in viewport batche
   page.on("request", (request) => urls.push(request.url()));
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
-  await expect(page.locator('[data-page-panel="market"]')).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
+  await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
   const initialRows = await page.locator("#stock-rows tr").count();
   expect(initialRows).toBeGreaterThan(0);
   expect(initialRows).toBeLessThan(manifest.coverage.traded);
@@ -20,7 +20,7 @@ test("TWSE full listed-company API renders current-day prices in viewport batche
   await expect(page.locator(".demo-badge")).toHaveText("每日收盤資料");
   await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
   expect(urls.filter((url) => /\/api\/stocks\//.test(url))).toEqual([]);
-  expect(urls.filter((url) => /\/api\/market\//.test(url))).toHaveLength(128);
+  expect(urls.filter((url) => /\/api\/v1\/market\/snapshots\/[^/]+\/shards\/\d+$/.test(new URL(url).pathname))).toHaveLength(128);
   expect(urls.some((url) => /finmind|twse\.com\.tw/i.test(new URL(url).hostname))).toBe(false);
   await page.locator('[data-page="favorites"]').click();
   for (const symbol of ["2330", "2317", "3026"]) {
@@ -44,7 +44,7 @@ test("real TWSE institutional day/5/20 sums agree with cached histories at curre
   const stocks = await Promise.all(["2330", "2317", "3026"].map(async (symbol) =>
     (await (await request.get(`/api/stocks/${symbol}`)).json()).stock));
   await page.goto("/");
-  await expect(page.locator('[data-page-panel="market"]')).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
+  await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
   await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
   await page.locator('[data-page="favorites"]').click();
   await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
@@ -72,11 +72,11 @@ test("full-market phone controls, filters, sector and institution details retain
   test.setTimeout(90000);
   const manifest = await (await request.get("/api/market")).json();
   await page.goto("/");
-  await expect(page.locator('[data-page-panel="market"]')).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
+  await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
   await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.locator('[data-page="market"]').click();
+    await page.locator('.sidebar [data-page="market"]').click();
     await expect(page.locator(".table-scroll-hint, #date-hint")).toHaveCount(0);
     await expect(page.locator(".table-scroll [data-sort] .sort-icon")).toHaveCount(6);
     const tableIssues = await page.locator(".table-scroll").evaluate((table) => {

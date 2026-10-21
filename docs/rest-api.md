@@ -47,8 +47,9 @@ Examples: `/api/v1/stocks?type=etf&limit=20`, `/api/v1/stocks/2330/history`.
 ## Compatibility and errors
 
 Existing `/api/market`, `/api/market/{generation}/{index}`, `/api/stocks/{symbol}`,
-and `/api/presence` remain available. The frontend continues using these paths;
-there is no storage migration or change to scheduled KV publication.
+and `/api/presence` remain available for compatibility. The frontend uses `/api/v1`
+through dedicated API clients; legacy paths are no longer part of its runtime data
+flow. There is no storage migration or change to scheduled KV publication.
 
 v1 errors use `{error: {code, message}}`; legacy errors retain `{error: message}`.
 Codes include `INVALID_QUERY` (400), `NOT_FOUND` / `STOCK_NOT_FOUND` (404),

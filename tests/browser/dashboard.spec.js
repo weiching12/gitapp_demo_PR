@@ -1217,8 +1217,8 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
     await openPage(page, "market");
     if (width <= 520) {
       await expect(page.locator('.sidebar [data-page="market"] .nav-label-mobile')).toBeVisible();
-      const navLabels = await page.locator(".sidebar nav [data-page]").evaluateAll((buttons) => buttons.map((button) => {
-        const rect = button.querySelector(".nav-label-mobile").getBoundingClientRect();
+      const navLabels = await page.locator(".sidebar nav [data-page] .nav-label-mobile").evaluateAll((labels) => labels.map((label) => {
+        const rect = label.getBoundingClientRect();
         return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
       }));
       for (let index = 1; index < navLabels.length; index++) {

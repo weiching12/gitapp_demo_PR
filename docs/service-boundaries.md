@@ -14,10 +14,13 @@ business query options or construct stock/history representations.
 - `composition.js`: assemble environment bindings, repositories and services.
 - `services/market-service.js`: compose securities and published market data.
 - `services/analysis-service.js`: analyze a saved session using plain options and shared rules.
+- `services/history-service.js`: adapt saved stock history into the history resource representation.
 
 `shared/domain-error.js` carries only a code and message. Application services do
 not accept HTTP Request/Response or URLSearchParams, and errors do not contain an
 HTTP status. The old internal MarketError export is a compatibility alias.
+`composition.js` creates the Market, Analysis and History services and injects them
+as one application-service collection at the router boundary.
 Existing HTTP paths, response fields, cache headers and error envelopes remain.
 
 ## Shared rules and source adapters

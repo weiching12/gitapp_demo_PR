@@ -4,6 +4,11 @@
 coordination. Views receive explicit models/formatters/callbacks instead of fetching
 data or creating independent copies of business rules.
 
+HTTP access is isolated in `src/api`: `HttpClient` normalizes transport and API
+errors, while `MarketApiClient` and `PresenceApiClient` own the versioned resource
+paths. Providers, PWA refresh checks and presence lifecycle code depend on these
+clients; view modules never call `fetch` directly.
+
 - `ui/state.js`: fresh page/filter/settings state per application.
 - `ui/preferences.js`: existing storage schema, defaults, migration and failure handling.
 - `ui/shell.js`: shared shell markup and accessible navigation.

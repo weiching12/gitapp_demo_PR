@@ -18,6 +18,8 @@ for (const [, symbol, name] of etfRows) {
 }
 const extended = prepareEtfRelease({ manifest, chunks, rawCatalog: { stat: "OK", fields: ["上市日期", "證券代號", "證券簡稱"], data: etfRows },
   rawPrices: prices, rawFlows: flows, recentCounts: Array(5).fill(flows.data.length) });
+const versioned = (value) => ({ ...value, chunks: value.chunks.map((_, index) =>
+  `/api/v1/market/snapshots/${value.generation}/shards/${index}`) });
 
 test("ETF search and favorites work while every industry ranking and detail excludes ETFs", async ({ page }) => {
   let includeEtfs = false;
@@ -26,11 +28,12 @@ test("ETF search and favorites work while every industry ranking and detail excl
   });
   await page.route("**/api/**", (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/presence") return route.fulfill({ json: { online: 1 } });
+    if (path === "/api/v1/presence") return route.fulfill({ json: { online: 1 } });
     const current = includeEtfs ? extended : { manifest, chunks };
-    return route.fulfill({ json: path === "/api/market" ? current.manifest : current.chunks[Number(path.split("/").at(-1))] });
+    return route.fulfill({ json: path === "/api/v1/market" ? versioned(current.manifest)
+      : current.chunks[Number(path.split("/").at(-1))] });
   });
-  const ready = () => expect(page.locator('[data-page-panel="market"]')).toHaveAttribute("aria-busy", "false");
+  const ready = () => expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false");
   const sectorValues = () => page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => ({
     name: card.dataset.sectorName, amount: card.querySelector("[data-sector-amount]").textContent,
     lots: card.querySelector("[data-sector-lots]").textContent, breadth: card.querySelector("[data-sector-breadth]").textContent,
@@ -43,7 +46,7 @@ test("ETF search and favorites work while every industry ranking and detail excl
   }
   includeEtfs = true;
   await page.reload(); await ready();
-  await page.locator('[data-page="market"]').click();
+  await page.locator('.sidebar [data-page="market"]').click();
   await page.locator("#sector-filter").selectOption("ETF");
   await expect(page.locator("#stock-rows tr")).toHaveCount(3);
   await page.locator("#stock-search").fill("00632R");

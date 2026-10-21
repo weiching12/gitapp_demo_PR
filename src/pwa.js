@@ -1,4 +1,7 @@
+import { MarketApiClient } from "./api/market-client.js";
+
 export function startPwa({ onConnection, onUpdate, getDataVersion, onDataUpdate } = {}) {
+  const marketClient = new MarketApiClient();
   const reportConnection = () => onConnection?.(navigator.onLine);
   window.addEventListener("online", reportConnection);
   window.addEventListener("offline", reportConnection);
@@ -19,9 +22,7 @@ export function startPwa({ onConnection, onUpdate, getDataVersion, onDataUpdate 
       if (!currentVersion || checkingData) return;
       checkingData = true;
       try {
-        const response = await fetch("/api/market", { cache: "no-store" });
-        if (!response.ok) return;
-        const latest = await response.json();
+        const { data: latest } = await marketClient.market({ cache: "no-store" });
         if (latest?.generation && latest.generation !== currentVersion) onDataUpdate?.(latest);
       } catch (error) {
         console.warn("Market data update check failed", error);

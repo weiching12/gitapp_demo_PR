@@ -37,7 +37,9 @@ test("market batches remain reachable and reset correctly after a large filtered
 test("batch loading fills a tall viewport until the trigger moves below it", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 5000 });
   await loadMarket(page, 150, null);
-  await expect.poll(() => page.locator("#stock-rows tr").count()).toBeGreaterThanOrEqual(90);
+  await expect.poll(() => page.locator("#stock-rows tr").count()).toBeGreaterThan(30);
+  await expect.poll(() => page.locator("#table-load-trigger").evaluate((node) =>
+    node.hidden || node.getBoundingClientRect().top > window.innerHeight)).toBe(true);
 });
 
 test("phone filter labels fit inside every button", async ({ page }) => {

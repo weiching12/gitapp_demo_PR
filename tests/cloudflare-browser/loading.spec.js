@@ -8,6 +8,8 @@ const date = "2026-10-16";
 const day = marketDay(catalog, normalizePrices(fixture.prices, date), normalizeFlows(fixture.flows, date));
 const generation = "progressive-test";
 const manifest = createManifest(catalog, [date], generation, "2026-10-18T08:00:00Z", day.coverage);
+const versionedManifest = { ...manifest, chunks: manifest.chunks.map((_, index) =>
+  `/api/v1/market/snapshots/${generation}/shards/${index}`) };
 const chunks = Array.from({ length: SHARD_COUNT }, (_, index) => ({ ...mergeShard(catalog, index, null, [day]), generation, index }));
 const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
 const preferences = async (page) => page.addInitScript(() => {
@@ -20,10 +22,10 @@ test("shell and usable rows appear before completion without losing filters, fav
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/presence") return route.fulfill({ json: { online: 2 } });
-    if (path === "/api/market") {
+    if (path === "/api/v1/presence") return route.fulfill({ json: { online: 2 } });
+    if (path === "/api/v1/market") {
       await metadata.promise;
-      return route.fulfill({ json: manifest });
+      return route.fulfill({ json: versionedManifest });
     }
     const index = Number(path.split("/").at(-1));
     if (index !== shardOf("2330")) await rest.promise;
@@ -51,7 +53,7 @@ test("shell and usable rows appear before completion without losing filters, fav
     await expect(page.locator("#sector-grid .sector-card")).toHaveCount(0);
     await expect(page.locator("#sector-grid .loading-spinner")).toHaveCount(3);
     await expect(page.locator("#load-status")).toBeHidden();
-    await page.locator('[data-page="market"]').click();
+    await page.locator('.sidebar [data-page="market"]').click();
     await page.locator("#stock-search").fill("2330");
     await row.locator("[data-favorite]").click();
     await expect(row.locator("[data-favorite]")).toHaveAttribute("aria-pressed", "false");
@@ -76,7 +78,7 @@ test("a failed shard keeps validated rows marked incomplete and retry reloads wi
   await preferences(page);
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/market") return route.fulfill({ json: manifest });
+    if (path === "/api/v1/market") return route.fulfill({ json: versionedManifest });
     const index = Number(path.split("/").at(-1));
     if (index === shardOf("3026") && rejectShard) {
       await failed.promise;

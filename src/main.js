@@ -11,6 +11,8 @@ import { loadPreferences, persistPreferences, preferenceStorage } from "./ui/pre
 import { shellMarkup } from "./ui/shell.js";
 import { renderPageView } from "./ui/navigation.js";
 import { renderSectorOverviewView, renderSectorDialogView } from "./ui/sectors.js";
+import { createCarouselController } from "./ui/carousel.js";
+import { bindInputMode, bindMobileDragDismiss, bindPullToRefresh } from "./ui/gestures.js";
 import {
   DEFAULT_SETTINGS,
   getSnapshot,
@@ -100,6 +102,7 @@ const institutionalHistory = (stats, stock, name = "total") =>
     `<span class="watch-cumulative" data-window="${days}"><span>近 ${days} 日累計</span>${institutionalFigures(stockMoney(stock, name, String(days)), stats[`net${days}`])}</span>`,
   ).join("")}</div>`;
 const state = createState();
+const carousel = createCarouselController({ getOverview: () => state.overview, escapeHtml: esc });
 
 let dataset, snapshots, latestSnapshots;
 const latestCache = new Map(), historicalCache = new Map();
@@ -235,86 +238,7 @@ function scheduleRefresh() {
 
 function renderPage() { renderPageView({ state, dataset, renderLoadState, updateOverviewTabs, updateSegmentedControls }); }
 
-function renderWatchlist() { renderWatchlistView({ state, snapshots, pendingSymbols, loading, loadFailed, watchState, carouselIndex, esc, icon, number, signed, percent, direction, stockMoney, institutionalMoney, institutionalAmount, pendingField, renderInstitutionOverview, renderOverviewVisibility, renderCarouselPagination, scrollToCarouselCard, updateCarouselControls }); }
-
-const carouselConfig = {
-  price: { container: "#watchlist-grid", item: ".watch-card", index: 0 },
-  institutions: { container: "#institution-overview-rows", item: ".institution-overview-row", index: 0 },
-};
-
-function carouselEnabled(kind) {
-  return kind === "price" || matchMedia("(max-width: 700px)").matches;
-}
-
-function carouselParts(kind) {
-  const config = carouselConfig[kind];
-  const grid = document.querySelector(config.container);
-  return { grid, cards: [...grid.querySelectorAll(config.item)],
-    controls: document.querySelector(`[data-carousel="${kind}"]`) };
-}
-
-function carouselIndex(kind, cards = carouselParts(kind).cards) {
-  if (!cards.length) return 0;
-  const { grid } = carouselParts(kind);
-  const config = carouselConfig[kind];
-  // A resize can clamp scrollLeft before ResizeObserver restores the card.
-  if (!carouselEnabled(kind) || !grid.getClientRects().length || (config.width !== undefined && config.width !== grid.clientWidth))
-    return Math.min(config.index, cards.length - 1);
-  const left = grid.getBoundingClientRect().left + parseFloat(getComputedStyle(grid).paddingLeft);
-  return cards.reduce((nearest, card, index) =>
-    Math.abs(card.getBoundingClientRect().left - left) < Math.abs(cards[nearest].getBoundingClientRect().left - left)
-      ? index : nearest, 0);
-}
-
-function renderCarouselPagination(kind, favorites) {
-  const { grid, controls } = carouselParts(kind);
-  grid.style.setProperty("--carousel-count", Math.max(1, favorites.length));
-  controls.innerHTML = ["前段", "中段", "後段"].map((label, position) => {
-    const index = Math.round(position * Math.max(0, favorites.length - 1) / 2);
-    const stock = favorites[index];
-    return `<button class="carousel-page" data-carousel-index="${position}" data-carousel-target="${index}" aria-label="${label}${stock ? `，第 ${index + 1} 檔：${esc(stock.name)} ${stock.symbol}` : ""}" aria-controls="${grid.id}"${position === 1 && favorites.length === 2 ? ' aria-disabled="true"' : ""} tabindex="-1"><span class="carousel-dot" aria-hidden="true"></span></button>`;
-  }).join("");
-}
-
-function fitCarouselTail(kind) {
-  const { grid, cards } = carouselParts(kind);
-  if (!cards.length || !grid.getClientRects().length) return;
-  const style = getComputedStyle(grid);
-  const space = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-  carouselConfig[kind].width = grid.clientWidth;
-  grid.style.setProperty("--carousel-tail", `${Math.max(0, space - cards.at(-1).getBoundingClientRect().width)}px`);
-}
-
-function updateCarouselControls(kind) {
-  const { cards, controls } = carouselParts(kind);
-  const index = carouselIndex(kind, cards);
-  const activeDot = cards.length > 1 ? Math.round(index * 2 / (cards.length - 1)) : 0;
-  carouselConfig[kind].index = index;
-  controls.hidden = !carouselEnabled(kind) || cards.length <= 1 || (kind === "price" && state.overview !== "price");
-  controls.querySelectorAll("[data-carousel-index]").forEach((button, position) => {
-    const active = position === activeDot;
-    button.setAttribute("aria-current", String(active));
-    button.tabIndex = active ? 0 : -1;
-  });
-}
-
-function scrollToCarouselCard(kind, index, behavior = "smooth") {
-  const { grid, cards } = carouselParts(kind);
-  const card = cards[index];
-  if (!card) return;
-  carouselConfig[kind].index = index;
-  if (!grid.getClientRects().length) { updateCarouselControls(kind); return; }
-  if (!carouselEnabled(kind)) {
-    carouselConfig[kind].width = grid.clientWidth;
-    updateCarouselControls(kind);
-    return;
-  }
-  fitCarouselTail(kind);
-  const left = card.getBoundingClientRect().left - grid.getBoundingClientRect().left +
-    grid.scrollLeft - parseFloat(getComputedStyle(grid).paddingLeft);
-  grid.scrollTo({ left, behavior });
-  if (behavior === "instant") updateCarouselControls(kind);
-}
+function renderWatchlist() { renderWatchlistView({ state, snapshots, pendingSymbols, loading, loadFailed, watchState, carouselIndex: carousel.index, esc, icon, number, signed, percent, direction, stockMoney, institutionalMoney, institutionalAmount, pendingField, renderInstitutionOverview, renderOverviewVisibility, renderCarouselPagination: carousel.renderPagination, scrollToCarouselCard: carousel.scrollToCard, updateCarouselControls: carousel.updateControls }); }
 
 function updateSegmentedControl(group) {
   if (!group.getClientRects().length) return;
@@ -362,15 +286,12 @@ function renderOverviewVisibility() {
     tab.tabIndex = active ? 0 : -1;
   });
   updateOverviewTabs();
-  for (const kind of Object.keys(carouselConfig)) {
-    scrollToCarouselCard(kind, carouselConfig[kind].index, "instant");
-    updateCarouselControls(kind);
-  }
+  for (const kind of carousel.kinds) carousel.restore(kind);
 }
 
 function renderInstitutionOverview(favorites) {
-  const previousRows = carouselParts("institutions").cards;
-  const previousIndex = carouselIndex("institutions", previousRows);
+  const previousRows = carousel.parts("institutions").cards;
+  const previousIndex = carousel.index("institutions", previousRows);
   const previousSymbol = previousRows[previousIndex]?.dataset.overviewSymbol;
   document.querySelectorAll("[data-institution-window]").forEach((button) =>
     button.setAttribute("aria-pressed", button.dataset.institutionWindow === state.institutionWindow));
@@ -387,13 +308,13 @@ function renderInstitutionOverview(favorites) {
       return metric(name, value, streak);
     }).join("")}</dl></article>`;
   }).join("");
-  renderCarouselPagination("institutions", favorites);
+  carousel.renderPagination("institutions", favorites);
   if (favorites.length) {
     const match = favorites.findIndex((stock) => stock.symbol === previousSymbol);
     const nextIndex = match >= 0 ? match : Math.min(previousIndex, favorites.length - 1);
-    scrollToCarouselCard("institutions", nextIndex, "instant");
+    carousel.scrollToCard("institutions", nextIndex, "instant");
   }
-  updateCarouselControls("institutions");
+  carousel.updateControls("institutions");
 }
 
 function updateInstitutionOverviewWindow() {
@@ -483,10 +404,16 @@ function renderTable() { renderMarketView({ state, snapshots, pendingSymbols, st
 function observeTableBatches() {
   tableState.observer?.disconnect();
   const trigger = document.querySelector("#table-load-trigger");
-  tableState.observer = new IntersectionObserver((entries) => {
-    if (!entries.some((entry) => entry.isIntersecting) || trigger.hidden) return;
+  const fillViewport = () => {
+    tableState.fillFrame = undefined;
+    if (trigger.hidden || trigger.getBoundingClientRect().top > window.innerHeight + 600) return;
     tableState.visibleLimit += TABLE_BATCH_SIZE;
     renderTable();
+    if (!trigger.hidden) tableState.fillFrame = requestAnimationFrame(fillViewport);
+  };
+  tableState.observer = new IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting) || trigger.hidden) return;
+    if (!tableState.fillFrame) tableState.fillFrame = requestAnimationFrame(fillViewport);
   }, { rootMargin: "600px 0px" });
   tableState.observer.observe(trigger);
 }
@@ -606,57 +533,8 @@ function bindEvents() {
   };
   arrangeSearchControls();
   phoneLayout.addEventListener("change", arrangeSearchControls);
-  const inputMode = (touch) => {
-    touchInteraction = touch;
-    document.documentElement.dataset.inputMode = touch ? "touch" : "keyboard";
-  };
-  document.addEventListener("pointerdown", (event) => inputMode(event.pointerType === "touch"), { capture: true, passive: true });
-  document.addEventListener("touchstart", () => inputMode(true), { capture: true, passive: true });
-  document.addEventListener("keydown", () => inputMode(false), true);
-  const pullRefresh = document.querySelector("#pull-refresh");
-  let pullGesture = null;
-  const resetPullRefresh = () => {
-    pullGesture = null;
-    pullRefresh.classList.remove("is-pulling", "is-ready", "is-refreshing");
-    pullRefresh.style.removeProperty("--pull-distance");
-    pullRefresh.lastChild.textContent = "下拉重新整理";
-  };
-  document.addEventListener("touchstart", (event) => {
-    const touch = event.touches[0];
-    const blocked = event.touches.length !== 1 || window.scrollY > 0 ||
-      document.querySelector("dialog[open]") || event.target.closest("button, a, input, select, .table-scroll, .watchlist-grid, .institution-overview-rows");
-    if (blocked || !touch || !matchMedia("(max-width: 700px)").matches) return;
-    pullGesture = { x: touch.clientX, y: touch.clientY, distance: 0 };
-  }, { passive: true });
-  document.addEventListener("touchmove", (event) => {
-    if (!pullGesture || event.touches.length !== 1) return;
-    const touch = event.touches[0];
-    const vertical = touch.clientY - pullGesture.y;
-    const horizontal = Math.abs(touch.clientX - pullGesture.x);
-    if (vertical <= 0 || vertical <= horizontal) return;
-    event.preventDefault();
-    pullGesture.distance = Math.min(104, vertical * 0.55);
-    pullRefresh.style.setProperty("--pull-distance", `${pullGesture.distance}px`);
-    pullRefresh.classList.add("is-pulling");
-    const ready = pullGesture.distance >= 68;
-    pullRefresh.classList.toggle("is-ready", ready);
-    pullRefresh.lastChild.textContent = ready ? "放開即可更新" : "下拉重新整理";
-  }, { passive: false });
-  document.addEventListener("touchend", () => {
-    if (!pullGesture) return;
-    if (pullGesture.distance < 68) {
-      resetPullRefresh();
-      return;
-    }
-    pullRefresh.classList.remove("is-pulling", "is-ready");
-    pullRefresh.classList.add("is-refreshing");
-    pullRefresh.lastChild.textContent = "正在更新資料";
-    pullGesture = null;
-    const refreshEvent = new CustomEvent("stockapps:refresh", { cancelable: true });
-    if (window.dispatchEvent(refreshEvent)) window.location.reload();
-    else resetPullRefresh();
-  }, { passive: true });
-  document.addEventListener("touchcancel", resetPullRefresh, { passive: true });
+  bindInputMode((touch) => { touchInteraction = touch; });
+  bindPullToRefresh(document.querySelector("#pull-refresh"));
   document.addEventListener("keydown", (event) => {
     const card = event.target.closest?.("#sector-grid [data-sector-details]");
     if (!card || (event.key !== "Enter" && event.key !== " ")) return;
@@ -689,7 +567,7 @@ function bindEvents() {
     }
     if (button.dataset.carouselIndex !== undefined && button.getAttribute("aria-disabled") !== "true") {
       const kind = button.closest("[data-carousel]").dataset.carousel;
-      scrollToCarouselCard(kind, Number(button.dataset.carouselTarget),
+      carousel.scrollToCard(kind, Number(button.dataset.carouselTarget),
       matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
     }
     if (button.dataset.institutionWindow) {
@@ -767,18 +645,7 @@ function bindEvents() {
     state.query = event.target.value;
     renderTable();
   });
-  for (const kind of Object.keys(carouselConfig)) {
-    const { grid } = carouselParts(kind);
-    let frame;
-    grid.addEventListener("scroll", () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => { frame = null; updateCarouselControls(kind); });
-    }, { passive: true });
-    new ResizeObserver(() => {
-      if (grid.getClientRects().length)
-        scrollToCarouselCard(kind, carouselConfig[kind].index, "instant");
-    }).observe(grid);
-  }
+  carousel.bind();
   document
     .querySelector("#sector-filter")
     .addEventListener("change", (event) => {
@@ -857,48 +724,6 @@ function bindEvents() {
       if (document.activeElement === focusTarget) focusTarget.blur();
     } else focusTarget?.focus({ preventScroll: true });
   });
-  const bindMobileDragDismiss = (dialog, handle) => {
-    let drag = null;
-    let suppressClickUntil = 0;
-    const reset = () => {
-      drag = null;
-      dialog.classList.remove("is-dragging");
-      dialog.style.removeProperty("--mobile-drag-y");
-    };
-    handle.addEventListener("pointerdown", (event) => {
-      if (!dialog.open || !matchMedia("(max-width: 520px)").matches || event.button !== 0) return;
-      drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
-      dialog.classList.add("is-dragging");
-      handle.setPointerCapture(event.pointerId);
-    });
-    handle.addEventListener("pointermove", (event) => {
-      if (event.pointerId !== drag?.id) return;
-      const distance = event.clientY - drag.y;
-      const horizontal = Math.abs(event.clientX - drag.x);
-      dialog.style.setProperty("--mobile-drag-y", `${distance > horizontal ? Math.max(0, distance) : 0}px`);
-    });
-    handle.addEventListener("pointerup", (event) => {
-      if (event.pointerId !== drag?.id) return;
-      const distance = event.clientY - drag.y;
-      const horizontal = Math.abs(event.clientX - drag.x);
-      if (Math.hypot(distance, horizontal) > 8) suppressClickUntil = performance.now() + 350;
-      reset();
-      if (distance >= 90 && distance > horizontal) dialog.close();
-    });
-    handle.addEventListener("pointercancel", reset);
-    handle.addEventListener("click", () => {
-      if (dialog.open && performance.now() >= suppressClickUntil) dialog.close();
-    });
-    handle.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      dialog.close();
-    });
-    dialog.addEventListener("close", () => {
-      reset();
-      suppressClickUntil = 0;
-    });
-  };
   const institutionDialog = document.querySelector("#institution-dialog");
   bindMobileDragDismiss(institutionDialog, institutionDialog.querySelector(".institution-dialog-handle"));
   const sectorDialog = document.querySelector("#sector-dialog");

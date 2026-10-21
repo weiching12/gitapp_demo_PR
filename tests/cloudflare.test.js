@@ -137,10 +137,10 @@ test("browser loads one manifest and 128 compact chunks with at most six concurr
   const data = await loadApiDataset(async (url) => {
     count++; peak = Math.max(peak, ++active);
     await new Promise((resolve) => setImmediate(resolve)); active--;
-    return Response.json(url === "/api/market" ? manifest : chunks[Number(url.split("/").at(-1))]);
+    return Response.json(url === "/api/v1/market" ? manifest : chunks[Number(url.split("/").at(-1))]);
   });
   assert.equal(count, 129); assert.ok(peak <= 6); assert.equal(data.info.mode, "twse");
-  await assert.rejects(loadApiDataset(async () => new Response(null, { status: 503 })), /雲端/);
+  await assert.rejects(loadApiDataset(async () => new Response(null, { status: 503 })), /資料服務/);
 });
 
 test("progressive loading publishes validated stocks before a delayed shard and prioritizes favorites", async () => {
@@ -152,7 +152,7 @@ test("progressive loading publishes validated stocks before a delayed shard and 
   const requested = [], counts = [];
   let partial;
   const result = loadApiDataset(async (url) => {
-    if (url === "/api/market") return Response.json(manifest);
+    if (url === "/api/v1/market") return Response.json(manifest);
     const index = Number(url.split("/").at(-1));
     requested.push(index);
     if (index === blocked) await gate;
@@ -181,7 +181,7 @@ test("an invalid progressive shard is rejected before its stocks are published a
   const bad = shardOf("2330");
   chunks[bad].generation = "wrong-generation";
   const published = [];
-  await assert.rejects(loadApiDataset(async (url) => Response.json(url === "/api/market"
+  await assert.rejects(loadApiDataset(async (url) => Response.json(url === "/api/v1/market"
     ? manifest : chunks[Number(url.split("/").at(-1))]), {
     prioritySymbols: ["2330"], onChunk: ({ stocks }) => published.push(...stocks.map((stock) => stock.symbol)),
   }), /generation/);

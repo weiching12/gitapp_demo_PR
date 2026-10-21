@@ -1,4 +1,5 @@
 import { expandStock, SHARD_COUNT, HISTORY_LIMIT, shardOf, validSymbol, isEtf } from "./market-codec.js";
+import { MarketApiClient } from "./api/market-client.js";
 
 const validDate = (date) => typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
   Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
@@ -20,7 +21,9 @@ export function validateManifest(manifest) {
     !/^[a-z0-9-]{1,64}$/.test(manifest.generation) || !orderedDates(manifest.dates) ||
     manifest.asOf !== manifest.dates.at(-1) || !Number.isFinite(Date.parse(manifest.updatedAt)) ||
     !Array.isArray(manifest.stocks) || !manifest.stocks.length || !Array.isArray(manifest.chunks) ||
-    manifest.chunks.length !== SHARD_COUNT || manifest.chunks.some((url, i) => url !== `/api/market/${manifest.generation}/${i}`))
+    manifest.chunks.length !== SHARD_COUNT || manifest.chunks.some((url, i) =>
+      url !== `/api/v1/market/snapshots/${manifest.generation}/shards/${i}` &&
+      url !== `/api/market/${manifest.generation}/${i}`))
     throw new Error("Invalid TWSE market manifest");
   const seen = new Set();
   for (const stock of manifest.stocks) {
@@ -69,13 +72,16 @@ export function combineChunks(manifest, chunks) {
 
 export async function loadApiDataset(fetcher = fetch, { onManifest, onChunk, onCacheFallback, prioritySymbols = [] } = {}) {
   const controller = new AbortController();
+  const client = new MarketApiClient(fetcher);
   const get = async (url) => {
-    const response = await fetcher(url, { signal: controller.signal });
+    const { data, response } = url === "/api/v1/market"
+      ? await client.market({ signal: controller.signal })
+      : await client.snapshot(url, { signal: controller.signal });
     if (!response.ok) throw new Error("目前無法載入雲端股票資料，請稍後重試。");
     if (response.headers.get("X-PWA-Cache") === "fallback") onCacheFallback?.();
-    return response.json();
+    return data;
   };
-  const manifest = validateManifest(await get("/api/market"));
+  const manifest = validateManifest(await get("/api/v1/market"));
   const dataset = marketDataset(manifest, manifest.stocks.map((stock) => ({ ...stock, history: [], tradingDates: manifest.dates })));
   const positions = new Map(manifest.stocks.map((stock, index) => [stock.symbol, index]));
   const priorities = new Set(prioritySymbols.filter((symbol) => positions.has(symbol)).map(shardOf));
@@ -83,26 +89,29 @@ export async function loadApiDataset(fetcher = fetch, { onManifest, onChunk, onC
   const expected = Array.from({ length: SHARD_COUNT }, () => []);
   for (const stock of manifest.stocks) expected[shardOf(stock.symbol)].push(stock);
   await onManifest?.(dataset);
-  let cursor = 0, loaded = 0, completed = 0, stopped = false;
+  let cursor = 0, loaded = 0, completed = 0, stopped = false, failure;
   const workers = Array.from({ length: 6 }, async () => {
-    while (!stopped && cursor < order.length) {
-      const index = order[cursor++];
-      const chunk = await get(manifest.chunks[index]);
-      if (stopped) return;
-      const stocks = decodeChunk(manifest, chunk, index, expected[index]);
-      for (const stock of stocks) dataset.stocks[positions.get(stock.symbol)] = stock;
-      loaded += stocks.length;
-      completed++;
-      await onChunk?.({ loaded, total: manifest.stocks.length, completed, stocks });
+    try {
+      while (!stopped && cursor < order.length) {
+        const index = order[cursor++];
+        const chunk = await get(manifest.chunks[index]);
+        if (stopped) return;
+        const stocks = decodeChunk(manifest, chunk, index, expected[index]);
+        for (const stock of stocks) dataset.stocks[positions.get(stock.symbol)] = stock;
+        loaded += stocks.length;
+        completed++;
+        await onChunk?.({ loaded, total: manifest.stocks.length, completed, stocks });
+      }
+    } catch (error) {
+      if (!failure) {
+        failure = error;
+        stopped = true;
+        controller.abort();
+      }
     }
   });
-  try { await Promise.all(workers); }
-  catch (error) {
-    stopped = true;
-    controller.abort();
-    await Promise.allSettled(workers);
-    throw error;
-  }
+  await Promise.all(workers);
+  if (failure) throw failure;
   return dataset;
 }
 

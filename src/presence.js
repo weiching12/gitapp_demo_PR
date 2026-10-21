@@ -1,3 +1,5 @@
+import { PresenceApiClient } from "./api/presence-client.js";
+
 const STORAGE_KEY = "stock-insight-browser-id";
 
 export function startPresence(node, { demo = false } = {}) {
@@ -10,14 +12,12 @@ export function startPresence(node, { demo = false } = {}) {
     else localStorage.setItem(STORAGE_KEY, id);
   } catch { /* Storage-disabled browsers use a page-local random identifier. */ }
   let active = false, stopped = false;
+  const client = new PresenceApiClient();
   const update = async () => {
     if (stopped || active || document.visibilityState === "hidden") return;
     active = true;
     try {
-      const response = await fetch("/api/presence", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }), cache: "no-store", signal: AbortSignal.timeout(8000) });
-      if (!response.ok) throw new Error("Presence unavailable");
-      const { online } = await response.json();
+      const { online } = await client.heartbeat(id, { signal: AbortSignal.timeout(8000) });
       if (!Number.isSafeInteger(online) || online < 1) throw new Error("Invalid online count");
       if (!stopped) { node.textContent = `在線 ${online.toLocaleString("zh-TW")} 人`; node.dataset.state = "ready"; }
     } catch {
