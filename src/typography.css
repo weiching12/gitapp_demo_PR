@@ -304,6 +304,23 @@ thead th button,
   font-weight: 400;
   line-height: var(--leading-control);
 }
+
+/* The former About page now lives inside one dialog; keep its article hierarchy coherent. */
+#info-dialog #dialog-heading { font-size: 24px; }
+#info-dialog .source-about .about-hero h2 { font-size: 20px; }
+#info-dialog :is(.about-goals-heading, .source-data > h3) { font-size: 18px; }
+#info-dialog .about-goal h3 { font-size: 16px; }
+#info-dialog :is(.source-about p, .source-data .dialog-intro, .source-details) { font-size: 14px; }
+#info-dialog :is(.source-about .about-scope, .about-goal .about-progress, .about-status) { font-size: 12px; }
+
+@media (max-width: 700px) {
+  #info-dialog #dialog-heading,
+  #info-dialog .source-about .about-hero h2 { font-size: 15px; }
+  #info-dialog :is(.about-goals-heading, .source-data > h3, .about-goal h3) { font-size: 14px; }
+  #info-dialog :is(.source-about p, .source-data .dialog-intro, .source-details,
+    .source-about .about-scope, .about-goal .about-progress, .about-status) { font-size: 12px; }
+}
+
 @media (max-width: 1100px) {
   /* Compact navigation keeps labels inside the narrow header. */
   .sidebar .brand > span:last-child {

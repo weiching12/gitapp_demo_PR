@@ -357,9 +357,9 @@ test("empty favorites persist and offer a working path back to stock selection",
 });
 
 test("KD settings recalculate every favorite and table suggestion and persist", async ({ page }) => {
-  await page.getByRole("button", { name: "指標設定", exact: true }).click();
+  await page.getByRole("button", { name: "設定", exact: true }).click();
   await page.getByLabel("RSV 回溯週期").fill("14");
-  await page.getByRole("button", { name: "儲存並重新計算" }).click();
+  await page.getByRole("button", { name: "儲存設定" }).click();
   const { stocks, info } = await demoProvider.load();
   for (const stock of stocks) {
     const { latest, signal } = getSnapshot(stock, info.asOf, { period: 14, kSmooth: 3, dSmooth: 3 });
@@ -379,6 +379,66 @@ test("KD settings recalculate every favorite and table suggestion and persist", 
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.getByRole("button", { name: "資料說明", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("沒有連接交易所");
+});
+
+test("market sentiment follows the selected date and explains its components", async ({ page }) => {
+  const card = page.locator("#market-sentiment");
+  await expect(card).toBeVisible();
+  await expect(card.locator(".sentiment-score")).not.toHaveText("—");
+  const firstDate = await page.locator("#trade-date").inputValue();
+  await expect(card.locator(".sentiment-date")).toContainText(firstDate);
+  await card.getByRole("button").click();
+  await expect(page.getByRole("dialog")).toContainText("市場漲跌家數");
+  await expect(page.getByRole("dialog")).toContainText("ETF 與缺漏值不納入分母");
+});
+
+test("general settings persist the dark theme", async ({ page }) => {
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await page.getByLabel("色彩主題").selectOption("dark");
+  await page.getByRole("button", { name: "儲存設定" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("#market-sentiment > button")).toHaveCSS("background-color", "rgb(17, 27, 43)");
+  await expect(page.locator("#sector-filter")).toHaveCSS("background-color", "rgb(13, 23, 38)");
+  await expect(page.locator("#sector-filter")).toHaveCSS("color", "rgb(229, 237, 248)");
+  const stockName = page.locator('#stock-rows [data-symbol="2330"] .stock-name');
+  await expect(stockName.locator("strong")).toHaveCSS("color", "rgb(229, 237, 248)");
+  await expect(stockName.locator(":scope > span")).toHaveCSS("color", "rgb(154, 171, 194)");
+  await expect(page.locator('#stock-rows [data-symbol="2330"] th')).toHaveCSS("background-color", "rgb(17, 27, 43)");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(stockName.locator("strong")).toHaveCSS("color", "rgb(229, 237, 248)");
+  await expect(stockName.locator(":scope > span")).toHaveCSS("color", "rgb(154, 171, 194)");
+  await page.getByRole("button", { name: "自選總覽" }).click();
+  await expect(page.locator(".overview-controls")).toHaveCSS("background-color", "rgb(17, 27, 43)");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
+test("notification control lives in settings with a bell beside the trade date", async ({ page }) => {
+  await expect(page.locator(".push-controls")).toHaveCount(0);
+  const bell = page.locator(".date-notification-button");
+  await expect(bell).toBeHidden();
+  await page.locator("html").evaluate((root) => {
+    root.dataset.pushSupported = "true";
+    root.dataset.pushSubscribed = "false";
+    root.querySelector(".date-notification-button").hidden = false;
+  });
+  await expect(bell).toBeVisible();
+  await page.locator("html").evaluate((root) => { root.dataset.pushSubscribed = "true"; });
+  await expect(bell).toBeHidden();
+  await page.locator("html").evaluate((root) => { root.dataset.pushSubscribed = "false"; });
+  await expect(bell).toBeVisible();
+  await page.locator("#push-notifications").evaluate((button) => { button.classList.add("push-enabled"); });
+  await expect(bell).toBeHidden();
+  await page.locator("#push-notifications").evaluate((button) => { button.classList.remove("push-enabled"); });
+  await expect(bell).toBeVisible();
+  await expect(page.locator("#update-countdown")).toContainText(/預計 (18:30|20:30) 更新 · \d{2,}:\d{2}:\d{2}/);
+  await bell.click();
+  await expect(page.getByRole("dialog")).toContainText("資料更新通知");
+  await expect(page.locator("#settings-notifications")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.getByRole("button", { name: "資料說明", exact: true }).click();
+  await expect(page.locator("#settings-notifications")).toBeHidden();
 });
 
 test("technical suggestions explain each stock on the selected historical date", async ({ page }) => {
@@ -481,11 +541,11 @@ test("phone price carousel supports swipe with dot pagination", async ({ page })
 
 test("favorite metrics remain unclipped across narrow screens, tablets and desktops", async ({ page }, testInfo) => {
   await page.locator('#stock-rows [data-favorite="2454"]').click();
-  await page.getByRole("button", { name: "指標設定", exact: true }).click();
+  await page.getByRole("button", { name: "設定", exact: true }).click();
   await page.getByLabel("RSV 回溯週期").fill("60");
   await page.getByLabel("K 平滑係數").fill("20");
   await page.getByLabel("D 平滑係數").fill("20");
-  await page.getByRole("button", { name: "儲存並重新計算" }).click();
+  await page.getByRole("button", { name: "儲存設定" }).click();
   await openPage(page, "favorites");
   for (const width of [320, 360, 390, 520, 521, 768, 1000, 1001, 1024, 1250, 1251, 1440, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -583,10 +643,31 @@ test("source information lives in the sidebar and opens one accessible explanati
   await expect(page.locator('.sidebar button.nav-item[data-dialog="source"]')).toHaveCount(1);
   await expect(source).toContainText("資料說明");
   await expect(page.locator("main .demo-notice, .topbar [data-dialog=source]")).toHaveCount(0);
+  await expect(page.locator(".brand-intro")).toHaveCount(0);
+  await expect(page.locator('[data-page="about"]')).toHaveCount(0);
   await source.click();
+  await expect(page.locator("#dialog-heading")).toHaveText("關於株研");
+  await expect(page.locator(".source-about")).toContainText("從數據到洞察，讓每一項投資判斷都有跡可循。");
+  await expect(page.locator(".source-about .about-hero")).toBeVisible();
+  await expect(page.locator(".source-about .about-goal")).toHaveCount(5);
+  await expect(page.locator(".source-about .about-status.available")).toHaveText("目前提供");
+  await expect(page.locator(".source-about .about-goal").first()).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(page.locator("#source-data-heading")).toHaveText("資料來源與更新規則");
   await expect(page.getByRole("dialog")).toContainText("沒有連接交易所");
   await page.keyboard.press("Escape");
   await expect(source).toBeFocused();
+});
+
+test("source dialog uses a consistent article type scale on desktop and phone", async ({ page }) => {
+  for (const [width, expected] of [[1024, [24, 20, 18, 16, 14]], [390, [15, 15, 14, 14, 12]]]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByRole("button", { name: "資料說明", exact: true }).click();
+    const sizes = await page.locator("#info-dialog").evaluate((dialog) => [
+      "#dialog-heading", ".about-hero h2", ".about-goals-heading", ".about-goal h3", ".about-hero p",
+    ].map((selector) => Number.parseFloat(getComputedStyle(dialog.querySelector(selector)).fontSize)));
+    expect(sizes).toEqual(expected);
+    await page.keyboard.press("Escape");
+  }
 });
 
 test("watchlist tabs support keyboard selection and restore focus to the exact overview details button", async ({ page }) => {

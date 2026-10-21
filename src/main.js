@@ -6,6 +6,8 @@ import { loadDataset } from "./provider.js";
 import { startPresence } from "./presence.js";
 import { startPwa } from "./pwa.js";
 import { startPushNotifications } from "./push.js";
+import { startUpdateCountdown } from "./update-countdown.js";
+import { sourceAbout } from "./about.js";
 import { isEtf } from "./market-codec.js";
 import { createState } from "./ui/state.js";
 import { loadPreferences, persistPreferences, preferenceStorage } from "./ui/preferences.js";
@@ -19,6 +21,8 @@ import { createDialogController } from "./ui/dialogs.js";
 import { bindResponsiveSearchOrder } from "./ui/responsive-layout.js";
 import { bindKeyboardNavigation } from "./ui/keyboard.js";
 import { createTableBatchController } from "./ui/table-batches.js";
+import { calculateMarketSentiment } from "../shared/sentiment.js";
+import { renderSentiment, sentimentDialogMarkup } from "./ui/sentiment.js";
 import {
   DEFAULT_SETTINGS,
   getSnapshot,
@@ -113,7 +117,7 @@ const carousel = createCarouselController({ getOverview: () => state.overview, e
 const controls = createControlsController();
 const dialogs = createDialogController();
 
-let dataset, snapshots, latestSnapshots;
+let dataset, snapshots, latestSnapshots, currentSentiment;
 const latestCache = new Map(), historicalCache = new Map();
 const tableRowCache = new WeakMap();
 const TABLE_BATCH_SIZE = 30;
@@ -124,12 +128,16 @@ const tableState = { visibleLimit: TABLE_BATCH_SIZE, viewKey: "", observer: unde
 const tableBatches = createTableBatchController({ state: tableState, batchSize: TABLE_BATCH_SIZE, render: () => renderTable() });
 let toastTimer;
 let isDemo;
-let stopPresence, usingCachedData = false;
+let stopPresence, stopUpdateCountdown, usingCachedData = false;
 let touchInteraction = false;
 const pendingSymbols = new Set();
 
 function readPreferences() { loadPreferences(state, preferenceStorage()); }
 function savePreferences() { persistPreferences(state, toast, preferenceStorage()); }
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", state.theme === "dark" ? "#0b1220" : "#14243b");
+}
 
 function toast(message) {
   const node = document.querySelector("#toast");
@@ -164,8 +172,8 @@ function refreshData() {
   const forDisplay = (stock, date) => {
     const snapshot = getSnapshot(stock, date, state.settings);
     // Indicators/streaks use the complete source history. The view only needs
-    // the current row plus 20 prior rows for sector returns, saving phone memory.
-    snapshot.history = snapshot.history.slice(-21);
+    // Keep enough analyzed rows for the current display and 20-day sentiment trend.
+    snapshot.history = snapshot.history.slice(-41);
     return snapshot;
   };
   const settingsKey = [state.settings.period, state.settings.kSmooth, state.settings.dSmooth].join(":");
@@ -180,6 +188,10 @@ function refreshData() {
   latestSnapshots = cached(dataset.info.asOf, latestCache);
   snapshots = state.date === dataset.info.asOf ? latestSnapshots
     : cached(state.date, historicalCache);
+  currentSentiment = loading && pendingSymbols.size
+    ? { date: state.date, score: null, components: {}, series: [], band: { key: "unknown", label: "資料更新中" }, version: "tw-market-sentiment-v1" }
+    : calculateMarketSentiment(snapshots, state.date);
+  renderSentiment(currentSentiment);
   renderWatchlist();
   renderTable();
   renderSectorOverview();
@@ -231,7 +243,16 @@ function enablePwa() {
       status.hidden = false;
     },
   });
-  startPushNotifications(document.querySelector("#push-notifications"), { onMessage: toast });
+  const reminder = document.querySelector(".date-notification-button");
+  startPushNotifications(document.querySelector("#push-notifications"), { onMessage: toast,
+    onStatus: ({ supported, subscribed }) => {
+      const hidden = !supported || subscribed;
+      reminder.hidden = hidden;
+      document.documentElement.dataset.pushSubscribed = String(Boolean(supported && subscribed));
+      document.documentElement.dataset.pushSupported = String(Boolean(supported));
+    } });
+  stopUpdateCountdown?.();
+  stopUpdateCountdown = startUpdateCountdown(document.querySelector("#update-countdown"));
 }
 
 function scheduleRefresh() {
@@ -404,18 +425,21 @@ function marketScope() {
 
 function openDialog(type, focusClose = true) {
   const content = document.querySelector("#dialog-content");
+  document.querySelector("#settings-notifications").hidden = type !== "settings";
   if (type === "settings") {
-    content.innerHTML = `<h2 id="dialog-heading">讓指標符合你的觀察習慣</h2><p class="dialog-intro">調整後，自選總覽與市場觀察清單會一起重新計算。設定會保存在這個瀏覽器。</p><form id="settings-form"><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 儲存並重新計算</button></div></form>`;
+    content.innerHTML = `<h2 id="dialog-heading">設定</h2><p class="dialog-intro">調整顯示主題與技術指標。設定會保存在這個瀏覽器。</p><form id="settings-form"><fieldset class="settings-group"><legend>顯示</legend><div class="form-field"><label for="theme">色彩主題</label><select id="theme" name="theme"><option value="light"${state.theme === "light" ? " selected" : ""}>淺色</option><option value="dark"${state.theme === "dark" ? " selected" : ""}>深色</option></select></div></fieldset><fieldset class="settings-group"><legend>KD 指標</legend><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div></fieldset><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 儲存設定</button></div></form>`;
+  } else if (type === "sentiment") {
+    content.innerHTML = sentimentDialogMarkup(currentSentiment);
   } else if (type === "signals") {
     content.innerHTML = `<h2 id="dialog-heading">KD 技術建議怎麼看？</h2>${technicalSignalGuide()}`;
   } else if (type === "source" && !isDemo && !dataset.info.updatedAt) {
-    content.innerHTML = '<h2 id="dialog-heading">資料說明</h2><p>正在取得資料來源與市場範圍，請稍候。</p>';
+    content.innerHTML = `<h2 id="dialog-heading">關於株研</h2>${sourceAbout()}<section class="source-data" aria-labelledby="source-data-heading"><h3 id="source-data-heading">資料來源與更新規則</h3><p>正在取得資料來源與市場範圍，請稍候。</p></section>`;
   } else if (type === "source" && !isDemo) {
     const syncNote = import.meta.env.VITE_SYNC_NOTE || "平日台灣時間 18:30、20:30 檢核全市場法人報表，驗證通過後分批更新快取，全部完成才發布；失敗保留上一份已驗證資料，基準不足時等待確認。";
     const checkedAt = new Date(dataset.info.updatedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
-    content.innerHTML = `<h2 id="dialog-heading">每日資料，來源與口徑。</h2><p class="dialog-intro">由臺灣證券交易所取得上市公司名錄、每日收盤行情及三大法人買賣超日報，儲存於 Cloudflare 後供網站讀取。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${esc(marketScope())}</dd></div><div><dt>市場報表交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>整批資料發布時間</dt><dd>${esc(checkedAt)}（台灣時間）；未提供行情的公司不列入當日排行</dd></div><div><dt>價格與指標</dt><dd>未還原價格；KD、MA60 於瀏覽器依歷史資料計算，除權息與分割可能影響指標</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商；投信；自營商自行買賣加避險。買賣量單位為股，畫面換算成張</dd></div><div><dt>更新方式</dt><dd>${esc(syncNote)}</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，但自選清單尚未跨裝置同步</dd></div></dl>`;
+    content.innerHTML = `<h2 id="dialog-heading">關於株研</h2>${sourceAbout()}<section class="source-data" aria-labelledby="source-data-heading"><h3 id="source-data-heading">資料來源與更新規則</h3><p class="dialog-intro">株研每日從臺灣證券交易所取得上市公司名錄、收盤行情及三大法人買賣超日報，完成驗證後儲存於 Cloudflare，提供網站與安裝版 App 使用。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>${esc(marketScope())}</dd></div><div><dt>資料交易日</dt><dd>${esc(dataset.info.asOf)}</dd></div><div><dt>發布時間</dt><dd>${esc(checkedAt)}（台灣時間）。未提供當日行情的公司不列入當日排行</dd></div><div><dt>價格與指標</dt><dd>價格未還原；KD、MA60 由瀏覽器依選定交易日以前的歷史資料計算，除權息與分割可能影響結果</dd></div><div><dt>法人分類</dt><dd>外資不含外資自營商、投信、自營商自行買賣加避險。原始單位為股，畫面依功能換算為張或億元</dd></div><div><dt>更新規則</dt><dd>${esc(syncNote)}</dd></div><div><dt>異常處理</dt><dd>資料未通過完整性檢核時不發布、不覆蓋既有資料，畫面保留上一份已驗證版本</dd></div><div><dt>自選清單</dt><dd>保存在目前瀏覽器；手機與電腦讀取相同行情，自選清單目前不跨裝置同步</dd></div></dl></section>`;
   } else if (type === "source") {
-    content.innerHTML = `<h2 id="dialog-heading">資料透明，觀察才有依據。</h2><p class="dialog-intro">這是可操作的前端示範版，目前沒有連接交易所或即時行情服務。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>14 檔台灣上市、上櫃股票與 ETF 範例</dd></div><div><dt>示範資料截止日</dt><dd>${dataset.info.asOf}（固定資料，不會自動更新）</dd></div><div><dt>買賣量定義</dt><dd>外資、投信、自營商買進與賣出股數；畫面換算成張</dd></div><div><dt>指標計算方式</dt><dd>由模擬 OHLC 歷史資料在瀏覽器計算，並非硬填指標數值</dd></div><div><dt>下一階段</dt><dd>確認正式行情與三大法人資料來源，接上 API，再設定 Cloudflare 部署。</dd></div></dl><p class="helper-text">正式資料需涵蓋交易日曆、除權息還原與法人分類定義。此版資料未經還原，不能用於實際交易。</p>`;
+    content.innerHTML = `<h2 id="dialog-heading">關於株研</h2>${sourceAbout()}<section class="source-data" aria-labelledby="source-data-heading"><h3 id="source-data-heading">資料來源與更新規則</h3><p class="dialog-intro">這是可操作的前端示範版，目前沒有連接交易所或即時行情服務。</p><div class="source-banner">${icon("info")} ${esc(dataset.info.note)}</div><dl class="source-details"><div><dt>市場與標的</dt><dd>14 檔台灣上市、上櫃股票與 ETF 範例</dd></div><div><dt>資料截止日</dt><dd>${dataset.info.asOf}（固定資料，不會自動更新）</dd></div><div><dt>法人資料</dt><dd>模擬外資、投信與自營商買進、賣出股數，畫面依功能換算為張或億元</dd></div><div><dt>指標計算</dt><dd>由模擬 OHLC 歷史資料在瀏覽器計算，並非預先填入指標數值</dd></div><div><dt>正式版本</dt><dd>正式資料須涵蓋交易日曆、除權息還原與法人分類定義；示範資料不可用於實際交易</dd></div></dl></section>`;
   } else {
     content.innerHTML = `<h2 id="dialog-heading">讀懂價格背後的訊號</h2><p class="dialog-intro">指標提供觀察角度。搭配價量與籌碼，建立更完整的判斷。</p><article class="guide-item"><span>01</span><div><h3>季線 MA60</h3><p>最近 60 個交易日收盤價的簡單移動平均，包含選定資料日。股價高於季線時，位置顯示為正值。</p><code>乖離率 = (收盤價 ÷ MA60 − 1) × 100%</code></div></article><article class="guide-item"><span>02</span><div><h3>KD 隨機指標</h3><p>預設以 9 日最高、最低與當日收盤價計算 RSV，再以平滑係數 3 遞推 K、D。K、D 初始值為 50；不足 9 日不顯示。最高與最低相同時 RSV 採 50。</p><code>RSV = (收盤 − 最低) ÷ (最高 − 最低) × 100<br>K = 前日 K × 2/3 + RSV × 1/3<br>D = 前日 D × 2/3 + 當日 K × 1/3</code><p>K &gt; 80 為高檔區，K &lt; 20 為低檔區，不能單獨視為買賣訊號。你可以在指標設定調整參數。</p></div></article><article class="guide-item"><span>03</span><div><h3>三大法人買賣超</h3><p>外資、投信及自營商的買進股數減去賣出股數。正值為買超，負值為賣超。1 張 = 1,000 股；法人買賣量與全市場成交量的統計範圍不同。近 5／20 日累計包含資料日，依實際交易日加總後換算為張；資料不足不補零。外資、投信的連買／連賣日數從資料日回溯，遇反向、持平或缺漏即中止；若回溯到資料起點或缺漏，顯示「至少」。</p></div></article><article class="guide-item"><span>04</span><div><h3>前一交易日</h3><p>目前預設資料日為 ${dataset.info.asOf}。日期選單可回看最近 30 個${isDemo ? "模擬" : "實際"}交易日，所有指標僅使用選定日及之前的資料。</p></div></article><article class="guide-item"><span>05</span><div><h3>KD 技術建議</h3>${technicalSignalGuide()}</div></article>`;
   }
@@ -584,6 +608,7 @@ function bindEvents() {
     if (button.id === "default-settings") {
       for (const [key, value] of Object.entries(DEFAULT_SETTINGS))
         document.querySelector(`#${key}`).value = value;
+      document.querySelector("#theme").value = "light";
     }
   });
   document.querySelector("#stock-search").addEventListener("input", (event) => {
@@ -611,10 +636,12 @@ function bindEvents() {
         Number(form.get(key)),
       ]),
     );
+    state.theme = form.get("theme") === "dark" ? "dark" : "light";
+    applyTheme();
     savePreferences();
     refreshData();
     document.querySelector("#info-dialog").close();
-    toast("指標已重新計算，設定已儲存");
+    toast("設定已儲存");
   });
   dialogs.bindBackdropDismiss();
   document.querySelector("#institution-dialog").addEventListener("close", () => {
@@ -644,6 +671,7 @@ function bindEvents() {
 
 async function init() {
   readPreferences();
+  applyTheme();
   const apiMode = import.meta.env.VITE_DATA_MODE === "api";
   const prepare = () => {
     state.date = dataset.info.asOf;

@@ -74,8 +74,9 @@ try {
     const selected = await star.getAttribute("aria-pressed");
     await star.click();
     await expect(star).toHaveAttribute("aria-pressed", selected === "true" ? "false" : "true");
-    await page.locator(".brand-intro button").click();
-    await expect(page.locator(".about-goal")).toHaveCount(5);
+    await page.locator('.sidebar [data-dialog="source"]').click();
+    await expect(page.locator(".source-about")).toContainText("從數據到洞察");
+    await page.keyboard.press("Escape");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     assert.deepEqual(errors, []);
     console.log(`PASS browser ${width}px: all sector windows match shared model, detail, favorite, navigation and layout`);

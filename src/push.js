@@ -6,17 +6,36 @@ const decodeKey = (value) => {
   return Uint8Array.from(raw, (char) => char.charCodeAt(0));
 };
 
-export function startPushNotifications(button, { client = new PushApiClient(), onMessage } = {}) {
-  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  if (!supported || !button) { if (button) button.hidden = true; return; }
+export function startPushNotifications(button, {
+  client = new PushApiClient(),
+  onMessage,
+  onStatus,
+  runtime = {
+    navigator: globalThis.navigator,
+    window: globalThis.window,
+    document: globalThis.document,
+    Notification: globalThis.Notification,
+  },
+} = {}) {
+  const { navigator, window, document, Notification } = runtime;
+  const supported = Boolean(navigator && window && Notification && "serviceWorker" in navigator && "PushManager" in window);
+  if (!supported || !button) { if (button) button.hidden = true; onStatus?.({ supported: false, subscribed: false }); return; }
   const render = (subscribed) => {
+    button.hidden = false;
     button.classList.toggle("push-enabled", subscribed);
     button.setAttribute("aria-pressed", String(subscribed));
     button.setAttribute("aria-label", subscribed ? "關閉每日資料更新通知" : "開啟每日資料更新通知");
     button.querySelector("span").textContent = subscribed ? "關閉更新通知" : "開啟更新通知";
+    onStatus?.({ supported: true, subscribed });
   };
-  navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription()).then((subscription) => render(Boolean(subscription)))
-    .catch(() => { button.hidden = true; });
+  const refresh = () => navigator.serviceWorker.ready
+    .then((registration) => registration.pushManager.getSubscription())
+    .then((subscription) => render(Boolean(subscription)))
+    .catch(() => { button.hidden = true; onStatus?.({ supported: false, subscribed: false }); });
+  const refreshWhenVisible = () => { if (!document || document.visibilityState === "visible") refresh(); };
+  refresh();
+  document?.addEventListener?.("visibilitychange", refreshWhenVisible);
+  window.addEventListener?.("pageshow", refresh);
   button.addEventListener("click", async () => {
     button.disabled = true;
     try {
@@ -37,4 +56,11 @@ export function startPushNotifications(button, { client = new PushApiClient(), o
       console.warn("Push subscription failed", error); onMessage?.("目前無法設定更新通知，請稍後再試");
     } finally { button.disabled = false; }
   });
+  return {
+    refresh,
+    destroy() {
+      document?.removeEventListener?.("visibilitychange", refreshWhenVisible);
+      window.removeEventListener?.("pageshow", refresh);
+    },
+  };
 }

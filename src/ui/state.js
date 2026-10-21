@@ -15,4 +15,5 @@ export const createState = () => ({
   institutionSymbol: null,
   sectorName: null,
   settings: { ...DEFAULT_SETTINGS },
+  theme: "light",
 });

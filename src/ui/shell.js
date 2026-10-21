@@ -1,4 +1,3 @@
-import { brandIntro, aboutPage } from "../about.js";
 export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) {
   return `
     <aside class="sidebar">
@@ -10,10 +9,9 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
         <button class="nav-item" data-page="sectors" aria-label="法人買株">${icon("chart")}<span class="nav-label">法人買株</span><span class="nav-label-mobile" aria-hidden="true">法人</span><span class="nav-dot"></span></button>
         <button class="nav-item" data-dialog="methodology" aria-label="指標小百科">${icon("book")}<span>指標說明</span>${icon("chevron", "nav-chevron")}</button>
         <button class="nav-item" data-dialog="source" aria-label="資料說明">${icon("info")}<span>資料說明</span>${icon("chevron", "nav-chevron")}</button>
-        <button class="nav-item" data-page="about" aria-label="關於株研">${icon("info")}<span>關於株研</span></button>
       </nav>
       <div class="sidebar-note"><span class="note-line"></span><p>看懂數據，<br>找到自己的節奏。</p><span>YOUR EDGE, YOUR PACE.</span></div>
-      <div class="sidebar-bottom"><button class="nav-item" data-dialog="settings" aria-label="指標設定">${icon("settings")}<span>指標設定</span></button><div class="workspace-status"><span class="status-dot"></span>${isDemo ? "前端示範版" : "每日收盤資料"} <span>v0.2</span></div></div>
+      <div class="sidebar-bottom"><button class="nav-item" data-dialog="settings" aria-label="設定">${icon("settings")}<span>設定</span></button><div class="workspace-status"><span class="status-dot"></span>${isDemo ? "前端示範版" : "每日收盤資料"} <span>v0.2</span></div></div>
     </aside>
     <div class="workspace">
       <header class="topbar"><div class="breadcrumb">研究工作台 ${icon("chevron")} <span id="breadcrumb-current">市場觀察清單</span></div><div class="topbar-actions"><span id="online-count" class="online-count" role="status" title="最近 90 秒內活躍的瀏覽器，同一瀏覽器多分頁計一次">${loadingIcon("正在取得在線人數")}<span>在線人數</span></span><span class="demo-badge"><span></span>${esc(dataset.info.label)}</span></div></header>
@@ -27,10 +25,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
           )
           .join(
             "",
-          )}</select></div></section>
-        <div class="push-controls"><button class="outline-button push-nav-item" id="push-notifications" type="button" aria-label="開啟每日資料更新通知" aria-pressed="false">${icon("bell")}<span>開啟更新通知</span></button></div>
-        ${brandIntro()}
-        ${aboutPage()}
+          )}</select><button class="date-notification-button" type="button" data-dialog="settings" aria-label="開啟更新通知" aria-haspopup="dialog" hidden>${icon("bell")}</button><span id="update-countdown" class="update-countdown" role="timer">計算下次更新時間</span></div></section>
         <div id="pull-refresh" class="pull-refresh" aria-hidden="true"><span></span>下拉重新整理</div>
         <div id="app-status" class="app-status" role="status" hidden><span></span><button class="text-button" id="apply-update" hidden>立即更新</button></div>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
@@ -52,6 +47,14 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
             <div id="institution-overview-rows" class="institution-overview-rows"></div><div id="institution-carousel-controls" class="carousel-pagination" data-carousel="institutions" role="group" aria-label="法人卡片導覽" hidden></div><p class="institution-overview-note">金額：億；張數為輔。金額按每日收盤價換算，非實際成交金額。連買／連賣天數截至資料日。</p>
           </section>
           <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>到市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div>
+        </section>
+        <section id="market-sentiment" class="market-sentiment" data-page-panel="market" data-sentiment="unknown" aria-labelledby="sentiment-title">
+          <button type="button" data-dialog="sentiment" aria-haspopup="dialog">
+            <div class="sentiment-heading"><span class="eyebrow">TAIWAN MARKET MOOD</span><h2 id="sentiment-title">台股市場情緒</h2><span class="sentiment-date">資料更新中</span></div>
+            <div class="sentiment-reading"><strong class="sentiment-score">—</strong><span class="sentiment-band">資料更新中</span></div>
+            <div class="sentiment-meter" aria-hidden="true"><span class="sentiment-meter-fill"></span><i></i><i></i><i></i><i></i></div>
+            <span class="sentiment-more">查看組成 ${icon("chevron")}</span>
+          </button>
         </section>
         <section class="panel stocks-panel" data-page-panel="market" aria-label="市場觀察股票表格">
           <div class="table-toolbar"><div class="filter-tabs segmented-control" role="group" aria-label="清單篩選"><span class="segmented-indicator" aria-hidden="true"></span><button data-view="all" class="active" aria-pressed="true"><span class="filter-label-desktop">全部標的</span><span class="filter-label-mobile">全部</span></button><button data-view="favorites" aria-pressed="false"><span class="filter-label-desktop">我的自選</span><span class="filter-label-mobile">自選</span></button><button data-view="above" aria-pressed="false">站上季線</button><button data-view="below" aria-pressed="false">季線之下</button><button data-view="oversold" aria-pressed="false" aria-label="K 值低於 20">K值低於20</button></div><div class="search-controls"><label class="search-box">${icon("search")}<input id="stock-search" type="search" placeholder="搜尋代碼或名稱" aria-label="搜尋股票代碼或名稱" autocomplete="off"/><kbd>/</kbd></label><select id="sector-filter" aria-label="產業篩選"><option value="all">全部產業</option>${[...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("")}</select></div></div>
@@ -85,10 +88,10 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
           <div id="sector-grid" class="sector-grid sector-ranking"></div>
           <p class="sector-note">金額以億元顯示，張數為輔。金額依各股每日法人淨買賣股數 × 當日收盤價累計，非實際成交金額。TOP1 百分比為該個股的區間漲跌幅；點選產業可同時查看當日、5 日、20 日買賣超。僅統計目前研究標的。</p>
         </section>
-        <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK RESEARCH</span></span><span>技術提示僅供研究參考。</span><button data-page="about">關於株研 ${icon("arrow")}</button><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
+        <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK RESEARCH</span></span><span>技術提示僅供研究參考。</span><button data-dialog="source">關於株研 ${icon("arrow")}</button><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
       </main>
     </div>
-    <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div></dialog>
+    <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div><section id="settings-notifications" class="settings-notifications" hidden><div><strong>資料更新通知</strong><span>每日資料完成更新後通知你</span></div><button class="outline-button push-nav-item" id="push-notifications" type="button" aria-label="開啟每日資料更新通知" aria-pressed="false">${icon("bell")}<span>開啟更新通知</span></button></section></dialog>
     <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><div class="institution-dialog-handle" role="button" tabindex="0" aria-label="關閉法人動向，可向下拖曳"></div><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向">${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
     <dialog id="sector-dialog" class="sector-dialog" aria-labelledby="sector-dialog-heading" aria-describedby="sector-dialog-meta"><div class="sector-dialog-handle" role="button" tabindex="0" aria-label="關閉產業明細，可向下拖曳"></div><header class="institution-dialog-top sector-dialog-top"><div><span class="eyebrow">SECTOR INSTITUTIONAL FLOWS</span><h2 id="sector-dialog-heading">產業法人買賣超</h2><p id="sector-dialog-meta"></p></div><button class="icon-button" id="close-sector-dialog" aria-label="關閉產業明細">${icon("close")}</button></header><div id="sector-dialog-content" class="sector-dialog-body"></div><footer class="institution-dialog-footer sector-dialog-footer">正值為買超、負值為賣超 · 1 張 = 1,000 股 · 僅統計目前研究標的</footer></dialog>
     <div id="toast" role="status" class="toast"></div>`;

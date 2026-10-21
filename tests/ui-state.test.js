@@ -12,6 +12,16 @@ test("view state is isolated and saved preferences retain the existing migration
   assert.deepEqual(second.favorites, ["2330", "3026", "6488"]);
   persistPreferences(second, () => assert.fail("unexpected toast"), storage);
   assert.equal(JSON.parse(saved).catalogVersion, 2);
+  assert.equal(JSON.parse(saved).theme, "light");
+});
+
+test("dark theme preference is validated and persisted", () => {
+  const state = createState();
+  loadPreferences(state, { getItem: () => JSON.stringify({ favorites: [], settings: { period: 9, kSmooth: 3, dSmooth: 3 }, theme: "dark", catalogVersion: 2 }) });
+  assert.equal(state.theme, "dark");
+  let saved;
+  persistPreferences(state, () => {}, { setItem: (_, value) => { saved = JSON.parse(value); } });
+  assert.equal(saved.theme, "dark");
 });
 
 test("unavailable or malformed preference storage has a usable fallback", () => {
