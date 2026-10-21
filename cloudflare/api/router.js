@@ -3,6 +3,7 @@ import { MarketRepository } from "../repositories/market-repository.js";
 import { MarketError, MarketService } from "../services/market-service.js";
 import { presenceResponse } from "../presence.js";
 import { json, error } from "./http.js";
+import { analysisOptions, stockAnalysis } from "../services/analysis-service.js";
 
 const integer = (value, fallback, max) => {
   if (value === null) return fallback;
@@ -28,7 +29,7 @@ export async function routeApi(request, env, service = new MarketService(new Mar
   const chunk = resource.match(versioned
     ? /^\/market\/snapshots\/([a-z0-9-]{1,64})\/shards\/(\d{1,3})$/
     : /^\/market\/([a-z0-9-]{1,64})\/(\d{1,3})$/);
-  const stock = resource.match(/^\/stocks\/([^/]+)(\/history)?$/);
+  const stock = resource.match(/^\/stocks\/([^/]+)(\/(?:history|analysis))?$/);
   const known = resource === "/market" || (versioned && resource === "/stocks") ||
     (chunk && Number(chunk[2]) < SHARD_COUNT) || (stock && (!stock[2] || versioned) && validSymbol(stock[1]));
   if (!known) return fail("NOT_FOUND", "找不到這個資料端點", 404);
@@ -47,6 +48,10 @@ export async function routeApi(request, env, service = new MarketService(new Mar
       body = await service.stocks({ offset: integer(url.searchParams.get("offset"), 0, Number.MAX_SAFE_INTEGER),
         limit, type, sector: url.searchParams.get("sector"), query: url.searchParams.get("q") });
     } else {
+      if (stock[2] === "/analysis") {
+        body = await stockAnalysis(service, stock[1], analysisOptions(url.searchParams));
+        return json(request, body, 200, "public, max-age=60");
+      }
       body = await service.stock(stock[1]);
       if (stock[2]) body = { data: body.stock.history, meta: { symbol: stock[1], asOf: body.asOf,
         updatedAt: body.updatedAt, tradingDates: body.stock.tradingDates } };
