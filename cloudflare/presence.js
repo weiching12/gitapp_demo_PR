@@ -1,4 +1,6 @@
-export const PRESENCE_TTL_MS = 90_000;
+import { PresenceRepository } from "./repositories/presence-repository.js";
+import { PresenceService, InvalidPresenceIdentifier } from "./services/presence-service.js";
+export { PRESENCE_TTL_MS } from "./services/presence-service.js";
 const reply = (body, status = 200) => Response.json(body, {
   status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
 });
@@ -9,8 +11,7 @@ export class OnlinePresence {
   constructor(ctx) {
     this.sql = ctx.storage.sql;
     this.now = Date.now;
-    this.sql.exec("CREATE TABLE IF NOT EXISTS visitors (id TEXT PRIMARY KEY, expires INTEGER NOT NULL)");
-    this.sql.exec("CREATE INDEX IF NOT EXISTS visitors_expiry ON visitors(expires)");
+    this.service = new PresenceService(new PresenceRepository(this.sql), { now: () => this.now() });
   }
 
   async fetch(request) {
@@ -33,15 +34,13 @@ export class OnlinePresence {
         raw += decoder.decode();
       }
       try { id = JSON.parse(raw).id; } catch { return reply({ error: "Invalid heartbeat" }, 400); }
-      if (typeof id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id))
-        return reply({ error: "Invalid browser identifier" }, 400);
     }
-    const now = this.now();
-    this.sql.exec("DELETE FROM visitors WHERE expires <= ?", now);
-    if (id) this.sql.exec(`INSERT INTO visitors VALUES (?,?) ON CONFLICT(id) DO UPDATE SET expires=excluded.expires
-      WHERE visitors.expires <= ?`, id, now + PRESENCE_TTL_MS, now + PRESENCE_TTL_MS - 10_000);
-    return reply({ online: this.sql.exec("SELECT count(*) AS count FROM visitors").one().count,
-      windowSeconds: PRESENCE_TTL_MS / 1000 });
+    try {
+      return reply(request.method === "POST" ? this.service.heartbeat(id) : this.service.count());
+    } catch (error) {
+      if (error instanceof InvalidPresenceIdentifier) return reply({ error: error.message }, 400);
+      throw error;
+    }
   }
 }
 

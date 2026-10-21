@@ -1,4 +1,4 @@
-import { shardKey } from "../twse.js";
+import { shardKey } from "../storage/market-keys.js";
 
 export async function retireShard(kv, manifest, state, index) {
   const retired = new Set([manifest?.previousGeneration, ...(state.cleanupGenerations ?? [])].filter(Boolean));

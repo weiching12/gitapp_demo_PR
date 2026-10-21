@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as browser from "../src/indicators.js";
 import * as domain from "../shared/indicators.js";
-import { stockAnalysis, analysisOptions } from "../cloudflare/services/analysis-service.js";
+import { stockAnalysis } from "../cloudflare/services/analysis-service.js";
+import { analysisOptions } from "../cloudflare/api/validators.js";
 
 test("browser compatibility entry exports identical pure rule functions", () => {
   for (const key of Object.keys(browser)) assert.equal(browser[key], domain[key]);

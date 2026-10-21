@@ -1,4 +1,4 @@
-import { MANIFEST_KEY, shardKey } from "../twse.js";
+import { MANIFEST_KEY, shardKey } from "../storage/market-keys.js";
 
 // Storage details stay here; services may receive another implementation.
 export class MarketRepository {

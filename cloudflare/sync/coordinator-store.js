@@ -1,4 +1,4 @@
-import { MANIFEST_KEY, SYNC_KEY } from "../twse.js";
+import { MANIFEST_KEY, SYNC_KEY } from "../storage/market-keys.js";
 
 // Keep authoritative progress and the published head in strongly consistent DO
 // storage. Existing KV state is imported once; readers still use public KV.

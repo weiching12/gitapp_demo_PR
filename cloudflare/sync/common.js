@@ -1,4 +1,4 @@
-import { SYNC_KEY, MANIFEST_KEY } from "../twse.js";
+import { SYNC_KEY, MANIFEST_KEY } from "../storage/market-keys.js";
 export const STAGE_TTL = 86400;
 export const put = (kv, key, value) => kv.put(key, JSON.stringify(value),
   key === SYNC_KEY || key === MANIFEST_KEY || key.includes(":shard:") ? {} : { expirationTtl: STAGE_TTL });

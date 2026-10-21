@@ -1,9 +1,8 @@
-import { expandStock, isEtf, shardOf } from "../../src/market-codec.js";
+import { expandStock, isEtf, shardOf } from "../../shared/market-codec.js";
 
-export class MarketError extends Error {
-  constructor(code, message, status) { super(message); this.code = code; this.status = status; }
-}
-const unavailable = () => new MarketError("DATA_UNAVAILABLE", "股票資料尚未準備完成，請稍後再試。", 503);
+import { DomainError } from "../../shared/domain-error.js";
+export { DomainError as MarketError } from "../../shared/domain-error.js";
+const unavailable = () => new DomainError("DATA_UNAVAILABLE", "股票資料尚未準備完成，請稍後再試。");
 
 export class MarketService {
   constructor(repository) { this.repository = repository; }
@@ -20,7 +19,7 @@ export class MarketService {
   async stock(symbol) {
     const manifest = await this.market();
     const metadata = manifest.stocks.find((stock) => stock.symbol === symbol);
-    if (!metadata) throw new MarketError("STOCK_NOT_FOUND", "找不到這個證券代號", 404);
+    if (!metadata) throw new DomainError("STOCK_NOT_FOUND", "找不到這個證券代號");
     const shard = await this.snapshot(manifest.generation, shardOf(symbol));
     const compact = shard.stocks.find((stock) => stock.symbol === symbol);
     if (!compact) throw unavailable();

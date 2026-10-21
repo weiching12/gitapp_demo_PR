@@ -3,11 +3,17 @@
 ## Architecture
 
 `worker.js` is the platform entry point: static assets, API dispatch and Cron.
-`api/router.js` owns paths, methods, input validation and HTTP response policy.
+`api/router.js` coordinates routing, method/cache policy and HTTP error handling.
+`api/routes.js` matches resources; controllers adapt representations and
+`api/validators.js` parses URL options. `api/errors.js` maps domain codes to HTTP.
 `services/market-service.js` owns market/stock composition and resource errors.
 `repositories/market-repository.js` owns KV keys and reads. Services accept a repository
 so storage can change without rewriting HTTP handlers. `api/http.js` owns JSON,
 HEAD handling, cache headers and error envelopes.
+
+Application services use plain data and domain errors without HTTP status.
+Bindings are assembled in `composition.js`; detailed responsibilities and verification
+are documented in [service boundaries](service-boundaries.md).
 
 The existing sync orchestrator and T86 validation/store remain separate from public
 queries. No public mutation endpoint starts ingestion, deletes data or changes settings.

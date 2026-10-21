@@ -1,5 +1,5 @@
 import { syncMarket, syncSlot } from "../sync.js";
-import { SYNC_KEY } from "../twse.js";
+import { SYNC_KEY } from "../storage/market-keys.js";
 import { CoordinatorStore } from "./coordinator-store.js";
 import { SyncMetrics, saveSyncMetrics } from "./metrics.js";
 

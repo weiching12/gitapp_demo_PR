@@ -1,4 +1,4 @@
-import { SHARD_COUNT } from "../../src/market-codec.js";
+import { SHARD_COUNT } from "../../shared/market-codec.js";
 
 // Lossless storage avoids rewriting ~100,000 individual history rows per release.
 // Generation/index is immutable once committed; incomplete builds have no manifest.
