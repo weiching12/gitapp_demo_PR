@@ -9,8 +9,9 @@ import { MarketSyncCoordinator } from "../cloudflare/sync/coordinator.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/twse-20261016.json", import.meta.url)));
 
-function setup(coordinated = false) {
+function setup(coordinated = false, withHistory = false) {
   const { db, store } = testStore(1000);
+  if (withHistory) db.sqlite.exec(readFileSync(new URL("../cloudflare/migrations/0003_market_history.sql", import.meta.url), "utf8"));
   const data = new Map(), calls = [], writes = [], deletes = [];
   const companies = Array.from({ length: 1000 }, (_, i) => ({ 公司代號: String(1000 + i),
     公司簡稱: `公司${i}`, 產業別: "24", 上市日期: "20000101" }));
@@ -49,7 +50,7 @@ function setup(coordinated = false) {
     get: async (key) => structuredClone(durable.get(key)),
     put: async (key, value) => durable.set(key, structuredClone(value)),
     delete: async (key) => durable.delete(key),
-  } }, { MARKET_DATA: kv });
+  } }, { MARKET_DATA: kv, T86_DB: db, MARKET_HISTORY_ENABLED: withHistory ? "1" : "0" });
   coordinator.run = (env, options) => syncMarket(env, { ...options, t86Store: store, fetcher });
   const run = async (date, hour, minutes = 85) => {
     for (let minute = 0; minute < minutes; minute++) {
@@ -84,6 +85,17 @@ test("20:30 publishes corrected volume even when today's T86 is unchanged", asyn
     assert.equal(f.calls.filter(([p]) => p.includes("T86")).length, 2);
     assert.equal(f.calls.filter(([p]) => p.includes("MI_INDEX")).length, 2);
     assert.equal(f.db.sqlite.prepare("SELECT count(*) n FROM t86_versions WHERE TradeDate='2026-10-19'").get().n, 1);
+  } finally { f.db.sqlite.close(); }
+});
+
+test("D1 history rebuilds the next KV snapshot even when the old KV shard is unavailable", async () => {
+  const f = setup(true, true);
+  try {
+    const first = await f.run("2026-10-19", "10");
+    for (let index = 0; index < SHARD_COUNT; index++) f.data.delete(shardKey(first.generation, index));
+    const next = await f.run("2026-10-20", "10");
+    assert.deepEqual(f.history(next).map((row) => row[0]), ["2026-10-19", "2026-10-20"]);
+    assert.equal(f.db.sqlite.prepare("SELECT count(*) AS n FROM market_history_manifests").get().n, 2);
   } finally { f.db.sqlite.close(); }
 });
 

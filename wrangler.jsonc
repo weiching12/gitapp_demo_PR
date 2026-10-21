@@ -28,7 +28,8 @@
   ],
   "vars": {
     "T86_HISTORY_RATIO": "0.90",
-    "T86_EVENING_RATIO": "0.95"
+    "T86_EVENING_RATIO": "0.95",
+    "MARKET_HISTORY_ENABLED": "1"
   },
   "durable_objects": {
     "bindings": [
