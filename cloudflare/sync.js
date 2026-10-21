@@ -5,7 +5,15 @@ import { T86Store } from "./t86-store.js";
 import { acceptedT86, syncT86 } from "./t86-sync.js";
 import { t86FlowReport } from "./t86-validator.js";
 
-const put = (kv, key, value) => kv.put(key, JSON.stringify(value));
+export const STAGE_TTL = 86400;
+const put = (kv, key, value) => kv.put(key, JSON.stringify(value),
+  key === SYNC_KEY || key === MANIFEST_KEY || key.includes(":shard:") ? {} : { expirationTtl: STAGE_TTL });
+async function fingerprint(value) {
+  const canonical = (v) => Array.isArray(v) ? v.map(canonical) : v && typeof v === "object"
+    ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])])) : v;
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(canonical(value))));
+  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
+}
 export const SHARDS_PER_TICK = 32;
 
 export function syncSlot(now) {
@@ -46,13 +54,13 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
   const store = t86Store ?? new T86Store(env.T86_DB);
   let state = await kv.get(SYNC_KEY, "json");
   const manifest = await kv.get(MANIFEST_KEY, "json");
+  const originalState = JSON.stringify(state);
   if (!state || state.date !== date || state.slot !== slot) {
     const checkedThrough = state?.phase === "done" && state.checkedThrough > manifest?.asOf ? state.checkedThrough : manifest?.asOf;
     const reportDates = [...new Set([...scheduledDates(manifest, date, checkedThrough), date])].sort();
     const cleanupGenerations = [...new Set([...(state?.cleanupGenerations ?? []),
       state && state.generation !== manifest?.generation && state.nextShard > 0 ? state.generation : null,
     ].filter(Boolean))];
-    if (state) for (const type of ["companies", "catalog", "prices", "days"]) await kv.delete(stageKey(state.generation, type));
     state = { date, slot, generation: `${date.replaceAll("-", "")}-${now.getTime()}`,
       phase: "t86", reportDates, nextDate: 0, dayCount: 0, nextShard: 0, failures: 0,
       cleanupGenerations };
@@ -92,7 +100,9 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
       if (etfs.length < priorEtfs * 0.95) throw new Error("Unexpectedly small ETF catalog; preserve last good market");
       const companies = await kv.get(stageKey(state.generation, "companies"), "json");
       if (!companies) throw new Error("Staged company catalog not visible yet");
-      await put(kv, stageKey(state.generation, "catalog"), combineCatalogs(companies, etfs));
+      const catalog = combineCatalogs(companies, etfs);
+      state.catalogHash = await fingerprint(catalog);
+      await put(kv, stageKey(state.generation, "catalog"), catalog);
       state.phase = "prices";
     } else if (state.phase === "prices") {
       const reportDate = state.reportDates[state.nextDate];
@@ -124,6 +134,7 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
       ]);
       if (!catalog || !prices) throw new Error("Staged inputs not visible yet");
       const day = marketDay(catalog, prices, flows);
+      state.dayHashes = { ...state.dayHashes, [day.date]: await fingerprint(day) };
       const days = await kv.get(stageKey(state.generation, "days"), "json") ?? [];
       const merged = new Map(days.map((item) => [item.date, item]));
       merged.set(day.date, day);
@@ -136,6 +147,15 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
         kv.get(stageKey(state.generation, "catalog"), "json"), kv.get(stageKey(state.generation, "days"), "json"),
       ]);
       if (!catalog || !days?.length) throw new Error("Staged market days not visible yet");
+      // Missing fingerprints deliberately force one full baseline publication.
+      if (state.nextShard === 0 && typeof state.catalogHash === "string" && manifest?.catalogHash === state.catalogHash &&
+          days.every((day) => manifest.dayHashes?.[day.date] === state.dayHashes?.[day.date])) {
+        state.phase = "done";
+        state.result = "Unchanged";
+        state.checkedThrough = state.reportDates.at(-1);
+        await put(kv, SYNC_KEY, state);
+        return state;
+      }
       for (let count = 0; count < SHARDS_PER_TICK && state.nextShard < SHARD_COUNT; count++) {
         const index = state.nextShard;
         const previous = manifest ? await kv.get(shardKey(manifest.generation, index), "json") : null;
@@ -166,9 +186,10 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
       if (version?.VersionId !== state.t86VersionId) throw new Error("T86 changed during staging; refuse stale publication");
       const dates = [...new Set([...(manifest?.dates ?? []), ...days.map((day) => day.date)])].sort().slice(-HISTORY_LIMIT);
       await put(kv, MANIFEST_KEY, { ...createManifest(catalog, dates, state.generation, now.toISOString(), days.at(-1).coverage, manifest?.generation),
-        t86Hash: state.t86Hash, t86VersionId: state.t86VersionId, syncSlot: slot });
-      // Staging inputs are no longer used; two generations of history remain.
-      for (const type of ["companies", "catalog", "prices", "days"]) await kv.delete(stageKey(state.generation, type));
+        t86Hash: state.t86Hash, t86VersionId: state.t86VersionId, syncSlot: slot,
+        catalogHash: state.catalogHash,
+        dayHashes: Object.fromEntries(Object.entries({ ...manifest?.dayHashes, ...state.dayHashes }).filter(([day]) => dates.includes(day))) });
+      // Temporary inputs expire; public history never receives a TTL.
       state.phase = "done";
       state.checkedThrough = state.reportDates.at(-1);
       state.cleanupGenerations = [];
@@ -181,6 +202,6 @@ export async function syncMarket(env, { now = new Date(), fetcher = fetch, t86St
     state.error = error.message;
     console.error(JSON.stringify({ event: "twse-sync-delayed", date, phase: state.phase, failures: state.failures, error: error.message }));
   }
-  await put(kv, SYNC_KEY, state);
+  if (JSON.stringify(state) !== originalState) await put(kv, SYNC_KEY, state);
   return state;
 }

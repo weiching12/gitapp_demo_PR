@@ -86,3 +86,25 @@ npm.cmd run deploy
 - 今天為週日，此紀錄確認部署及設定，不代表已觀察到下一個平日晚間排程執行。
 
 本專案頻率控制不代表官方的服務承諾或授權聲明。介面可能調整，維護時參照 [TWSE OpenAPI](https://openapi.twse.com.tw/)、[三大法人日報](https://www.twse.com.tw/zh/trading/foreign/t86.html)、[網站使用條款](https://www.twse.com.tw/zh/terms/use.html)、[Cloudflare KV 限制](https://developers.cloudflare.com/kv/platform/limits/)與 [Cron 說明](https://developers.cloudflare.com/workers/configuration/cron-triggers/)。
+
+
+## KV operation budget
+
+Temporary companies/catalog/prices/days keys expire after 24 hours; published shards,
+manifest and sync state never expire. No manual temporary-key deletion is performed.
+Legacy temporary keys are left untouched. Superseded public generations retain the
+existing cleanup policy and current/previous generation protection.
+
+Canonical SHA-256 fingerprints cover the complete normalized catalog and each validated
+market day (OHLC, volume, institutional flows and coverage). Once a baseline manifest
+has fingerprints, a matching round checks upstream data but skips shard writes,
+manifest publication and generation cleanup. Missing fingerprints force publication;
+Friday historical corrections and catalog changes are included in the comparison.
+Fingerprints are retained only for the manifest's history window.
+
+For one date and no failures, a changed round uses about 143 KV writes and an unchanged
+round 10. A normal changed/unchanged pair uses about 153 writes and up to 128 deletes,
+versus approximately 288 writes and 272 deletes before this change. Historical rechecks,
+backfills and retries increase usage. Waiting ticks save state only when it changes.
+Existing D1 institutional audit/version storage and public snapshot switching remain.
+Single-writer orchestration and migrating full OHLC history into D1 are future work.

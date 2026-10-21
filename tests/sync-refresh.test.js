@@ -10,12 +10,12 @@ const fixture = JSON.parse(readFileSync(new URL("./fixtures/twse-20261016.json",
 
 function setup() {
   const { db, store } = testStore(1000);
-  const data = new Map(), calls = [];
+  const data = new Map(), calls = [], writes = [], deletes = [];
   const companies = Array.from({ length: 1000 }, (_, i) => ({ 公司代號: String(1000 + i),
     公司簡稱: `公司${i}`, 產業別: "24", 上市日期: "20000101" }));
   let corrected = false;
   const kv = { get: async (k, t) => t === "json" ? JSON.parse(data.get(k) ?? "null") : data.get(k) ?? null,
-    put: async (k, v) => data.set(k, v), delete: async (k) => data.delete(k) };
+    put: async (k, v, options) => { writes.push({ key: k, options }); data.set(k, v); }, delete: async (k) => { deletes.push(k); data.delete(k); } };
   const fetcher = async (input) => {
     const url = new URL(input);
     const date = url.searchParams.get("date");
@@ -53,7 +53,7 @@ function setup() {
   };
   const history = (manifest) => JSON.parse(data.get(shardKey(manifest.generation, 1000 % SHARD_COUNT)))
     .stocks.find((s) => s.symbol === "1000").history;
-  return { db, store, calls, data, run, history, correct: () => { corrected = true; } };
+  return { db, store, calls, data, writes, deletes, run, history, correct: () => { corrected = true; } };
 }
 
 test("20:30 publishes corrected volume even when today's T86 is unchanged", async () => {
@@ -103,5 +103,35 @@ test("nightly sync retains the ETF session and accumulates the following trading
     assert.deepEqual(history(first).map((row) => row[0]), ["2026-10-19"]);
     assert.deepEqual(history(second).map((row) => row[0]), ["2026-10-19", "2026-10-20"]);
     assert.equal(second.stocks.filter((stock) => stock.assetType !== "etf").length, 1000);
+  } finally { f.db.sqlite.close(); }
+});
+
+ test("unchanged evening skips publication, staging expires and idle ticks do not write", async () => {
+  const f = setup();
+  try {
+    const early = await f.run("2026-10-19", "10");
+    const initial = f.writes.length;
+    const late = await f.run("2026-10-19", "12");
+    const writes = f.writes.slice(initial);
+    assert.equal(late.generation, early.generation);
+    assert.equal(JSON.parse(f.data.get(SYNC_KEY)).result, "Unchanged");
+    assert.equal(writes.length, 10);
+    assert.equal(writes.filter(({ key }) => key.includes(":shard:") || key === MANIFEST_KEY).length, 0);
+    assert.equal(f.deletes.length, 0);
+    for (const { key, options } of f.writes) {
+      assert.equal(options?.expirationTtl, key === SYNC_KEY || key === MANIFEST_KEY || key.includes(":shard:") ? undefined : 86400);
+    }
+  } finally { f.db.sqlite.close(); }
+ });
+
+test("legacy manifests without fingerprints receive a full baseline publication", async () => {
+  const f = setup();
+  try {
+    const early = await f.run("2026-10-19", "10");
+    const legacy = { ...early }; delete legacy.catalogHash; delete legacy.dayHashes;
+    f.data.set(MANIFEST_KEY, JSON.stringify(legacy));
+    const late = await f.run("2026-10-19", "12");
+    assert.notEqual(late.generation, early.generation);
+    assert.equal(typeof late.catalogHash, "string");
   } finally { f.db.sqlite.close(); }
 });
