@@ -20,7 +20,7 @@ const geometry = (page) => page.locator('.overview-tabs').evaluate((tabs) => {
 test("overview tabs slide and expand to contain right aligned periods at every width", async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   await expect(page.getByRole('tablist', { name: '自選總覽視角' }).getByRole('tab')).toHaveCount(2);
   await expect(page.locator('.overview-tabs .institution-window button')).toHaveCount(3);
   for (const width of [320, 390, 700, 768, 1440, 390]) {
@@ -52,7 +52,7 @@ test("overview tabs slide and expand to contain right aligned periods at every w
 test("overview expansion animates smoothly and settles after rapid switching", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/');
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   const before = await geometry(page);
   await page.locator('[data-overview="institutions"]').click();
   await page.waitForTimeout(80);
@@ -79,7 +79,7 @@ test("overview keyboard navigation and visible focus survive the nested period c
   await page.setViewportSize({ width: 390, height: 900 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   const price = page.locator('[data-overview="price"]'), institutions = page.locator('[data-overview="institutions"]');
   await price.focus();
   await page.keyboard.press('ArrowRight');
@@ -126,7 +126,7 @@ test("overview, market filters and sector controls share white surfaces and gray
   }, activeSelector);
   for (const width of [320, 360, 390, 700, 701, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.locator('[data-page="market"]').click();
+    await page.locator('.sidebar [data-page="market"]').click();
     for (const view of ['all', 'favorites', 'above', 'below', 'oversold']) {
       await page.locator(`[data-view="${view}"]`).click();
       await checkControl('.filter-tabs', '[aria-pressed="true"]', '.segmented-indicator');
@@ -135,7 +135,7 @@ test("overview, market filters and sector controls share white surfaces and gray
     await checkControl('.filter-tabs', '[aria-pressed="true"]', '.segmented-indicator');
     if ([390, 1440].includes(width)) await page.screenshot({ path: testInfo.outputPath(`market-filters-${width}.png`) });
     const filterStyle = await sharedStyle('.filter-tabs', '[aria-pressed="true"]');
-    await page.locator('[data-page="favorites"]').click();
+    await page.locator('.sidebar [data-page="favorites"]').click();
     for (const kind of ['price', 'institutions']) {
       await page.locator(`[data-overview="${kind}"]`).click();
       await checkControl('.overview-tabs', '[aria-selected="true"]', '.overview-tab-indicator');
@@ -145,7 +145,7 @@ test("overview, market filters and sector controls share white surfaces and gray
       await page.locator(`[data-institution-window="${period}"]`).click();
       await checkControl('.institution-window', '[aria-pressed="true"]', '.segmented-indicator');
     }
-    await page.locator('[data-page="sectors"]').click();
+    await page.locator('.sidebar [data-page="sectors"]').click();
     for (const sort of ['name-asc', 'net-desc', 'net-asc']) {
       await page.locator(`[data-sector-sort="${sort}"]`).click();
       await checkControl('.sector-sort-tabs', '[aria-pressed="true"]', '.segmented-indicator');
@@ -162,7 +162,7 @@ test("overview, market filters and sector controls share white surfaces and gray
 test("institution overview uses aligned shared desktop headings and keeps labels on phone cards", async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   await page.locator('[data-overview="institutions"]').click();
   const heading = page.locator('.institution-overview-head');
   await expect(heading.locator('span')).toHaveText(['股票', '合計買賣超', '外資', '投信', '自營商']);

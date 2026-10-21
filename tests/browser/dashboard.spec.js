@@ -6,8 +6,8 @@ import { isEtf } from "../../src/market-codec.js";
 const cardFor = (page, symbol) => page.locator(`[data-watch-symbol="${symbol}"]`);
 const detailsButtonFor = (page, symbol) => page.locator(`#institution-overview [data-institution-details="${symbol}"]`);
 const openPage = async (page, name) => {
-  await page.locator(`[data-page="${name}"]`).click();
-  await expect(page.locator(`[data-page-panel="${name}"]`)).toBeVisible();
+  await page.locator(`.sidebar [data-page="${name}"]`).click();
+  await expect(page.locator(`[data-page-panel="${name}"]`).last()).toBeVisible();
 };
 async function openInstitutionDetails(page, symbol) {
   await openPage(page, "favorites");
@@ -1137,7 +1137,7 @@ test("favorite changes stay on the market page and preserve the table position",
     await star.click();
     await expect(page.locator(".watch-card")).toHaveCount(6);
     await settleLayout(page);
-    await expect(page.locator('[data-page="market"]')).toHaveAttribute("aria-current", "page");
+    await expect(page.locator('.sidebar [data-page="market"]')).toHaveAttribute("aria-current", "page");
     await expect(star).toBeFocused();
     if (width <= 700) {
       await expect(star).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
@@ -1216,7 +1216,7 @@ test("phone and tablet controls remain touch-sized with readable sticky navigati
     await page.setViewportSize({ width, height: 900 });
     await openPage(page, "market");
     if (width <= 520) {
-      await expect(page.locator('[data-page="market"] .nav-label-mobile')).toBeVisible();
+      await expect(page.locator('.sidebar [data-page="market"] .nav-label-mobile')).toBeVisible();
       const navLabels = await page.locator(".sidebar nav [data-page]").evaluateAll((buttons) => buttons.map((button) => {
         const rect = button.querySelector(".nav-label-mobile").getBoundingClientRect();
         return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
@@ -1532,7 +1532,7 @@ test("touch closes ranking details without leaving a focus ring", async ({ brows
   const context = await browser.newContext({ baseURL: "http://127.0.0.1:5173", viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const page = await context.newPage();
   await page.goto("/");
-  await page.locator('[data-page="sectors"]').tap();
+  await page.locator('.sidebar [data-page="sectors"]').tap();
   const card = page.locator("#sector-grid .sector-card").first();
   await card.tap();
   await expect(page.locator("#sector-dialog")).toBeVisible();
@@ -1544,7 +1544,7 @@ test("touch closes ranking details without leaving a focus ring", async ({ brows
   await expect(page.locator("#sector-dialog")).not.toBeVisible();
   await expect(card).not.toBeFocused();
   expect(await card.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
-  await page.locator('[data-page="favorites"]').tap();
+  await page.locator('.sidebar [data-page="favorites"]').tap();
   await page.locator('[data-overview="institutions"]').tap();
   const details = page.locator('#institution-overview [data-institution-details="2330"]');
   await details.tap();
@@ -1558,7 +1558,7 @@ test("touch closes ranking details without leaving a focus ring", async ({ brows
   await expect(page.locator('#institution-dialog')).not.toBeVisible();
   await expect(details).not.toBeFocused();
   expect(await details.evaluate((element) => element.matches(":focus-visible"))).toBe(false);
-  await page.locator('[data-page="market"]').tap();
+  await page.locator('.sidebar [data-page="market"]').tap();
   const favorite = page.locator('#stock-rows [data-favorite="2330"]');
   await favorite.tap();
   await expect(favorite).not.toBeFocused();

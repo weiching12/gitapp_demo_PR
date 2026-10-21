@@ -18,7 +18,7 @@ async function loadFixture(page) {
         return data;
       }` }));
   await page.goto("/");
-  await page.locator('[data-page="sectors"]').click();
+  await page.locator('.sidebar [data-page="sectors"]').click();
 }
 
 test("sector breadth follows the selected complete monetary window", async ({ page }) => {

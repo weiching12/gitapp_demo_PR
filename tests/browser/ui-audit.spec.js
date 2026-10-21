@@ -169,7 +169,7 @@ test("phone sector identity stays compact while amounts and percentages align fo
       }`,
   }));
   await page.goto("/");
-  await page.locator('[data-page="sectors"]').click();
+  await page.locator('.sidebar [data-page="sectors"]').click();
   for (const width of [320, 360, 390, 700]) {
     await page.setViewportSize({ width, height: 844 });
     for (const period of ["day", "5", "20"]) {
@@ -207,7 +207,7 @@ test("sector estimated billions follow each selected period's daily prices and n
   const data = await demoProvider.load();
   await page.goto("/");
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator('[data-page="sectors"]').click();
+  await page.locator('.sidebar [data-page="sectors"]').click();
   const sector = data.stocks[0].sector;
   const stocks = data.stocks.filter((stock) => stock.sector === sector);
   const estimate = page.locator(`[data-sector-name="${sector}"] [data-sector-amount]`);

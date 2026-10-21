@@ -9,7 +9,7 @@ for (const kind of Object.keys(parts)) test(`${kind} keeps the adjacent card whe
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   await page.locator(`[data-overview="${kind}"]`).click();
   const { track, card, dots } = parts[kind];
   const symbolAttribute = kind === "price" ? "data-watch-symbol" : "data-overview-symbol";
@@ -21,9 +21,9 @@ for (const kind of Object.keys(parts)) test(`${kind} keeps the adjacent card whe
     const expected = await cards.nth(index + 1 < count ? index + 1 : index - 1).getAttribute(symbolAttribute);
     if (kind === "price") await cards.nth(index).locator("[data-favorite]").click();
     else {
-      await page.locator('[data-page="market"]').click();
+      await page.locator('.sidebar [data-page="market"]').click();
       await page.locator(`#stock-rows [data-favorite="${removed}"]`).click();
-      await page.locator('[data-page="favorites"]').click();
+      await page.locator('.sidebar [data-page="favorites"]').click();
     }
     await expect(cards).toHaveCount(count - 1);
     await expect.poll(() => page.locator(track).evaluate((element, { card, symbolAttribute }) => {
@@ -39,7 +39,7 @@ for (const kind of Object.keys(parts)) test(`${kind} keeps the adjacent card whe
 for (const kind of Object.keys(parts)) test(`${kind} carousel follows its responsive layout and supports dot navigation`, async ({ page }, testInfo) => {
   await page.goto("/");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   await page.locator(`[data-overview="${kind === "price" ? "price" : "institutions"}"]`).click();
   const config = parts[kind], track = page.locator(config.track), dots = page.locator(config.dots);
   const buttons = dots.locator("[data-carousel-index]");
@@ -112,7 +112,7 @@ test("carousel dots stay in sync after switching overviews, changing intervals a
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   const priceDots = page.locator('#watchlist-carousel-controls [data-carousel-index]');
   const institutionDots = page.locator('#institution-carousel-controls [data-carousel-index]');
   await priceDots.nth(2).click();
@@ -151,7 +151,7 @@ test("three dots represent beginning, middle and end for any favorite count", as
   for (const count of [2, 3, 6, symbols.length]) {
     await page.evaluate((favorites) => localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites, catalogVersion: 2 })), symbols.slice(0, count));
     await page.reload();
-    await page.locator('[data-page="favorites"]').click();
+    await page.locator('.sidebar [data-page="favorites"]').click();
     for (const kind of Object.keys(parts)) {
       await page.locator(`[data-overview="${kind}"]`).click();
       const { track, card, dots } = parts[kind];
@@ -183,7 +183,7 @@ test("three dots represent beginning, middle and end for any favorite count", as
 test("smooth dot navigation retains the selected card after a responsive resize", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   for (const kind of Object.keys(parts)) {
     await page.locator(`[data-overview="${kind === "price" ? "price" : "institutions"}"]`).click();
     const config = parts[kind], last = page.locator(`${config.dots} [data-carousel-index]`).last();
@@ -212,7 +212,7 @@ test("a native touch swipe snaps to a card and updates the active dot", async ({
   const page = await context.newPage();
   try {
     await page.goto("/");
-    await page.locator('[data-page="favorites"]').tap();
+    await page.locator('.sidebar [data-page="favorites"]').tap();
     const session = await context.newCDPSession(page);
     for (const kind of Object.keys(parts)) {
       await page.locator(`[data-overview="${kind === "price" ? "price" : "institutions"}"]`).tap();

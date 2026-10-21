@@ -20,7 +20,7 @@ test("missing institution windows do not contribute to totals, coverage or ranki
   await page.goto("/");
   // Missing institution data must not remove a stock's usable price information.
   await expect(page.locator('#stock-rows [data-symbol="9003"]')).toHaveCount(1);
-  await page.locator('[data-page="sectors"]').click();
+  await page.locator('.sidebar [data-page="sectors"]').click();
   const valid = page.locator('[data-sector-name="B有效產業"]');
   const missing = page.locator('[data-sector-name="A缺漏產業"]');
   const zero = page.locator('[data-sector-name="C零值產業"]');
@@ -67,14 +67,14 @@ test("missing institution windows do not contribute to totals, coverage or ranki
     await expect(page.locator('[data-sector-stock="9006"] .institution-sparkline')).toHaveCount(0);
     await page.locator('#sector-dialog').press("Escape");
   }
-  await page.locator('[data-page="market"]').click();
+  await page.locator('.sidebar [data-page="market"]').click();
   const row = page.locator('#stock-rows [data-symbol="9003"]');
   await expect(row.locator('.net-cell-mobile .institution-net')).toHaveText("");
   await expect(row.locator('.net-cell-desktop .institution-net')).toHaveText("");
   await expect(row.locator('.net-cell-mobile .institution-leader')).toHaveText("");
   await expect(row.locator('.net-cell-desktop .institution-leader')).toHaveText("");
   await row.locator('[data-favorite]').click();
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   await page.locator('[data-overview="institutions"]').click();
   for (const period of ["day", "5", "20"]) {
     await page.locator(`[data-institution-window="${period}"]`).click();

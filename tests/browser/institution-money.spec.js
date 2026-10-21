@@ -17,7 +17,7 @@ async function expectMoneyFirst(container) {
 
 test("sectors and their detailed stock rows show money first and lots second at every width", async ({ page }, testInfo) => {
   await page.goto("/");
-  await page.locator('[data-page="sectors"]').click();
+  await page.locator('.sidebar [data-page="sectors"]').click();
   for (const width of [320, 390, 700, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const card = page.locator(".sector-card").first();
@@ -38,7 +38,7 @@ test("sectors and their detailed stock rows show money first and lots second at 
 test("favorite institution cards and their details keep money primary when intervals change", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.locator('[data-page="favorites"]').click();
+  await page.locator('.sidebar [data-page="favorites"]').click();
   await page.locator('[data-overview="institutions"]').click();
   for (const width of [320, 390, 700, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -78,7 +78,7 @@ test("sector ranking and TOP1 follow money when net share volume has the opposit
         return data;
       }` })) ;
   await page.goto("/");
-  await page.locator('[data-page="sectors"]').click();
+  await page.locator('.sidebar [data-page="sectors"]').click();
   await page.locator('[data-sector-sort="net-desc"]').click();
   await expect(page.locator('.sector-card').first()).toHaveAttribute("data-sector-name", "航運業");
   const sector = page.locator('[data-sector-name="半導體業"]');
