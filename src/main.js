@@ -4,6 +4,7 @@ import { loadDataset } from "./provider.js";
 import { startPresence } from "./presence.js";
 import { startPwa } from "./pwa.js";
 import { isEtf } from "./market-codec.js";
+import { brandIntro, aboutPage } from "./about.js";
 import {
   DEFAULT_SETTINGS,
   getSnapshot,
@@ -191,6 +192,7 @@ function shell() {
         <button class="nav-item" data-page="sectors" aria-label="法人買株">${icon("chart")}<span class="nav-label">法人買株</span><span class="nav-label-mobile" aria-hidden="true">法人</span><span class="nav-dot"></span></button>
         <button class="nav-item" data-dialog="methodology" aria-label="指標小百科">${icon("book")}<span>指標說明</span>${icon("chevron", "nav-chevron")}</button>
         <button class="nav-item" data-dialog="source" aria-label="資料說明">${icon("info")}<span>資料說明</span>${icon("chevron", "nav-chevron")}</button>
+        <button class="nav-item" data-page="about" aria-label="關於株研">${icon("info")}<span>關於株研</span></button>
       </nav>
       <div class="sidebar-note"><span class="note-line"></span><p>看懂數據，<br>找到自己的節奏。</p><span>YOUR EDGE, YOUR PACE.</span></div>
       <div class="sidebar-bottom"><button class="nav-item" data-dialog="settings" aria-label="指標設定">${icon("settings")}<span>指標設定</span></button><div class="workspace-status"><span class="status-dot"></span>${isDemo ? "前端示範版" : "每日收盤資料"} <span>v0.2</span></div></div>
@@ -208,6 +210,8 @@ function shell() {
           .join(
             "",
           )}</select></div></section>
+        ${brandIntro()}
+        ${aboutPage()}
         <div id="pull-refresh" class="pull-refresh" aria-hidden="true"><span></span>下拉重新整理</div>
         <div id="app-status" class="app-status" role="status" hidden><span></span><button class="text-button" id="apply-update" hidden>立即更新</button></div>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
@@ -262,7 +266,7 @@ function shell() {
           <div id="sector-grid" class="sector-grid sector-ranking"></div>
           <p class="sector-note">金額以億元顯示，張數為輔。金額依各股每日法人淨買賣股數 × 當日收盤價累計，非實際成交金額。TOP1 百分比為該個股的區間漲跌幅；點選產業可同時查看當日、5 日、20 日買賣超。僅統計目前研究標的。</p>
         </section>
-        <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK INSIGHT</span></span><span>技術提示僅供研究參考。</span><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
+        <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK RESEARCH</span></span><span>技術提示僅供研究參考。</span><button data-page="about">關於株研 ${icon("arrow")}</button><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
       </main>
     </div>
     <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div></dialog>
@@ -361,6 +365,7 @@ function scheduleRefresh() {
 }
 
 const pageCopy = {
+  about: ["STOCK RESEARCH", "關於株研", "我們的目的、目前提供的工具，以及持續前進的方向。"],
   market: ["MARKET WATCHLIST", "市場觀察清單", "比較全部標的的價量、技術指標與法人籌碼。"],
   favorites: ["MY WATCHLIST", "自選總覽", "集中查看已收藏股票的價量與法人動向。"],
   sectors: ["INSTITUTIONAL RANKING", "法人買株", "依產業排名觀察法人資金方向；點選產業查看個股價格與買賣超張數。"],
@@ -372,7 +377,7 @@ function renderPage() {
   document.querySelector("#page-title").innerHTML = `${title}<span class="heading-dot">.</span>`;
   document.querySelector("#page-description").textContent = description;
   document.querySelector("#breadcrumb-current").textContent = title;
-  const sectors = state.page === "sectors";
+  const sectors = state.page === "sectors" || state.page === "about";
   const dateSelect = document.querySelector("#trade-date");
   dateSelect.hidden = sectors;
   dateSelect.disabled = sectors || !dataset.dates.length;
