@@ -12,7 +12,12 @@ import { shellMarkup } from "./ui/shell.js";
 import { renderPageView } from "./ui/navigation.js";
 import { renderSectorOverviewView, renderSectorDialogView } from "./ui/sectors.js";
 import { createCarouselController } from "./ui/carousel.js";
-import { bindInputMode, bindMobileDragDismiss, bindPullToRefresh } from "./ui/gestures.js";
+import { bindInputMode, bindPullToRefresh } from "./ui/gestures.js";
+import { createControlsController } from "./ui/controls.js";
+import { createDialogController } from "./ui/dialogs.js";
+import { bindResponsiveSearchOrder } from "./ui/responsive-layout.js";
+import { bindKeyboardNavigation } from "./ui/keyboard.js";
+import { createTableBatchController } from "./ui/table-batches.js";
 import {
   DEFAULT_SETTINGS,
   getSnapshot,
@@ -103,6 +108,8 @@ const institutionalHistory = (stats, stock, name = "total") =>
   ).join("")}</div>`;
 const state = createState();
 const carousel = createCarouselController({ getOverview: () => state.overview, escapeHtml: esc });
+const controls = createControlsController();
+const dialogs = createDialogController();
 
 let dataset, snapshots, latestSnapshots;
 const latestCache = new Map(), historicalCache = new Map();
@@ -112,6 +119,7 @@ let loading = false, loadFailed = false, loadProgress = { loaded: 0, total: 0 };
 let pendingPaint;
 const watchState = { previousFavorites: undefined, previousWatchLoading: undefined };
 const tableState = { visibleLimit: TABLE_BATCH_SIZE, viewKey: "", observer: undefined };
+const tableBatches = createTableBatchController({ state: tableState, batchSize: TABLE_BATCH_SIZE, render: () => renderTable() });
 let toastTimer;
 let isDemo;
 let stopPresence, usingCachedData = false;
@@ -240,38 +248,9 @@ function renderPage() { renderPageView({ state, dataset, renderLoadState, update
 
 function renderWatchlist() { renderWatchlistView({ state, snapshots, pendingSymbols, loading, loadFailed, watchState, carouselIndex: carousel.index, esc, icon, number, signed, percent, direction, stockMoney, institutionalMoney, institutionalAmount, pendingField, renderInstitutionOverview, renderOverviewVisibility, renderCarouselPagination: carousel.renderPagination, scrollToCarouselCard: carousel.scrollToCard, updateCarouselControls: carousel.updateControls }); }
 
-function updateSegmentedControl(group) {
-  if (!group.getClientRects().length) return;
-  const selected = group.querySelector('button[aria-pressed="true"]');
-  const bounds = selected.getBoundingClientRect();
-  group.style.setProperty("--segment-left", `${bounds.left - group.getBoundingClientRect().left - group.clientLeft + group.scrollLeft}px`);
-  group.style.setProperty("--segment-width", `${bounds.width}px`);
-}
-
-function updateSegmentedControls() {
-  document.querySelectorAll(".segmented-control").forEach(updateSegmentedControl);
-}
-
-function updateOverviewTabs() {
-  const controls = document.querySelector(".overview-controls");
-  const tabs = controls.querySelector(".overview-tabs");
-  if (!tabs.getClientRects().length) return;
-  const views = tabs.querySelector(".overview-view-tabs");
-  const selected = views.querySelector('[aria-selected="true"]');
-  const style = getComputedStyle(tabs);
-  const controlStyle = getComputedStyle(controls);
-  const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-  const borders = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
-  const expanded = controls.classList.contains("institutional-active");
-  const width = expanded
-    ? controls.clientWidth - parseFloat(controlStyle.paddingLeft) - parseFloat(controlStyle.paddingRight)
-    : views.offsetWidth + padding + borders;
-  const left = selected.getBoundingClientRect().left - tabs.getBoundingClientRect().left - tabs.clientLeft;
-  tabs.style.setProperty("--overview-width", `${width}px`);
-  tabs.style.setProperty("--overview-indicator-left", `${left}px`);
-  tabs.style.setProperty("--overview-indicator-width", `${selected.offsetWidth}px`);
-  updateSegmentedControl(tabs.querySelector(".institution-window"));
-}
+const updateSegmentedControl = controls.updateSegmented;
+const updateSegmentedControls = controls.updateSegmentedAll;
+const updateOverviewTabs = controls.updateOverview;
 
 function renderOverviewVisibility() {
   const empty = state.favorites.length === 0;
@@ -352,11 +331,11 @@ function openSectorDialog(name, focusHandle = true) {
   state.sectorName = name;
   renderSectorDialog(name);
   const dialog = document.querySelector("#sector-dialog");
-  if (!dialog.open) dialog.showModal();
-  dialog.scrollTop = 0;
-  const focusTarget = dialog.querySelector(matchMedia("(max-width: 520px)").matches ? ".sector-dialog-handle" : "#close-sector-dialog");
-  if (focusHandle) focusTarget.focus({ preventScroll: true });
-  else if (document.activeElement === focusTarget) focusTarget.blur();
+  dialogs.open(dialog, {
+    focus: focusHandle,
+    mobileTarget: ".sector-dialog-handle",
+    desktopTarget: "#close-sector-dialog",
+  });
 }
 
 
@@ -392,31 +371,14 @@ function openInstitutionDialog(symbol, focusClose = true) {
   state.institutionSymbol = symbol;
   renderInstitutionDialog();
   const dialog = document.querySelector("#institution-dialog");
-  if (!dialog.open) dialog.showModal();
-  dialog.scrollTop = 0;
-  const focusTarget = dialog.querySelector(matchMedia("(max-width: 520px)").matches ? ".institution-dialog-handle" : "#close-institution-dialog");
-  if (focusClose) focusTarget.focus({ preventScroll: true });
-  else if (dialog.contains(document.activeElement)) document.activeElement.blur();
+  dialogs.open(dialog, {
+    focus: focusClose,
+    mobileTarget: ".institution-dialog-handle",
+    desktopTarget: "#close-institution-dialog",
+  });
 }
 
 function renderTable() { renderMarketView({ state, snapshots, pendingSymbols, stockMoney, tableState, TABLE_BATCH_SIZE, tableRowCache, loading, loadFailed, dataset, isDemo, esc, icon, number, percent, direction, institutionalMoney, institutionalAmount, loadingIcon, pendingField, updateSegmentedControl }); }
-
-function observeTableBatches() {
-  tableState.observer?.disconnect();
-  const trigger = document.querySelector("#table-load-trigger");
-  const fillViewport = () => {
-    tableState.fillFrame = undefined;
-    if (trigger.hidden || trigger.getBoundingClientRect().top > window.innerHeight + 600) return;
-    tableState.visibleLimit += TABLE_BATCH_SIZE;
-    renderTable();
-    if (!trigger.hidden) tableState.fillFrame = requestAnimationFrame(fillViewport);
-  };
-  tableState.observer = new IntersectionObserver((entries) => {
-    if (!entries.some((entry) => entry.isIntersecting) || trigger.hidden) return;
-    if (!tableState.fillFrame) tableState.fillFrame = requestAnimationFrame(fillViewport);
-  }, { rootMargin: "600px 0px" });
-  tableState.observer.observe(trigger);
-}
 
 function technicalSignalGuide() {
   return `<p class="dialog-intro">使用目前 KD (${state.settings.period}, ${state.settings.kSmooth}, ${state.settings.dSmooth}) 設定，僅比較資料日與前一交易日。買賣提示只標示當日新交叉，每日重新判讀。</p>
@@ -515,32 +477,12 @@ function syncTableFavorite(symbol) {
 }
 
 function bindEvents() {
-  observeTableBatches();
-  const overviewResize = new ResizeObserver(updateOverviewTabs);
-  overviewResize.observe(document.querySelector(".overview-controls"));
-  overviewResize.observe(document.querySelector(".overview-view-tabs"));
-  const segmentedResize = new ResizeObserver(updateSegmentedControls);
-  document.querySelectorAll(".segmented-control").forEach((group) => segmentedResize.observe(group));
-  const phoneLayout = matchMedia("(max-width: 700px)");
-  const searchControls = document.querySelector(".search-controls");
-  const arrangeSearchControls = () => {
-    const first = phoneLayout.matches ? document.querySelector("#sector-filter")
-      : document.querySelector(".search-box");
-    if (searchControls.firstElementChild === first) return;
-    const focused = document.activeElement;
-    searchControls.prepend(first);
-    if (first.contains(focused)) focused.focus({ preventScroll: true });
-  };
-  arrangeSearchControls();
-  phoneLayout.addEventListener("change", arrangeSearchControls);
+  tableBatches.observe();
+  controls.bind();
+  bindResponsiveSearchOrder();
   bindInputMode((touch) => { touchInteraction = touch; });
   bindPullToRefresh(document.querySelector("#pull-refresh"));
-  document.addEventListener("keydown", (event) => {
-    const card = event.target.closest?.("#sector-grid [data-sector-details]");
-    if (!card || (event.key !== "Enter" && event.key !== " ")) return;
-    event.preventDefault();
-    openSectorDialog(card.dataset.sectorDetails);
-  });
+  bindKeyboardNavigation({ getPage: () => state.page, onSectorDetails: openSectorDialog });
   document.addEventListener("click", (event) => {
     const home = event.target.closest("[data-home]");
     if (home) {
@@ -656,38 +598,6 @@ function bindEvents() {
     state.date = event.target.value;
     refreshData();
   });
-  document.addEventListener("keydown", (event) => {
-    const dot = event.target.closest?.("[data-carousel-index]");
-    if (dot && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-      event.preventDefault();
-      const buttons = [...dot.parentElement.querySelectorAll('[data-carousel-index]:not([aria-disabled="true"])')];
-      const current = buttons.indexOf(dot);
-      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
-        : Math.max(0, Math.min(buttons.length - 1, current + (event.key === "ArrowRight" ? 1 : -1)));
-      buttons[next].focus({ preventScroll: true });
-      buttons[next].click();
-      return;
-    }
-    const overviewTab = event.target.closest?.("[data-overview]");
-    if (overviewTab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-      event.preventDefault();
-      const tabs = [...document.querySelectorAll("[data-overview]")];
-      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1
-        : (tabs.indexOf(overviewTab) + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-      tabs[next].click();
-      tabs[next].focus();
-      return;
-    }
-    if (
-      event.key === "/" &&
-      state.page === "market" &&
-      !document.querySelector("dialog[open]") &&
-      !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)
-    ) {
-      event.preventDefault();
-      document.querySelector("#stock-search").focus();
-    }
-  });
   document.addEventListener("submit", (event) => {
     if (event.target.id !== "settings-form") return;
     event.preventDefault();
@@ -703,17 +613,7 @@ function bindEvents() {
     document.querySelector("#info-dialog").close();
     toast("指標已重新計算，設定已儲存");
   });
-  document.querySelectorAll("dialog").forEach((dialog) => dialog.addEventListener("click", (event) => {
-    if (event.target !== event.currentTarget) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (
-      event.clientX < rect.left ||
-      event.clientX > rect.right ||
-      event.clientY < rect.top ||
-      event.clientY > rect.bottom
-    )
-      event.currentTarget.close();
-  }));
+  dialogs.bindBackdropDismiss();
   document.querySelector("#institution-dialog").addEventListener("close", () => {
     const symbol = state.institutionSymbol;
     state.institutionSymbol = null;
@@ -725,9 +625,9 @@ function bindEvents() {
     } else focusTarget?.focus({ preventScroll: true });
   });
   const institutionDialog = document.querySelector("#institution-dialog");
-  bindMobileDragDismiss(institutionDialog, institutionDialog.querySelector(".institution-dialog-handle"));
+  dialogs.bindMobileDismiss(institutionDialog, ".institution-dialog-handle");
   const sectorDialog = document.querySelector("#sector-dialog");
-  bindMobileDragDismiss(sectorDialog, sectorDialog.querySelector(".sector-dialog-handle"));
+  dialogs.bindMobileDismiss(sectorDialog, ".sector-dialog-handle");
   sectorDialog.addEventListener("close", () => {
     const name = state.sectorName;
     state.sectorName = null;

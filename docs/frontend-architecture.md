@@ -16,10 +16,18 @@ clients; view modules never call `fetch` directly.
 - `ui/market.js`: sorting/filtering, row reuse and batched market table rendering.
 - `ui/watchlist.js`: favorite price cards and their render cache.
 - `ui/sectors.js`: sector ranking and constituent dialog rendering; ETFs stay excluded.
+- `ui/carousel.js`: responsive card position, swipe synchronization and pagination dots.
+- `ui/controls.js`: segmented-control and overview-tab geometry and resize handling.
+- `ui/dialogs.js`: common dialog opening, backdrop dismissal and mobile drag dismissal.
+- `ui/gestures.js`: input-mode tracking, pull-to-refresh and drag gesture primitives.
+- `ui/keyboard.js`: carousel, overview, sector-card and search keyboard navigation.
+- `ui/responsive-layout.js`: responsive search and sector-filter DOM order.
+- `ui/table-batches.js`: viewport-driven progressive table rendering.
 - `about.js`: purpose, current capabilities and future goals.
 
-Carousel interaction, dialog lifecycle and event delegation remain in the composition
-root. These callbacks cross views; moving them should be a separate, tested change.
+Application event delegation remains in the composition root because those actions
+coordinate state, persistence and multiple views. View-specific presentation and
+reusable DOM interactions stay in `src/ui`.
 Indicator calculations live in `shared/indicators.js`; `src/indicators.js` is a
 compatibility re-export. Server analysis uses the same rules, version `technical-v1`,
 and explicitly reports unadjusted prices. No new strategy or backtest claim is added.
