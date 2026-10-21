@@ -23,12 +23,18 @@ with versioned API routes added only when those capabilities exist.
 | GET / HEAD | `/api/v1/stocks` | Paginated security metadata, including ETFs |
 | GET / HEAD | `/api/v1/stocks/{symbol}` | Stock metadata and available history, existing snapshot format |
 | GET / HEAD | `/api/v1/stocks/{symbol}/history` | `{data: [...], meta: {symbol, asOf, updatedAt, tradingDates}}` |
+| GET / HEAD | `/api/v1/stocks/{symbol}/analysis` | Shared indicator rules, latest bar, signal and institutional summary |
 | GET / POST | `/api/v1/presence` | Online count / browser heartbeat; same-origin protection retained |
 
 The stocks collection supports `offset` (default 0), `limit` (default 100, 1–200),
 `type=stock|etf`, exact `sector`, and case-insensitive `q` matching code/name.
 It reads only the manifest and returns `{data, meta: {asOf, updatedAt, total, offset, limit}}`.
 No filter fetches upstream data. History contains available sessions, not fabricated bars.
+
+Analysis accepts `asOf` (a saved market session), `period` (1–60), `kSmooth` and
+`dSmooth` (1–20). It shares `shared/indicators.js` with the frontend, reports rule
+version `technical-v1` and unadjusted prices, and excludes bars after `asOf`.
+The machine-readable OpenAPI contract is published at `/openapi.json`.
 
 Examples: `/api/v1/stocks?type=etf&limit=20`, `/api/v1/stocks/2330/history`.
 

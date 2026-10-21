@@ -1,12 +1,14 @@
 import { syncMarket, syncSlot } from "../sync.js";
 import { SYNC_KEY } from "../twse.js";
 import { CoordinatorStore } from "./coordinator-store.js";
+import { SyncMetrics, saveSyncMetrics } from "./metrics.js";
 
 export class MarketSyncCoordinator {
   constructor(ctx, env) {
     this.storage = ctx.storage;
     this.env = env;
-    this.kv = new CoordinatorStore(ctx.storage, env.MARKET_DATA);
+    this.metrics = new SyncMetrics();
+    this.kv = new CoordinatorStore(ctx.storage, this.metrics.wrap(env.MARKET_DATA));
     this.tail = Promise.resolve();
     this.run = syncMarket;
   }
@@ -25,12 +27,18 @@ export class MarketSyncCoordinator {
       return Response.json({ error: "Invalid scheduled time" }, { status: 400 });
     const now = new Date(time);
     if (!syncSlot(now)) return Response.json({ phase: "outside-window", status: "Skipped" });
+    this.metrics.reset();
+    const startedAt = Date.now();
     const lastTick = await this.storage.get("lastTick");
     if (lastTick !== undefined && time <= lastTick)
       return Response.json({ ...(await this.kv.get(SYNC_KEY, "json")), duplicate: true });
     await this.kv.recoverPublication();
+    const prior = await this.storage.get("progress");
     const state = await this.run({ ...this.env, MARKET_DATA: this.kv }, { now });
     await this.storage.put("lastTick", time);
+    // Telemetry cannot turn a successful data checkpoint into a failed sync.
+    try { await saveSyncMetrics(this.storage, prior, state, this.metrics.counts, startedAt); }
+    catch (error) { console.error(JSON.stringify({ event: "sync-metrics-failed", message: error.message })); }
     return Response.json(state);
   }
 }
