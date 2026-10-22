@@ -108,6 +108,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname === "/api/v1/push/config") return;
   if (url.pathname === "/api/presence" || url.pathname === "/api/v1/presence") return;
   if (url.pathname === "/api/market" || url.pathname === "/api/v1/market" ||
       url.pathname.startsWith("/api/stocks/") || url.pathname.startsWith("/api/v1/stocks/")) {

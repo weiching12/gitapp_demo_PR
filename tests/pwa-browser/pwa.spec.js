@@ -26,6 +26,7 @@ test("service worker handles market update pushes and notification clicks", asyn
   expect(source).toContain('showNotification');
   expect(source.match(/addEventListener\("notificationclick"/g)).toHaveLength(1);
   expect(source).toContain('clients.openWindow');
+  expect(source).toContain('if (url.pathname === "/api/v1/push/config") return;');
 });
 
 test("installed shell starts offline and identifies saved data", async ({ page, context }) => {

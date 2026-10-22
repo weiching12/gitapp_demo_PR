@@ -537,9 +537,6 @@ h1 {
 .date-notification-button .icon { width: 17px; height: 17px; }
 .update-countdown { position: absolute; right: 0; bottom: -18px; color: var(--muted); font-size: 12px; line-height: 1.4; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .date-notification-button[hidden] { display: none; }
-[data-push-subscribed="true"] .date-notification-button,
-[data-push-supported="false"] .date-notification-button,
-html:has(#push-notifications.push-enabled) .date-notification-button { display: none; }
 .date-control[hidden] { display: none; }
 .icon-button {
   display: inline-grid;

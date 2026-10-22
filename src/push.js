@@ -34,7 +34,7 @@ export function startPushNotifications(button, {
   };
   const refresh = () => {
     if (button.disabled) return Promise.resolve();
-    const currentVersion = version;
+    const currentVersion = ++version;
     return navigator.serviceWorker.ready
       .then((registration) => registration.pushManager.getSubscription())
       .then((subscription) => { if (currentVersion === version && !button.disabled) render(Boolean(subscription)); })
@@ -52,7 +52,14 @@ export function startPushNotifications(button, {
       const registration = await navigator.serviceWorker.ready;
       const current = await registration.pushManager.getSubscription();
       if (current) {
-        await client.unsubscribe(current.endpoint); await current.unsubscribe(); render(false);
+        if (!await current.unsubscribe()) throw new Error("Browser push unsubscribe failed");
+        render(false);
+        try { await client.unsubscribe(current.endpoint); }
+        catch (error) {
+          console.warn("Push server cleanup failed", error);
+          onMessage?.("已關閉此裝置通知；伺服器紀錄將在下次推播時清理");
+          return;
+        }
         onMessage?.("已關閉每日更新通知"); return;
       }
       const permission = await Notification.requestPermission();

@@ -418,18 +418,12 @@ test("notification control lives in settings with a bell beside the trade date",
   const bell = page.locator(".date-notification-button");
   await expect(bell).toBeHidden();
   await page.locator("html").evaluate((root) => {
-    root.dataset.pushSupported = "true";
-    root.dataset.pushSubscribed = "false";
     root.querySelector(".date-notification-button").hidden = false;
   });
   await expect(bell).toBeVisible();
-  await page.locator("html").evaluate((root) => { root.dataset.pushSubscribed = "true"; });
+  await bell.evaluate((button) => { button.hidden = true; });
   await expect(bell).toBeHidden();
-  await page.locator("html").evaluate((root) => { root.dataset.pushSubscribed = "false"; });
-  await expect(bell).toBeVisible();
-  await page.locator("#push-notifications").evaluate((button) => { button.classList.add("push-enabled"); });
-  await expect(bell).toBeHidden();
-  await page.locator("#push-notifications").evaluate((button) => { button.classList.remove("push-enabled"); });
+  await bell.evaluate((button) => { button.hidden = false; });
   await expect(bell).toBeVisible();
   await expect(page.locator("#update-countdown")).toContainText(/預計 (18:30|20:30) 更新 · \d{2,}:\d{2}:\d{2}/);
   await bell.click();

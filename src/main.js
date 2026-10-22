@@ -250,8 +250,6 @@ function enablePwa() {
     onStatus: ({ supported, subscribed, permission, error }) => {
       const hidden = !supported || subscribed;
       reminder.hidden = hidden;
-      document.documentElement.dataset.pushSubscribed = String(Boolean(supported && subscribed));
-      document.documentElement.dataset.pushSupported = String(Boolean(supported));
       notificationStatus.textContent = !supported ? "此瀏覽器無法使用推播通知"
         : subscribed ? "已開啟通知，資料更新完成後會提醒你"
           : error ? error

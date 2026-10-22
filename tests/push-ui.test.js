@@ -124,3 +124,50 @@ test("a rejected browser subscription remains visibly incomplete", async () => {
     error: "瀏覽器無法建立推播訂閱；請使用一般瀏覽視窗或已安裝的 App 重試" });
   assert.equal(button.getAttribute("aria-pressed"), "false");
 });
+
+test("the newest subscription check wins when checks finish out of order", async () => {
+  const button = fakeButton();
+  let finishFirstCheck;
+  let checks = 0;
+  const statuses = [];
+  const runtime = {
+    navigator: { serviceWorker: { ready: Promise.resolve({ pushManager: {
+      getSubscription: () => ++checks === 1
+        ? new Promise((resolve) => { finishFirstCheck = resolve; })
+        : Promise.resolve({ endpoint: "https://push.example/sub" }),
+    } }) } },
+    window: { PushManager: class {}, addEventListener() {}, removeEventListener() {} },
+    document: { visibilityState: "visible", addEventListener() {}, removeEventListener() {} },
+    Notification: { permission: "granted" },
+  };
+  const controller = startPushNotifications(button, { runtime, onStatus: (status) => statuses.push(status) });
+  await flushPromises();
+  await controller.refresh();
+  finishFirstCheck(null);
+  await flushPromises();
+  assert.equal(statuses.length, 1);
+  assert.equal(statuses[0].subscribed, true);
+});
+
+test("a failed browser unsubscribe keeps the server subscription and enabled state", async () => {
+  const button = fakeButton();
+  const requests = [];
+  const statuses = [];
+  const runtime = {
+    navigator: { serviceWorker: { ready: Promise.resolve({ pushManager: {
+      getSubscription: async () => ({ endpoint: "https://push.example/sub", unsubscribe: async () => false }),
+    } }) } },
+    window: { PushManager: class {}, addEventListener() {}, removeEventListener() {} },
+    document: { visibilityState: "visible", addEventListener() {}, removeEventListener() {} },
+    Notification: { permission: "granted" },
+  };
+  startPushNotifications(button, { runtime,
+    client: { unsubscribe: async (endpoint) => requests.push(endpoint) },
+    onStatus: (status) => statuses.push(status),
+  });
+  await button.click();
+  await flushPromises();
+  assert.deepEqual(requests, []);
+  assert.equal(statuses.at(-1).subscribed, true);
+  assert.equal(button.getAttribute("aria-pressed"), "true");
+});
