@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { startPushNotifications } from "../src/push.js";
+import { PushApiClient } from "../src/api/push-client.js";
 
 const fakeButton = () => {
   const classes = new Set();
@@ -78,6 +79,7 @@ test("an older subscription check cannot restore the bell after enabling notific
     }; return subscription; },
   };
   const statuses = [];
+  const requests = [];
   startPushNotifications(button, {
     runtime: {
       navigator: { serviceWorker: { ready: Promise.resolve({ pushManager }) } },
@@ -85,7 +87,10 @@ test("an older subscription check cannot restore the bell after enabling notific
       document: { visibilityState: "visible", addEventListener() {}, removeEventListener() {} },
       Notification: { permission: "granted", requestPermission: async () => "granted" },
     },
-    client: { config: async () => ({ enabled: true, publicKey: "AQ" }), subscribe: async () => ({ subscribed: true }) },
+    client: new PushApiClient(async (path, options = {}) => {
+      requests.push([path, options.method ?? "GET"]);
+      return Response.json(path.endsWith("/config") ? { enabled: true, publicKey: "AQ" } : { subscribed: true });
+    }),
     onStatus: (status) => statuses.push(status),
   });
   await flushPromises();
@@ -94,4 +99,5 @@ test("an older subscription check cannot restore the bell after enabling notific
   await flushPromises();
   assert.deepEqual(statuses.at(-1), { supported: true, subscribed: true, permission: "granted" });
   assert.equal(button.classList.contains("push-enabled"), true);
+  assert.deepEqual(requests, [["/api/v1/push/config", "GET"], ["/api/v1/push/subscriptions", "POST"]]);
 });

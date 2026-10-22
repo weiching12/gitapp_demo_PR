@@ -53,7 +53,7 @@ export function startPushNotifications(button, {
       }
       const permission = await Notification.requestPermission();
       if (permission !== "granted") { onMessage?.("需要允許通知才能接收每日更新提醒"); return; }
-      const config = await client.config();
+      const { data: config } = await client.config();
       if (!config.enabled || !config.publicKey) throw new Error("Push notifications are unavailable");
       const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeKey(config.publicKey) });
       try { await client.subscribe(subscription.toJSON()); } catch (error) { await subscription.unsubscribe(); throw error; }
