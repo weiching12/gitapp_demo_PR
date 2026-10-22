@@ -101,3 +101,26 @@ test("an older subscription check cannot restore the bell after enabling notific
   assert.equal(button.classList.contains("push-enabled"), true);
   assert.deepEqual(requests, [["/api/v1/push/config", "GET"], ["/api/v1/push/subscriptions", "POST"]]);
 });
+
+test("a rejected browser subscription remains visibly incomplete", async () => {
+  const button = fakeButton();
+  const statuses = [];
+  const runtime = {
+    navigator: { serviceWorker: { ready: Promise.resolve({ pushManager: {
+      getSubscription: async () => null,
+      subscribe: async () => { throw new DOMException("Registration failed - permission denied", "AbortError"); },
+    } }) } },
+    window: { PushManager: class {}, addEventListener() {}, removeEventListener() {} },
+    document: { visibilityState: "visible", addEventListener() {}, removeEventListener() {} },
+    Notification: { permission: "granted", requestPermission: async () => "granted" },
+  };
+  startPushNotifications(button, { runtime,
+    client: new PushApiClient(async () => Response.json({ enabled: true, publicKey: "AQ" })),
+    onStatus: (status) => statuses.push(status),
+  });
+  await button.click();
+  await flushPromises();
+  assert.deepEqual(statuses.at(-1), { supported: true, subscribed: false, permission: "granted",
+    error: "瀏覽器無法建立推播訂閱；請使用一般瀏覽視窗或已安裝的 App 重試" });
+  assert.equal(button.getAttribute("aria-pressed"), "false");
+});
