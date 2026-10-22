@@ -40,13 +40,21 @@ test("notification dispatch encrypts one payload and marks the trade date", asyn
   const serverPublic = await crypto.subtle.exportKey("raw", server.publicKey);
   const clientPublic = await crypto.subtle.exportKey("raw", client.publicKey);
   const marks = [], requests = [];
+  const row = { endpoint: "https://push.example/subscription", p256dh: encode(clientPublic),
+    auth: encode(crypto.getRandomValues(new Uint8Array(16))) };
   const repository = {
-    pending: async () => [{ endpoint: "https://push.example/subscription", p256dh: encode(clientPublic), auth: encode(crypto.getRandomValues(new Uint8Array(16))) }],
+    pending: async () => marks.length ? [] : [row],
     mark: async (...args) => marks.push(args), removeMany: async () => {},
   };
   const service = new PushService(repository, { VAPID_SUBJECT: "https://app.test", VAPID_PUBLIC_KEY: encode(serverPublic), VAPID_PRIVATE_KEY: serverPrivate.d },
-    async (endpoint, payload) => { requests.push([endpoint, payload]); return new Response(null, { status: 201 }); });
-  assert.deepEqual(await service.notifyPublished({ generation: "g1", asOf: "2026-10-21" }), { sent: 1, removed: 0 });
+    async (endpoint, payload) => { requests.push([endpoint, payload]); return new Response(null, { status: requests.length === 1 ? 503 : 201 }); });
+  assert.deepEqual(await service.notifyPublished({ generation: "g1", asOf: "2026-10-21" }),
+    { sent: 0, removed: 0, failed: 1, hasMore: false });
+  assert.deepEqual(await service.notifyPublished({ generation: "g1", asOf: "2026-10-21" }),
+    { sent: 1, removed: 0, failed: 0, hasMore: false });
   assert.deepEqual(marks, [["https://push.example/subscription", "2026-10-21"]]);
   assert.equal(new Headers(requests[0][1].headers).get("Content-Encoding"), "aes128gcm");
+  assert.deepEqual(await service.notifyPublished({ generation: "g1", asOf: "2026-10-21" }),
+    { sent: 0, removed: 0, failed: 0, hasMore: false });
+  assert.equal(requests.length, 2);
 });

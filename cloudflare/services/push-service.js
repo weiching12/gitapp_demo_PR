@@ -37,12 +37,12 @@ export class PushService {
 
   async notifyPublished(manifest) {
     if (!this.config().enabled) return { sent: 0, skipped: true };
-    const rows = await this.repository.pending(manifest.asOf);
+    const rows = await this.repository.pending(manifest.asOf, 501);
     const stale = [];
-    let sent = 0;
+    let sent = 0, failed = 0;
     const data = JSON.stringify({ title: "株研資料已更新", body: `${manifest.asOf} 台股行情與法人資料已完成更新`,
       url: "/", tag: `market-${manifest.asOf}`, generation: manifest.generation });
-    for (const row of rows) {
+    for (const row of rows.slice(0, 500)) {
       const subscription = { endpoint: row.endpoint, expirationTime: null, keys: { p256dh: row.p256dh, auth: row.auth } };
       try {
         const payload = await buildPushPayload({ data, options: { ttl: 86400, urgency: "normal", topic: `market-${manifest.asOf}` } }, subscription,
@@ -50,10 +50,10 @@ export class PushService {
         const response = await this.fetcher(subscription.endpoint, payload);
         if (response.ok) { sent++; await this.repository.mark(row.endpoint, manifest.asOf); }
         else if (response.status === 404 || response.status === 410) stale.push(row.endpoint);
-        else console.error(JSON.stringify({ event: "push-failed", status: response.status, endpointHost: new URL(row.endpoint).host }));
-      } catch (error) { console.error(JSON.stringify({ event: "push-failed", error: error.message })); }
+        else { failed++; console.error(JSON.stringify({ event: "push-failed", status: response.status, endpointHost: new URL(row.endpoint).host })); }
+      } catch (error) { failed++; console.error(JSON.stringify({ event: "push-failed", error: error.message })); }
     }
     await this.repository.removeMany(stale);
-    return { sent, removed: stale.length };
+    return { sent, removed: stale.length, failed, hasMore: rows.length > 500 };
   }
 }

@@ -86,6 +86,56 @@ test("published generation recovery never creates a self-referencing previous ge
   assert.deepEqual(f.puts, [SYNC_KEY]);
 });
 
+test("interrupted publication retries its uncheckpointed notification once", async () => {
+  const f = fixture();
+  f.remote.set(SYNC_KEY, { date: "2026-10-21", slot: "18:30", generation: "new", phase: "publish",
+    reportDates: ["2026-10-21"] });
+  f.remote.set(MANIFEST_KEY, { generation: "new", asOf: "2026-10-21" });
+  const calls = [];
+  const options = { t86Store: {}, pushServiceFactory: () => ({ notifyPublished: async (manifest) => {
+    calls.push(manifest); return { sent: 1, removed: 0, failed: 0, hasMore: false };
+  } }) };
+  const recovered = await syncMarket(f.env, { now: new Date(time), ...options });
+  assert.equal(recovered.phase, "done");
+  assert.equal(recovered.notificationPending, undefined);
+  assert.deepEqual(calls, [{ generation: "new", asOf: "2026-10-21" }]);
+  await syncMarket(f.env, { now: new Date(time + 60000), ...options });
+  assert.equal(calls.length, 1);
+});
+
+test("failed notifications retry without republishing or blocking completed market data", async () => {
+  const f = fixture();
+  f.remote.set(SYNC_KEY, { date: "2026-10-21", slot: "18:30", generation: "new", phase: "done",
+    reportDates: ["2026-10-21"], notificationPending: { generation: "new", asOf: "2026-10-21" } });
+  f.remote.set(MANIFEST_KEY, { generation: "new", asOf: "2026-10-21" });
+  let calls = 0;
+  const options = { t86Store: {}, pushServiceFactory: () => ({ notifyPublished: async () =>
+    ++calls === 1 ? { sent: 0, removed: 0, failed: 1, hasMore: false }
+      : { sent: 1, removed: 0, failed: 0, hasMore: false } }) };
+  const failed = await syncMarket(f.env, { now: new Date(time), ...options });
+  assert.equal(failed.phase, "done");
+  assert.equal(failed.notificationPending.generation, "new");
+  assert.equal(failed.notificationRetryAfter, time + 5 * 60000);
+  await syncMarket(f.env, { now: new Date(time + 4 * 60000), ...options });
+  assert.equal(calls, 1);
+  const retried = await syncMarket(f.env, { now: new Date(time + 5 * 60000), ...options });
+  assert.equal(calls, 2);
+  assert.equal(retried.notificationPending, undefined);
+  assert.equal(retried.notificationRetryAfter, undefined);
+  assert.equal(f.puts.filter((key) => key === MANIFEST_KEY).length, 0);
+});
+
+test("missing push configuration leaves the published notification pending", async () => {
+  const f = fixture();
+  f.remote.set(SYNC_KEY, { date: "2026-10-21", slot: "18:30", generation: "new", phase: "done",
+    reportDates: ["2026-10-21"], notificationPending: { generation: "new", asOf: "2026-10-21" } });
+  f.remote.set(MANIFEST_KEY, { generation: "new", asOf: "2026-10-21" });
+  const state = await syncMarket(f.env, { now: new Date(time), t86Store: {},
+    pushServiceFactory: () => ({ notifyPublished: async () => ({ sent: 0, skipped: true }) }) });
+  assert.deepEqual(state.notificationPending, { generation: "new", asOf: "2026-10-21" });
+  assert.equal(state.notificationRetryAfter, time + 5 * 60000);
+});
+
 test("once imported, a coordinator head never regresses to eventually consistent KV", async () => {
   const f = fixture(), adapter = new CoordinatorStore(f.storage, f.kv);
   f.remote.set(MANIFEST_KEY, { generation: "old" });

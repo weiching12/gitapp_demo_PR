@@ -3,7 +3,7 @@ import { MANIFEST_KEY, stageKey } from "../storage/market-keys.js";
 import { createManifest } from "../snapshots/market-format.js";
 import { put } from "./common.js";
 
-export async function publish({ kv, state, manifest, store, now, date, slot, history, notifier }) {
+export async function publish({ kv, state, manifest, store, now, date, slot, history }) {
   const [catalog, days] = await Promise.all([
     kv.get(stageKey(state.generation, "catalog"), "json"), kv.get(stageKey(state.generation, "days"), "json"),
   ]);
@@ -20,8 +20,8 @@ export async function publish({ kv, state, manifest, store, now, date, slot, his
   if (history) await history.commit(next);
   await put(kv, MANIFEST_KEY, next);
   if (history) await history.retainPublished(next.generation, next.previousGeneration);
-  try { if (next.asOf === date) await notifier?.notifyPublished(next); }
-  catch (error) { console.error(JSON.stringify({ event: "push-publish-failed", generation: next.generation, error: error.message })); }
+  // Checkpoint notification work separately from the public data publication.
+  if (next.asOf === date) state.notificationPending = { generation: next.generation, asOf: next.asOf };
   // Temporary inputs expire; public history never receives a TTL.
   state.phase = "done";
   state.checkedThrough = state.reportDates.at(-1);

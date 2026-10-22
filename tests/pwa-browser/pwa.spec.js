@@ -22,9 +22,9 @@ test("service worker handles market update pushes and notification clicks", asyn
   const response = await request.get("/sw.js");
   expect(response.ok()).toBe(true);
   const source = await response.text();
-  expect(source).toContain('addEventListener("push"');
+  expect(source.match(/addEventListener\("push"/g)).toHaveLength(1);
   expect(source).toContain('showNotification');
-  expect(source).toContain('addEventListener("notificationclick"');
+  expect(source.match(/addEventListener\("notificationclick"/g)).toHaveLength(1);
   expect(source).toContain('clients.openWindow');
 });
 
