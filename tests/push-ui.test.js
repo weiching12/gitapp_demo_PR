@@ -15,7 +15,7 @@ const fakeButton = () => {
     setAttribute: (name, value) => attributes.set(name, value),
     getAttribute: (name) => attributes.get(name),
     querySelector: () => ({ textContent: "" }),
-    addEventListener() {},
+    addEventListener(name, handler) { if (name === "click") this.click = handler; },
   };
 };
 
@@ -28,13 +28,13 @@ test("an existing push subscription reports the enabled state", async () => {
     navigator: { serviceWorker: { ready: Promise.resolve({ pushManager: { getSubscription: async () => ({ endpoint: "https://push.example/sub" }) } }) } },
     window: { PushManager: class {}, addEventListener() {}, removeEventListener() {} },
     document: { visibilityState: "visible", addEventListener() {}, removeEventListener() {} },
-    Notification: { requestPermission: async () => "granted" },
+    Notification: { permission: "granted", requestPermission: async () => "granted" },
   };
 
   startPushNotifications(button, { runtime, onStatus: (status) => statuses.push(status) });
   await flushPromises();
 
-  assert.deepEqual(statuses.at(-1), { supported: true, subscribed: true });
+  assert.deepEqual(statuses.at(-1), { supported: true, subscribed: true, permission: "granted" });
   assert.equal(button.classList.contains("push-enabled"), true);
   assert.equal(button.getAttribute("aria-pressed"), "true");
 });
@@ -52,15 +52,46 @@ test("the subscription state is checked again when the app returns to the foregr
       addEventListener: (name, handler) => { if (name === "visibilitychange") visibilityHandler = handler; },
       removeEventListener() {},
     },
-    Notification: { requestPermission: async () => "granted" },
+    Notification: { permission: "granted", requestPermission: async () => "granted" },
   };
 
   startPushNotifications(button, { runtime, onStatus: (status) => statuses.push(status) });
   await flushPromises();
-  assert.deepEqual(statuses.at(-1), { supported: true, subscribed: false });
+  assert.deepEqual(statuses.at(-1), { supported: true, subscribed: false, permission: "granted" });
 
   subscription = { endpoint: "https://push.example/sub" };
   visibilityHandler();
   await flushPromises();
-  assert.deepEqual(statuses.at(-1), { supported: true, subscribed: true });
+  assert.deepEqual(statuses.at(-1), { supported: true, subscribed: true, permission: "granted" });
+});
+
+test("an older subscription check cannot restore the bell after enabling notifications", async () => {
+  const button = fakeButton();
+  let finishInitialCheck;
+  let subscription = null;
+  let checks = 0;
+  const pushManager = {
+    getSubscription: () => ++checks === 1
+      ? new Promise((resolve) => { finishInitialCheck = resolve; }) : Promise.resolve(subscription),
+    subscribe: async () => { subscription = {
+      endpoint: "https://push.example/sub", toJSON: () => ({ endpoint: "https://push.example/sub" }),
+    }; return subscription; },
+  };
+  const statuses = [];
+  startPushNotifications(button, {
+    runtime: {
+      navigator: { serviceWorker: { ready: Promise.resolve({ pushManager }) } },
+      window: { PushManager: class {}, addEventListener() {}, removeEventListener() {} },
+      document: { visibilityState: "visible", addEventListener() {}, removeEventListener() {} },
+      Notification: { permission: "granted", requestPermission: async () => "granted" },
+    },
+    client: { config: async () => ({ enabled: true, publicKey: "AQ" }), subscribe: async () => ({ subscribed: true }) },
+    onStatus: (status) => statuses.push(status),
+  });
+  await flushPromises();
+  await button.click();
+  finishInitialCheck(null);
+  await flushPromises();
+  assert.deepEqual(statuses.at(-1), { supported: true, subscribed: true, permission: "granted" });
+  assert.equal(button.classList.contains("push-enabled"), true);
 });

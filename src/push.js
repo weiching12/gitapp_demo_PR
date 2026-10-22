@@ -20,23 +20,29 @@ export function startPushNotifications(button, {
   const { navigator, window, document, Notification } = runtime;
   const supported = Boolean(navigator && window && Notification && "serviceWorker" in navigator && "PushManager" in window);
   if (!supported || !button) { if (button) button.hidden = true; onStatus?.({ supported: false, subscribed: false }); return; }
+  let version = 0;
   const render = (subscribed) => {
     button.hidden = false;
     button.classList.toggle("push-enabled", subscribed);
     button.setAttribute("aria-pressed", String(subscribed));
     button.setAttribute("aria-label", subscribed ? "關閉每日資料更新通知" : "開啟每日資料更新通知");
     button.querySelector("span").textContent = subscribed ? "關閉更新通知" : "開啟更新通知";
-    onStatus?.({ supported: true, subscribed });
+    onStatus?.({ supported: true, subscribed, permission: Notification.permission });
   };
-  const refresh = () => navigator.serviceWorker.ready
-    .then((registration) => registration.pushManager.getSubscription())
-    .then((subscription) => render(Boolean(subscription)))
-    .catch(() => { button.hidden = true; onStatus?.({ supported: false, subscribed: false }); });
+  const refresh = () => {
+    if (button.disabled) return Promise.resolve();
+    const currentVersion = version;
+    return navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((subscription) => { if (currentVersion === version && !button.disabled) render(Boolean(subscription)); })
+      .catch(() => { if (currentVersion === version && !button.disabled) { button.hidden = true; onStatus?.({ supported: false, subscribed: false }); } });
+  };
   const refreshWhenVisible = () => { if (!document || document.visibilityState === "visible") refresh(); };
   refresh();
   document?.addEventListener?.("visibilitychange", refreshWhenVisible);
   window.addEventListener?.("pageshow", refresh);
   button.addEventListener("click", async () => {
+    version++;
     button.disabled = true;
     try {
       const registration = await navigator.serviceWorker.ready;
@@ -54,7 +60,7 @@ export function startPushNotifications(button, {
       render(true); onMessage?.("每日資料更新完成後會通知你");
     } catch (error) {
       console.warn("Push subscription failed", error); onMessage?.("目前無法設定更新通知，請稍後再試");
-    } finally { button.disabled = false; }
+    } finally { button.disabled = false; refresh(); }
   });
   return {
     refresh,

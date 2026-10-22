@@ -147,7 +147,7 @@ test("nightly sync retains the ETF session and accumulates the following trading
   } finally { f.db.sqlite.close(); }
 });
 
- test("unchanged evening skips publication, staging expires and idle ticks do not write", async () => {
+ test("unchanged evening skips publication while pending notification retries are checkpointed", async () => {
   const f = setup();
   try {
     const early = await f.run("2026-10-19", "10");
@@ -156,7 +156,8 @@ test("nightly sync retains the ETF session and accumulates the following trading
     const writes = f.writes.slice(initial);
     assert.equal(late.generation, early.generation);
     assert.equal(JSON.parse(f.data.get(SYNC_KEY)).result, "Unchanged");
-    assert.equal(writes.length, 10);
+    assert.equal(writes.filter(({ key }) => key !== SYNC_KEY).length, 4);
+    assert.equal(writes.filter(({ key }) => key === SYNC_KEY).length, 23);
     assert.equal(writes.filter(({ key }) => key.includes(":shard:") || key === MANIFEST_KEY).length, 0);
     assert.equal(f.deletes.length, 0);
     for (const { key, options } of f.writes) {

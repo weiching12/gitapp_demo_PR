@@ -244,12 +244,19 @@ function enablePwa() {
     },
   });
   const reminder = document.querySelector(".date-notification-button");
+  const notificationStatus = document.querySelector("#settings-notifications > div > span");
+  notificationStatus.setAttribute("role", "status");
   startPushNotifications(document.querySelector("#push-notifications"), { onMessage: toast,
-    onStatus: ({ supported, subscribed }) => {
+    onStatus: ({ supported, subscribed, permission }) => {
       const hidden = !supported || subscribed;
       reminder.hidden = hidden;
       document.documentElement.dataset.pushSubscribed = String(Boolean(supported && subscribed));
       document.documentElement.dataset.pushSupported = String(Boolean(supported));
+      notificationStatus.textContent = !supported ? "此瀏覽器無法使用推播通知"
+        : subscribed ? "已開啟通知，資料更新完成後會提醒你"
+          : permission === "denied" ? "瀏覽器已封鎖通知，請在網站權限中允許通知後重試"
+            : permission === "granted" ? "瀏覽器已允許通知，但尚未完成訂閱；請按下開啟更新通知"
+              : "尚未開啟通知";
     } });
   stopUpdateCountdown?.();
   stopUpdateCountdown = startUpdateCountdown(document.querySelector("#update-countdown"));
