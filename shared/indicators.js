@@ -67,20 +67,44 @@ export function getInstitutionalNet(institutions) {
   return values.every(Number.isFinite) ? values.reduce((sum, n) => sum + n, 0) : null;
 }
 
+const PRICE_VOLUME_LABELS = Object.freeze({
+  "price-up-volume-up": "價漲量增",
+  "price-up-volume-flat": "價漲量平",
+  "price-up-volume-down": "價漲量縮",
+  "price-down-volume-up": "價跌量增",
+  "price-down-volume-flat": "價跌量平",
+  "price-down-volume-down": "價跌量縮",
+  "volume-up-price-stagnant": "量增價滯",
+  "price-volume-flat": "量價持平",
+  "volume-down-range": "量縮盤整",
+});
+
+/** Classify already-computed RVOL20 and close-to-close percentage change. */
+export function classifyPriceVolume(rvol20, changePercent) {
+  if (!Number.isFinite(rvol20) || rvol20 < 0 || !Number.isFinite(changePercent))
+    return { code: "insufficient", label: "資料不足" };
+  const volume = rvol20 >= 1.2 ? "up" : rvol20 >= 0.8 ? "flat" : "down";
+  const price = changePercent > 0.5 ? "up" : changePercent < -0.5 ? "down" : "range";
+  const code = price === "range"
+    ? { up: "volume-up-price-stagnant", flat: "price-volume-flat", down: "volume-down-range" }[volume]
+    : `price-${price}-volume-${volume}`;
+  return { code, label: PRICE_VOLUME_LABELS[code] };
+}
+
 /** Today's volume against the preceding 20 market sessions, in shares. */
 export function getPriceVolumeSignal(history, tradingDates, asOf, changePercent) {
   const index = tradingDates?.indexOf(asOf) ?? -1;
-  if (index < 20 || !Number.isFinite(changePercent)) return { rvol20: null, label: "資料不足" };
+  const insufficient = () => ({ rvol20: null, ...classifyPriceVolume(null, changePercent) });
+  if (index < 20 || !Number.isFinite(changePercent)) return insufficient();
   const bars = new Map(history.map((bar) => [bar.date, bar]));
+  if (!Number.isFinite(bars.get(asOf)?.close) || bars.get(asOf).close <= 0) return insufficient();
   const volumes = tradingDates.slice(index - 20, index + 1).map((date) => bars.get(date)?.volume);
   if (volumes.length !== 21 || !volumes.every((volume) => Number.isFinite(volume) && volume >= 0))
-    return { rvol20: null, label: "資料不足" };
+    return insufficient();
   const average = volumes.slice(0, 20).reduce((sum, volume) => sum + volume, 0) / 20;
-  if (average === 0) return { rvol20: null, label: "資料不足" };
+  if (average === 0) return insufficient();
   const rvol20 = volumes[20] / average;
-  const price = changePercent > 0 ? "漲了" : changePercent < 0 ? "跌了" : "價格沒變";
-  const volume = rvol20 >= 1.2 ? "交易變多" : rvol20 >= 0.8 ? "交易差不多" : "交易變少";
-  return { rvol20, label: `${price}，${volume}` };
+  return { rvol20, ...classifyPriceVolume(rvol20, changePercent) };
 }
 
 /** Classify the selected session using existing MA20/MA60 values only. */

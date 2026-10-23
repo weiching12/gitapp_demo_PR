@@ -44,6 +44,14 @@ test("today price and volume column remains readable on desktop and horizontally
     }));
     if (width <= 390) {
       expect(metrics.content).toBeGreaterThan(metrics.client);
+      const priceVolumeBounds = await page.locator("#stock-rows .price-volume-cell").first().evaluate((cell) => {
+        const badge = cell.querySelector(".price-volume-label").getBoundingClientRect();
+        const bounds = cell.getBoundingClientRect();
+        return { badgeLeft: badge.left, badgeRight: badge.right, cellLeft: bounds.left, cellRight: bounds.right };
+      });
+      expect(priceVolumeBounds.badgeLeft >= priceVolumeBounds.cellLeft - 1 &&
+        priceVolumeBounds.badgeRight <= priceVolumeBounds.cellRight + 1,
+      `Price-volume badge should fit its ${width}px phone column: ${JSON.stringify(priceVolumeBounds)}`).toBe(true);
       const trendEdge = await page.locator(".table-scroll thead th", { hasText: "趨勢判斷" }).evaluate((element) =>
         element.getBoundingClientRect().right);
       const viewportEdge = await page.locator(".table-scroll").evaluate((element) =>
@@ -51,6 +59,35 @@ test("today price and volume column remains readable on desktop and horizontally
       expect(trendEdge).toBeLessThanOrEqual(viewportEdge + 1);
     }
   }
+});
+
+test("today price and volume uses an indicator badge and updates with the selected date", async ({ page }) => {
+  await page.goto("/");
+  const { stocks, dates, info } = await demoProvider.load();
+  const withDates = (item) => ({ ...item, tradingDates: dates });
+  const stock = stocks.find((item) => getSnapshot(withDates(item), info.asOf).priceVolume.rvol20 !== null);
+  const row = page.locator(`#stock-rows tr[data-symbol="${stock.symbol}"]`);
+  for (const date of [info.asOf, stocks[0].history.at(-2).date]) {
+    await page.locator("#trade-date").selectOption(date);
+    const { priceVolume } = getSnapshot(withDates(stock), date);
+    const badge = row.locator(".price-volume-label");
+    await expect(badge).toHaveText(priceVolume.label);
+    await expect(badge).toHaveClass(/signal-badge/);
+    await expect(row.locator(".price-volume-ratio")).toHaveText(`${formatted(priceVolume.rvol20, 2)} 倍均量`);
+    expect(await badge.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("5px");
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+  const appearance = await row.locator(".price-volume-label").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { padding: style.padding, radius: style.borderRadius, background: style.backgroundColor };
+  });
+  expect(appearance.padding).toBe("4px 8px");
+  expect(appearance.radius).toBe("5px");
+  expect(appearance.background).not.toBe("rgba(0, 0, 0, 0)");
+  await page.locator('.sidebar [data-dialog="methodology"]').click();
+  await expect(page.locator("#info-dialog")).toContainText("量增價滯");
+  await expect(page.locator("#info-dialog")).toContainText("±0.50%");
 });
 const amountText = (shares) => {
   const lots = shares / 1000;
@@ -207,14 +244,41 @@ test("table filters and sorting keep the full favorites overview unchanged", asy
   await expect(cardFor(page, "2317")).toBeVisible();
 });
 
-test("market defaults to favorites first, then highest gain, with symbol above company name", async ({ page }) => {
+test("market defaults to net shares while the institutional heading still sorts by money", async ({ page }) => {
   const { stocks, info } = await demoProvider.load();
-  const favorites = new Set(["2330", "2317", "0050", "3026", "6488"]);
+  const previousDate = stocks[0].history.at(-2).date;
+  const values = (date) => stocks.map((stock) => {
+    const bar = getSnapshot(stock, date).latest;
+    return { symbol: stock.symbol, shares: bar?.institutionalNet ?? null,
+      money: bar?.institutionalNet == null ? null : bar.institutionalNet * bar.close };
+  });
+  const expectedOrder = (date, key, direction) => values(date).sort((a, b) =>
+    a[key] == null ? 1 : b[key] == null ? -1 : (a[key] - b[key]) * direction || a.symbol.localeCompare(b.symbol))
+    .map(({ symbol }) => symbol);
+  const visibleOrder = () => page.locator("#stock-rows tr").evaluateAll((rows) => rows.map((row) => row.dataset.symbol));
+  expect(expectedOrder(info.asOf, "shares", -1)[0]).not.toBe(expectedOrder(info.asOf, "money", -1)[0]);
+  await expect(page.locator("#stock-rows tr")).toHaveCount(stocks.length);
+  expect(await visibleOrder()).toEqual(expectedOrder(info.asOf, "shares", -1));
+  await page.locator("#trade-date").selectOption(previousDate);
+  expect(await visibleOrder()).toEqual(expectedOrder(previousDate, "shares", -1));
+  await page.locator("#trade-date").selectOption(info.asOf);
+  await page.locator('.net-heading-desktop [data-sort="institutionalNet"]').click();
+  expect(await visibleOrder()).toEqual(expectedOrder(info.asOf, "money", -1));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('.net-heading-mobile [data-sort="institutionalNet"]').click();
+  expect(await visibleOrder()).toEqual(expectedOrder(info.asOf, "money", 1));
+  await page.locator("#trade-date").selectOption(previousDate);
+  expect(await visibleOrder()).toEqual(expectedOrder(previousDate, "money", 1));
+  await page.locator('.net-heading-mobile [data-sort="institutionalNet"]').click();
+  expect(await visibleOrder()).toEqual(expectedOrder(previousDate, "money", -1));
+});
+
+test("market defaults to available institutional net shares with symbol above company name", async ({ page }) => {
+  const { stocks, info } = await demoProvider.load();
   const expected = stocks.map((stock) => ({
     symbol: stock.symbol,
-    favorite: favorites.has(stock.symbol),
-    change: getSnapshot(stock, info.asOf).latest.changePercent,
-  })).sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.change - a.change || a.symbol.localeCompare(b.symbol));
+    netShares: getSnapshot(stock, info.asOf).latest.institutionalNet,
+  })).sort((a, b) => b.netShares - a.netShares || a.symbol.localeCompare(b.symbol));
   expect(await page.locator("#stock-rows tr").evaluateAll((rows) => rows.map((row) => row.dataset.symbol)))
     .toEqual(expected.map((stock) => stock.symbol));
   const identity = page.locator('#stock-rows tr[data-symbol="2330"] .stock-name');

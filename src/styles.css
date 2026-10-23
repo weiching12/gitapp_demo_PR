@@ -827,7 +827,9 @@ h1 {
 .trend-label.bullish { color: var(--up); }
 .trend-label.bearish { color: var(--down); }
 .price-volume-cell { text-align: right; }
-.price-volume-label { display: block; }
+.price-volume-label.signal-badge { display: inline-block; font-size: 12px; }
+.price-volume-label.signal-badge.up { color: var(--up); background: #fbefec; }
+.price-volume-label.signal-badge.down { color: var(--down); background: #eaf4ef; }
 .price-volume-ratio { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
 .change-column { width: 9.5%; }
 .kd-column { width: 7.5%; }
@@ -3184,6 +3186,9 @@ dialog.institution-dialog {
   .change-chip { background: #263244; }
   .change-chip.up, .position-tag.up { background: #3b2528; }
   .change-chip.down, .position-tag.down { background: #16352e; }
+  .price-volume-label.signal-badge { background: #263244; color: var(--ink); }
+  .price-volume-label.signal-badge.up { background: #3b2528; color: var(--up); }
+  .price-volume-label.signal-badge.down { background: #16352e; color: var(--down); }
   .indicator-tag { border-color: #4d4937; color: #d6ca91; }
   .table-scroll { scrollbar-color: #52647d #111b2b; }
 }
@@ -3323,6 +3328,9 @@ dialog.institution-dialog {
 }
 
 @media (max-width: 360px) {
+  .table-scroll .price-volume-label.signal-badge,
+  .table-scroll .price-volume-ratio { font-size: 11px; }
+  .table-scroll .price-volume-label.signal-badge { padding: 3px 1px; }
   .sector-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); }
   .sector-sort-control,
   .sector-period-control { width: 100%; }

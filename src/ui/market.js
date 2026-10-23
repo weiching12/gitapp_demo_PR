@@ -1,4 +1,20 @@
 import { filterStocks, getDominantInstitution } from "../../shared/indicators.js";
+
+export function compareDefaultMarketStocks(a, b) {
+  const rank = (stock) => {
+    const analysisIncomplete = !stock.latest || !stock.signal?.code || stock.signal.code === "insufficient" ||
+      !stock.trend?.code || stock.trend.code === "insufficient";
+    const institutionUnavailable = !Number.isFinite(stock.latest?.institutionalNet);
+    return Number(analysisIncomplete) * 2 + Number(institutionUnavailable);
+  };
+  const aRank = rank(a), bRank = rank(b);
+  const rankDifference = aRank - bRank;
+  if (rankDifference) return rankDifference;
+  if (aRank % 2 === 1) return a.symbol.localeCompare(b.symbol);
+  const netDifference = b.latest.institutionalNet - a.latest.institutionalNet;
+  return netDifference || a.symbol.localeCompare(b.symbol);
+}
+
 export function renderMarketView(context) {
   const { state, snapshots, pendingSymbols, stockMoney, tableState, TABLE_BATCH_SIZE, tableRowCache, loading, loadFailed, dataset, isDemo, esc, icon, number, percent, direction, institutionalMoney, institutionalAmount, loadingIcon, pendingField, updateSegmentedControl } = context;
   const visibleStocks = filterStocks(snapshots, state);
@@ -19,14 +35,7 @@ export function renderMarketView(context) {
       if (bv === null) return -1;
       return (av - bv) * state.sortDirection;
     });
-  else visibleStocks.sort((a, b) => {
-    const favoriteDifference = Number(state.favorites.includes(b.symbol)) - Number(state.favorites.includes(a.symbol));
-    if (favoriteDifference) return favoriteDifference;
-    const av = a.latest?.changePercent, bv = b.latest?.changePercent;
-    if (av === null || av === undefined) return bv === null || bv === undefined ? a.symbol.localeCompare(b.symbol) : 1;
-    if (bv === null || bv === undefined) return -1;
-    return bv - av || a.symbol.localeCompare(b.symbol);
-  });
+  else visibleStocks.sort(compareDefaultMarketStocks);
   const nextViewKey = [state.date, state.view, state.sector, state.query, state.sort, state.sortDirection].join("|");
   if (nextViewKey !== tableState.viewKey) {
     tableState.viewKey = nextViewKey;
@@ -59,7 +68,7 @@ export function renderMarketView(context) {
       const volumeRatio = bar.institutionalNet !== null && Number.isFinite(bar.volume) && bar.volume > 0
         ? bar.institutionalNet / bar.volume * 100 : null;
       const priceVolume = stock.priceVolume?.rvol20 == null ? "資料不足" : stock.priceVolume.label;
-      const priceVolumeCell = `<span class="price-volume-label ${direction(bar.changePercent)}">${esc(priceVolume)}</span><small class="price-volume-ratio">${stock.priceVolume?.rvol20 == null ? "" : `${number(stock.priceVolume.rvol20, 2)} 倍均量`}</small>`;
+      const priceVolumeCell = `<span class="signal-badge price-volume-label ${direction(bar.changePercent)}">${esc(priceVolume)}</span><small class="price-volume-ratio">${stock.priceVolume?.rvol20 == null ? "" : `${number(stock.priceVolume.rvol20, 2)} 倍均量`}</small>`;
       const trend = stock.trend ?? { code: "insufficient", label: "資料不足", reason: "歷史行情不足" };
       const trendCell = `<span class="trend-label ${esc(trend.code)}">${esc(trend.label)}</span><small class="trend-reason">${esc(trend.reason)}</small>`;
       const mobileNetCell = `<span class="institution-net">${institutionalMoney(netAmount)}</span><small class="institution-volume-share" title="法人淨買賣超股數 ÷ 個股當日成交股數 × 100%">${volumeRatio === null ? "" : `占比 ${percent(volumeRatio)}`}</small><small class="institution-leader">${leaderLabel}</small>`;
