@@ -173,10 +173,14 @@ test("Free-plan coordinator computes once and stores large summaries in bounded 
     return marketData.get(key) ?? null;
   } } });
   const url = `https://example.test/api/v1/market/summary?asOf=${date}`;
+  const oldKey = `view:${manifest.generation}:/api/v1/market/summary?asOf=${date}`;
+  storageData.set(`${oldKey}:part:0`, JSON.stringify({ data: { stocks: [{ symbol: "stale" }] } }));
+  storageData.set(`${oldKey}:parts`, 1);
   const first = await coordinator.fetch(new Request(url));
   assert.equal(first.status, 200);
   const firstBody = await first.json();
   assert.equal(firstBody.data.stocks.length, catalog.length);
+  assert.ok(firstBody.data.stocks.every((stock) => "priceVolume" in stock && "trend" in stock));
   assert.equal(shardReads, SHARD_COUNT);
   const again = await coordinator.fetch(new Request(url));
   assert.deepEqual(await again.json(), firstBody);

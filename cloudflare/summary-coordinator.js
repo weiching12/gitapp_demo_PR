@@ -2,6 +2,8 @@ import { routeApi } from "./api/router.js";
 import { createApplicationServices } from "./composition.js";
 
 const SUMMARY_ROUTES = ["/api/v1/market/summary", "/api/v1/favorites/summary"];
+// Bump when the response shape or derived rules change; old Durable Object entries persist across deploys.
+const CACHE_SCHEMA = "price-volume-trend-v1";
 // Durable Object storage values are limited to 2 MB. A market summary can be
 // larger, so store serialized responses in small parts.
 const CACHE_PART_CHARS = 400_000;
@@ -22,7 +24,7 @@ export class MarketSummaryCoordinator {
 
     const services = createApplicationServices(this.env);
     const manifest = await services.market.market();
-    const key = `view:${manifest.generation}:${url.pathname}?${url.searchParams.toString()}`;
+    const key = `view:${CACHE_SCHEMA}:${manifest.generation}:${url.pathname}?${url.searchParams.toString()}`;
     const respond = (body) => new Response(request.method === "HEAD" ? null : JSON.stringify(body), {
       status: 200,
       headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60" },
