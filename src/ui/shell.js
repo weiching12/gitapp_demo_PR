@@ -55,8 +55,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
         <section id="market-sentiment" class="market-sentiment" data-page-panel="market" data-sentiment="unknown" aria-labelledby="sentiment-title">
           <button type="button" data-dialog="sentiment" aria-haspopup="dialog">
             <div class="sentiment-heading"><span class="eyebrow">TAIWAN MARKET MOOD</span><h2 id="sentiment-title">台股市場情緒</h2><span class="sentiment-date">資料更新中</span></div>
-            <div class="sentiment-reading"><strong class="sentiment-score">—</strong><span class="sentiment-band">資料更新中</span></div>
-            <div class="sentiment-meter" aria-hidden="true"><span class="sentiment-meter-fill"></span><i></i><i></i><i></i><i></i></div>
+            <div class="sentiment-gauge"><div class="sentiment-gauge-center"><strong class="sentiment-score">—</strong><span class="sentiment-band">資料更新中</span></div></div>
             <span class="sentiment-more">查看組成 ${icon("chevron")}</span>
           </button>
         </section>
