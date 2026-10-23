@@ -241,6 +241,7 @@ thead th button,
     --text-body: 0.875rem;
     --text-secondary: 0.75rem;
   }
+  .table-scroll .signal-cell .signal-reason { font-size: 11px; }
   body { font-size: var(--text-body); }
   .sector-identity h3 {
     font-size: var(--text-body);

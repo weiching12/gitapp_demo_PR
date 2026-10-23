@@ -2807,7 +2807,7 @@ dialog.institution-dialog {
   .trend-cell { white-space: normal; overflow-wrap: anywhere; }
   .price-volume-label,
   .trend-label { font-size: 12px; line-height: 1.3; }
-  .price-volume-ratio,
+  .price-volume-ratio { font-size: 12px; line-height: 1.3; }
   .trend-reason { font-size: 11px; line-height: 1.3; }
   .net-column-mobile { display: table-column; width: var(--table-net-mobile-width); }
   .net-heading-mobile,

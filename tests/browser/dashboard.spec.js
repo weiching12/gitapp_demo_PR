@@ -256,7 +256,7 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
     await expect(page.locator('[data-sort-heading="close"]')).toContainText("收盤／漲跌");
     await expect(page.locator('#stock-rows tr').first().locator(".mobile-change")).toBeVisible();
     await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-net")).toContainText("億");
-    await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-volume-share")).toHaveText(/^量 [+-]?\d+\.\d+%$/);
+    await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-volume-share")).toHaveText(/^占比 [+-]?\d+\.\d+%$/);
     await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-leader")).toBeVisible();
     const mergedChange = await page.locator('#stock-rows tr').first().evaluate((row) => {
       const volume = getComputedStyle(row.querySelector(".stock-volume"));
@@ -304,8 +304,12 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
         if (name.scrollWidth > name.clientWidth + 1) errors.push("stock name does not wrap within its column");
         const volumeStyle = getComputedStyle(row.querySelector(".stock-volume"));
         const reasonStyle = getComputedStyle(row.querySelector(".signal-reason"));
-        if (reasonStyle.fontSize !== volumeStyle.fontSize || reasonStyle.fontWeight !== volumeStyle.fontWeight)
-          errors.push("signal reason typography differs from stock volume");
+        const priceVolumeLabel = getComputedStyle(row.querySelector(".price-volume-label"));
+        const priceVolumeRatio = getComputedStyle(row.querySelector(".price-volume-ratio"));
+        if (parseFloat(reasonStyle.fontSize) >= parseFloat(volumeStyle.fontSize))
+          errors.push("signal reason should be smaller than stock volume");
+        if (priceVolumeLabel.fontSize !== priceVolumeRatio.fontSize)
+          errors.push("price-volume lines should use the same font size");
         const leader = row.querySelector(".institution-leader");
         if (leader.scrollWidth > leader.clientWidth + 1) errors.push("institutional leader does not wrap within its column");
       }
