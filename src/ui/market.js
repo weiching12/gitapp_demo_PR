@@ -51,7 +51,7 @@ export function renderMarketView(context) {
       }
     } else if (!cached || cached.stock !== stock || cached.favorite !== favorite) {
       const { latest: bar, signal } = stock;
-      const leader = getDominantInstitution(bar.institutions);
+      const leader = isDemo ? getDominantInstitution(bar.institutions) : stock.dominantInstitution;
       const leaderLabel = bar.institutionalNet === null ? "" : !leader ? "合計持平"
         : `${leader.names.join("、")}${leader.direction === "buy" ? "買超" : "賣超"}最多`;
       const netAmount = stockMoney(stock, "total", "day");

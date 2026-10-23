@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+
+const releaseVersion = `v${JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version}`;
 
 test("manifest and install icons are served with the expected metadata", async ({ request }) => {
   const response = await request.get("/manifest.webmanifest");
@@ -42,7 +45,7 @@ test("installed shell starts offline and identifies saved data", async ({ page, 
   await expect(page.locator("#app-status")).toBeVisible();
 });
 
-test("returning to a backgrounded app checks for a service worker update", async ({ page }) => {
+test("page buttons check on interaction and settings can check immediately", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => navigator.serviceWorker.ready);
 
@@ -61,12 +64,32 @@ test("returning to a backgrounded app checks for a service worker update", async
   });
   test.skip(!canObserveRegistration, "Browser does not allow observing ServiceWorkerRegistration.update");
 
-  await page.evaluate(() => {
-    const currentTime = Date.now();
-    Date.now = () => currentTime + 61_000;
-    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
-  });
-  await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBeGreaterThan(0);
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+  await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(0);
+  await page.getByRole("button", { name: "自選總覽" }).click();
+  await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(1);
+  await page.getByRole("button", { name: "法人買株" }).click();
+  await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(1);
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await page.getByRole("button", { name: "檢查更新" }).click();
+  await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(2);
+});
+
+test("settings shows the release version beside update on phone and desktop", async ({ page }) => {
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "設定", exact: true }).click();
+    const button = page.locator("#check-update");
+    const version = page.locator("#app-version");
+    await expect(version).toBeVisible();
+    await expect(version).toHaveText(releaseVersion);
+    const buttonBox = await button.boundingBox();
+    const versionBox = await version.boundingBox();
+    expect(versionBox.x).toBeGreaterThanOrEqual(buttonBox.x + buttonBox.width);
+    expect(Math.abs(versionBox.y + versionBox.height / 2 - buttonBox.y - buttonBox.height / 2)).toBeLessThan(5);
+    if (width === 1440) await expect(page.locator(".workspace-status > span:last-child")).toHaveText(releaseVersion);
+  }
 });
 
 test("standalone app shows the branded launch animation once per session", async ({ page }) => {

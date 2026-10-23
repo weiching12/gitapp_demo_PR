@@ -23,7 +23,7 @@ function serviceWorkerSource(files, bundle) {
   const version = createHash("sha256").update(Object.values(bundle).map((item) =>
     `${item.fileName}:${item.type === "asset" ? String(item.source) : item.code}`).join("|")).digest("hex").slice(0, 16);
   return `const SHELL_CACHE = ${JSON.stringify(`stock-insight-shell-${version}`)};
-const DATA_CACHE = "stock-insight-market-v1";
+const DATA_CACHE = "stock-insight-market-v2";
 const APP_SHELL = ${JSON.stringify(["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", ...files])};
 
 self.addEventListener("install", (event) => {
@@ -33,7 +33,9 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((key) => key.startsWith("stock-insight-shell-") && key !== SHELL_CACHE)
+    await Promise.all(keys.filter((key) =>
+      (key.startsWith("stock-insight-shell-") && key !== SHELL_CACHE) ||
+      (key.startsWith("stock-insight-market-") && key !== DATA_CACHE))
       .map((key) => caches.delete(key)));
     await self.clients.claim();
   })());
@@ -72,8 +74,8 @@ const cachedFallback = async (request, cacheName) => {
   return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers });
 };
 
-const trimCache = async (cache, limit = 160) => {
-  const keys = (await cache.keys()).filter((key) => /^\\/api\\/(?:v1\\/market\\/snapshots\\/[a-z0-9-]+\\/shards|market\\/[a-z0-9-]+)\\/\\d+$/.test(new URL(key.url).pathname));
+const trimCache = async (cache, limit = 40) => {
+  const keys = (await cache.keys()).filter((key) => new URL(key.url).pathname === "/api/v1/market/summary");
   await Promise.all(keys.slice(0, Math.max(0, keys.length - limit)).map((key) => cache.delete(key)));
 };
 
@@ -111,12 +113,10 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname === "/api/v1/push/config") return;
   if (url.pathname === "/api/presence" || url.pathname === "/api/v1/presence") return;
   if (url.pathname === "/api/market" || url.pathname === "/api/v1/market" ||
+      url.pathname === "/api/v1/market/summary" || url.pathname === "/api/v1/favorites/summary" ||
+      url.pathname.startsWith("/api/v1/sectors/") ||
       url.pathname.startsWith("/api/stocks/") || url.pathname.startsWith("/api/v1/stocks/")) {
     event.respondWith(networkFirst(request, DATA_CACHE));
-    return;
-  }
-  if (/^\\/api\\/(?:v1\\/market\\/snapshots\\/[a-z0-9-]+\\/shards|market\\/[a-z0-9-]+)\\/\\d+$/.test(url.pathname)) {
-    event.respondWith(cacheFirst(request, DATA_CACHE));
     return;
   }
   if (request.mode === "navigate") {

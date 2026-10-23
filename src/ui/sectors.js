@@ -1,16 +1,26 @@
 import { getSectorOverview, getSectorDetail } from "../../shared/sectors.js";
 export function renderSectorOverviewView(context) {
-  const { state, dataset, loading, loadFailed, latestSnapshots, loadingIcon, updateSegmentedControl, renderSectorDialog, direction, esc, percent, institutionalFigures } = context;
+  const { state, dataset, loading, loadFailed, latestSnapshots, sectorOverviews, loadingIcon, updateSegmentedControl, renderSectorDialog, direction, esc, percent, institutionalFigures } = context;
   if (loading || loadFailed) {
     document.querySelector("#sector-grid").innerHTML = loading
       ? `<div class="sector-loading-fields" aria-label="產業統計載入中">${["產業排名", "當日平均漲跌", "法人淨買賣超金額"].map((label) => `<div><span>${label}</span>${loadingIcon()}</div>`).join("")}</div>` : "";
     return;
   }
   const days = state.sectorWindow === "day" ? 1 : Number(state.sectorWindow);
-  const sectors = getSectorOverview(latestSnapshots, {
+  const sectors = sectorOverviews ? [...(sectorOverviews[state.sectorWindow] ?? [])] : getSectorOverview(latestSnapshots, {
     window: state.sectorWindow, sort: state.sectorSort,
     tradingDates: dataset.dates, asOf: dataset.info.asOf,
   });
+  if (sectorOverviews) {
+    if (state.sectorSort === "name-asc") sectors.sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
+    if (state.sectorSort === "net-asc") sectors.sort((a, b) => {
+      if (a.estimate.amount === null) return b.estimate.amount === null ? 0 : 1;
+      if (b.estimate.amount === null) return -1;
+      return a.estimate.amount - b.estimate.amount;
+    });
+    let rank = 0;
+    for (const sector of sectors) sector.rank = Number.isFinite(sector.estimate.amount) ? ++rank : null;
+  }
   document.querySelectorAll("[data-sector-window]").forEach((button) =>
     button.setAttribute("aria-pressed", button.dataset.sectorWindow === state.sectorWindow));
   document.querySelectorAll("[data-sector-sort]").forEach((button) =>
@@ -31,14 +41,14 @@ export function renderSectorOverviewView(context) {
 }
 
 export function renderSectorDialogView(name, context) {
-  const { dataset, latestSnapshots, isDemo, esc, number, direction, percent, institutionSparkline, institutionalFigures } = context;
-  const detail = getSectorDetail(latestSnapshots, name, { tradingDates: dataset.dates, asOf: dataset.info.asOf });
+  const { state, dataset, latestSnapshots, sectorDetail, isDemo, esc, number, direction, percent, institutionSparkline, institutionalFigures } = context;
+  const detail = sectorDetail ?? (isDemo ? getSectorDetail(latestSnapshots, name, { tradingDates: dataset.dates, asOf: dataset.info.asOf }) : null);
   if (!detail) return;
   const { members, tradingDates } = detail;
   const periods = [["day", "當日"], ["5", "5 日"], ["20", "20 日"]];
 
   document.querySelector("#sector-dialog-heading").textContent = name;
-  document.querySelector("#sector-dialog-meta").textContent = `${isDemo ? "最新完整交易日" : "最新報表交易日"} ${dataset.info.asOf}`;
+  document.querySelector("#sector-dialog-meta").textContent = `${isDemo ? "最新完整交易日" : "報表交易日"} ${state.date}`;
   document.querySelector("#sector-dialog-content").innerHTML = `
     <section class="sector-detail-summary" aria-labelledby="sector-summary-heading">
       <div class="sector-detail-heading"><div><h3 id="sector-summary-heading">法人淨買賣超金額</h3><p>當日與近 5／20 個交易日累計；金額：億，張數為輔</p></div></div>

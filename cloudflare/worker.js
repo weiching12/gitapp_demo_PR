@@ -1,6 +1,7 @@
 import { routeApi } from "./api/router.js";
 import { coordinateMarketSync } from "./sync/coordinator.js";
 export { MarketSyncCoordinator } from "./sync/coordinator.js";
+export { MarketSummaryCoordinator } from "./summary-coordinator.js";
 export { OnlinePresence } from "./presence.js";
 
 export default {

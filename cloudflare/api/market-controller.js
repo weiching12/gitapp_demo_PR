@@ -2,7 +2,7 @@ import { analysisOptions, stockCollectionOptions } from "./validators.js";
 
 // Controllers own API representations and HTTP input adaptation.
 export async function marketController(route, url, services) {
-  const { market, analysis, history } = services;
+  const { market, analysis, history, summary } = services;
   switch (route.name) {
     case "market": {
       const body = await market.market();
@@ -10,6 +10,18 @@ export async function marketController(route, url, services) {
         chunks: body.chunks.map((_, index) => `/api/v1/market/snapshots/${body.generation}/shards/${index}`) } : body;
     }
     case "snapshot": return market.snapshot(route.params.generation, route.params.index);
+    case "marketSummary": {
+      const options = analysisOptions(url.searchParams);
+      return summary.summary(options.asOf, options.settings);
+    }
+    case "favoriteSummary": {
+      const options = analysisOptions(url.searchParams);
+      return summary.favorites((url.searchParams.get("symbols") || "").split(","), options.asOf, options.settings);
+    }
+    case "sectorDetail": {
+      const options = analysisOptions(url.searchParams);
+      return summary.sector(decodeURIComponent(route.params.name), options.asOf, options.settings);
+    }
     case "stocks": return market.stocks(stockCollectionOptions(url.searchParams));
     case "analysis": return analysis.stock(route.params.symbol, analysisOptions(url.searchParams));
     case "stock": return market.stock(route.params.symbol);

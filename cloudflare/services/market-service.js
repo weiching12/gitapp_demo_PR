@@ -16,6 +16,7 @@ export class MarketService {
     if (!shard) throw unavailable();
     return shard;
   }
+  async shards(generation, indices) { return this.repository.shards(generation, indices); }
   async stock(symbol) {
     const manifest = await this.market();
     const metadata = manifest.stocks.find((stock) => stock.symbol === symbol);

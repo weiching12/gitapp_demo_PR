@@ -14,6 +14,70 @@
     }
   ],
   "paths": {
+    "/api/v1/favorites/summary": {
+      "get": {
+        "operationId": "getFavoriteSummary",
+        "description": "Institutional windows for selected stocks and one trading date.",
+        "parameters": [
+          { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "asOf", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": { "200": { "description": "Selected stock summaries", "content": { "application/json": {
+          "schema": { "type": "object", "required": ["data", "meta"], "properties": {
+            "data": { "type": "array", "items": { "type": "object" } },
+            "meta": { "type": "object", "required": ["asOf", "generation"] }
+          } }
+        } } } }
+      },
+      "head": { "responses": { "200": { "description": "Same status and headers without a body" } } }
+    },
+    "/api/v1/market/summary": {
+      "get": {
+        "operationId": "getMarketSummary",
+        "description": "Backend-calculated market values for one trading date. No raw history is returned.",
+        "parameters": [
+          { "name": "asOf", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "period", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 60 } },
+          { "name": "kSmooth", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20 } },
+          { "name": "dSmooth", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calculated market summary",
+            "content": { "application/json": { "schema": {
+              "type": "object", "required": ["data", "meta"],
+              "properties": {
+                "data": { "type": "object", "required": ["stocks", "sentiment", "sectors"] },
+                "meta": { "type": "object", "required": ["asOf", "generation", "rulesVersion"] }
+              }
+            } } }
+          }
+        }
+      },
+      "head": { "responses": { "200": { "description": "Same status and headers without a body" } } }
+    },
+    "/api/v1/sectors/{name}": {
+      "get": {
+        "operationId": "getSectorDetail",
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "asOf", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Industry detail for the requested trading date",
+            "content": { "application/json": { "schema": {
+              "type": "object", "required": ["data", "meta"],
+              "properties": {
+                "data": { "type": "object", "required": ["name", "members", "periods"] },
+                "meta": { "type": "object", "required": ["asOf", "generation"] }
+              }
+            } } }
+          }
+        }
+      },
+      "head": { "responses": { "200": { "description": "Same status and headers without a body" } } }
+    },
     "/api/v1/market": {
       "get": {
         "operationId": "getMarket",

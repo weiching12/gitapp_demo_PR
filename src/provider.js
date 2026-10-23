@@ -115,8 +115,21 @@ export async function loadApiDataset(fetcher = fetch, { onManifest, onChunk, onC
   return dataset;
 }
 
-export async function loadDataset(options) {
-  if (import.meta.env.VITE_DATA_MODE === "api") return loadApiDataset(fetch, options);
+export async function loadDataset() {
   const { demoProvider } = await import("./data.js");
   return demoProvider.load();
+}
+
+export async function loadMarketSummary(fetcher = fetch, { onCacheFallback, settings } = {}) {
+  const client = new MarketApiClient(fetcher);
+  const manifestResponse = await client.market();
+  if (manifestResponse.response.headers.get("X-PWA-Cache") === "fallback") onCacheFallback?.();
+  const manifest = validateManifest(manifestResponse.data);
+  const summaryResponse = await client.summary(manifest.asOf, settings);
+  if (summaryResponse.response.headers.get("X-PWA-Cache") === "fallback") onCacheFallback?.();
+  if (summaryResponse.data.meta?.generation !== manifest.generation ||
+      summaryResponse.data.meta?.asOf !== manifest.asOf ||
+      summaryResponse.data.data?.stocks?.length !== manifest.stocks.length)
+    throw new Error("Invalid market summary generation or coverage");
+  return { dataset: marketDataset(manifest, manifest.stocks), summary: summaryResponse.data };
 }

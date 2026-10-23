@@ -42,6 +42,10 @@
       {
         "name": "MARKET_SYNC",
         "class_name": "MarketSyncCoordinator"
+      },
+      {
+        "name": "MARKET_SUMMARY",
+        "class_name": "MarketSummaryCoordinator"
       }
     ]
   },
@@ -56,6 +60,12 @@
       "tag": "market-sync-v1",
       "new_sqlite_classes": [
         "MarketSyncCoordinator"
+      ]
+    },
+    {
+      "tag": "market-summary-v1",
+      "new_sqlite_classes": [
+        "MarketSummaryCoordinator"
       ]
     }
   ],

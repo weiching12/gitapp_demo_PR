@@ -27,7 +27,8 @@ test("domain, service, repository and UI dependency directions stay one-way", ()
 
 test("OpenAPI v1 operations are routable with the documented methods", () => {
   const spec = JSON.parse(readFileSync(new URL("../public/openapi.json", import.meta.url), "utf8"));
-  const sample = (path) => path.replace("{generation}", "generation").replace("{index}", "0").replace("{symbol}", "2330");
+  const sample = (path) => path.replace("{generation}", "generation").replace("{index}", "0")
+    .replace("{symbol}", "2330").replace("{name}", encodeURIComponent("半導體業"));
   for (const [path, operations] of Object.entries(spec.paths)) {
     if (!path.startsWith("/api/v1")) continue;
     const route = resolveApiRoute(sample(path));

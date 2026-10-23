@@ -2,7 +2,8 @@ import { renderWatchlistView } from "./ui/watchlist.js";
 import { renderMarketView } from "./ui/market.js";
 import "./styles.css";
 import "./typography.css";
-import { loadDataset } from "./provider.js";
+import { loadDataset, loadMarketSummary } from "./provider.js";
+import { MarketApiClient } from "./api/market-client.js";
 import { startPresence } from "./presence.js";
 import { startPwa } from "./pwa.js";
 import { startPushNotifications } from "./push.js";
@@ -87,12 +88,13 @@ const institutionalAmount = (value) => value === null
   ? ""
   : `${signed(value / 1000, Number.isInteger(value / 1000) ? 0 : 2)} 張`;
 const institutionalMoney = (value) => value === null ? "" : `${signed(value / 100000000)} 億`;
-const stockMoney = (stock, name, window, asOf = state.date) => getStockInstitutionEstimate(stock, name, window,
+const stockMoney = (stock, name, window, asOf = state.date) => apiMode
+  ? stock?.money?.[window]?.[name] ?? null : getStockInstitutionEstimate(stock, name, window,
   dataset.dates.filter((date) => date <= asOf));
 const institutionalFigures = (amount, shares, moneyAttribute = "", sharesAttribute = "") =>
   `<strong class="institution-money ${direction(amount)}" ${moneyAttribute}>${institutionalMoney(amount)}</strong><small class="institution-lots" ${sharesAttribute}>${institutionalAmount(shares)}</small>`;
 function institutionSparkline(stock, tradingDates) {
-  const series = getStockInstitutionSeries(stock, tradingDates);
+  const series = apiMode ? stock.institutionSeries ?? [] : getStockInstitutionSeries(stock, tradingDates);
   if (!series.some(({ amount }) => Number.isFinite(amount))) return "";
   const max = Math.max(1, ...series.map(({ amount }) => Math.abs(amount ?? 0)));
   const description = series.filter(({ amount }) => Number.isFinite(amount)).map(({ date, amount }) => `${date} ${institutionalMoney(amount)}`).join("；");
@@ -118,17 +120,23 @@ const controls = createControlsController();
 const dialogs = createDialogController();
 
 let dataset, snapshots, latestSnapshots, currentSentiment;
+const apiMode = import.meta.env.VITE_DATA_MODE === "api";
+const marketClient = new MarketApiClient();
+const summaryCache = new Map(), sectorDetailCache = new Map(), stockDetailCache = new Map();
+const favoriteCache = new Map(), favoriteRequests = new Map();
+let favoriteLoadFailed = false;
+let selectedSummary, latestSummary, summaryRequest = 0;
 const latestCache = new Map(), historicalCache = new Map();
 const tableRowCache = new WeakMap();
 const TABLE_BATCH_SIZE = 30;
 let loading = false, loadFailed = false, loadProgress = { loaded: 0, total: 0 };
-let pendingPaint;
 const watchState = { previousFavorites: undefined, previousWatchLoading: undefined };
 const tableState = { visibleLimit: TABLE_BATCH_SIZE, viewKey: "", observer: undefined };
 const tableBatches = createTableBatchController({ state: tableState, batchSize: TABLE_BATCH_SIZE, render: () => renderTable() });
 let toastTimer;
 let isDemo;
 let stopPresence, stopUpdateCountdown, usingCachedData = false;
+let checkPwaUpdate = async () => false;
 let touchInteraction = false;
 const pendingSymbols = new Set();
 
@@ -169,10 +177,20 @@ function shell() {
 }
 
 function refreshData() {
+  if (apiMode) {
+    latestSnapshots = latestSummary?.data.stocks ?? [];
+    const favoriteRows = favoriteCache.get(summaryKey(state.date));
+    snapshots = (selectedSummary?.data.stocks ?? []).map((stock) =>
+      favoriteRows?.has(stock.symbol) ? { ...stock, ...favoriteRows.get(stock.symbol) } : stock);
+    currentSentiment = selectedSummary?.data.sentiment ?? null;
+    if (currentSentiment) renderSentiment(currentSentiment);
+    renderWatchlist(); renderTable(); renderSectorOverview(); renderPage();
+    if (document.querySelector("#institution-dialog").open) renderInstitutionDialog();
+    return;
+  }
   const forDisplay = (stock, date) => {
     const snapshot = getSnapshot(stock, date, state.settings);
-    // Indicators/streaks use the complete source history. The view only needs
-    // Keep enough analyzed rows for the current display and 20-day sentiment trend.
+    // Demo indicators use complete history; rendering needs the latest 41 rows.
     snapshot.history = snapshot.history.slice(-41);
     return snapshot;
   };
@@ -188,15 +206,68 @@ function refreshData() {
   latestSnapshots = cached(dataset.info.asOf, latestCache);
   snapshots = state.date === dataset.info.asOf ? latestSnapshots
     : cached(state.date, historicalCache);
-  currentSentiment = loading && pendingSymbols.size
-    ? { date: state.date, score: null, components: {}, series: [], band: { key: "unknown", label: "資料更新中" }, version: "tw-market-sentiment-v1" }
-    : calculateMarketSentiment(snapshots, state.date);
+  currentSentiment = calculateMarketSentiment(snapshots, state.date);
   renderSentiment(currentSentiment);
   renderWatchlist();
   renderTable();
   renderSectorOverview();
   renderPage();
   if (document.querySelector("#institution-dialog").open) renderInstitutionDialog();
+}
+
+const summaryKey = (date) => `${dataset.info.generation}:${date}:${state.settings.period}:${state.settings.kSmooth}:${state.settings.dSmooth}`;
+async function selectSummary(date) {
+  if (!apiMode) { refreshData(); return; }
+  const request = ++summaryRequest;
+  const key = summaryKey(date);
+  let result = summaryCache.get(key);
+  if (!result) {
+    loading = true;
+    try {
+      const response = await marketClient.summary(date, state.settings);
+      if (response.response.headers.get("X-PWA-Cache") === "fallback") usingCachedData = true;
+      result = response.data;
+      if (result.meta?.generation !== dataset.info.generation || result.meta?.asOf !== date ||
+          result.data?.stocks?.length !== dataset.stocks.length) throw new Error("Invalid market summary");
+      summaryCache.set(key, result);
+    } finally { if (request === summaryRequest) loading = false; }
+  }
+  if (request !== summaryRequest) return;
+  selectedSummary = result;
+  if (date === dataset.info.asOf) latestSummary = result;
+  loadFailed = false;
+  refreshData(); renderConnectionState();
+  if (state.page === "favorites") void ensureFavoriteSummaries();
+}
+
+async function ensureFavoriteSummaries() {
+  if (!apiMode || !state.favorites.length || !selectedSummary) return;
+  const key = summaryKey(state.date);
+  const date = state.date, settings = { ...state.settings };
+  const loaded = favoriteCache.get(key) ?? new Map();
+  favoriteCache.set(key, loaded);
+  const missing = state.favorites.filter((symbol) => !loaded.has(symbol));
+  if (!missing.length) return;
+  if (favoriteRequests.has(key)) {
+    try { await favoriteRequests.get(key); } catch { return; }
+    if (state.page === "favorites") return ensureFavoriteSummaries();
+    return;
+  }
+  favoriteLoadFailed = false;
+  renderWatchlist();
+  const task = (async () => {
+    for (let offset = 0; offset < missing.length; offset += 50) {
+      const { data } = await marketClient.favorites(missing.slice(offset, offset + 50), date, settings);
+      if (data.meta?.generation !== dataset.info.generation || data.meta?.asOf !== date)
+        throw new Error("Invalid favorite summary generation");
+      for (const detail of data.data) loaded.set(detail.symbol, detail);
+    }
+    if (key === summaryKey(state.date)) refreshData();
+  })();
+  favoriteRequests.set(key, task);
+  try { await task; }
+  catch (error) { favoriteLoadFailed = true; renderWatchlist(); toast(error.message); }
+  finally { favoriteRequests.delete(key); }
 }
 
 function renderLoadState() {
@@ -220,8 +291,6 @@ function renderLoadState() {
 function renderConnectionState(online = navigator.onLine) {
   const status = document.querySelector("#app-status");
   if (!status) return;
-  const button = status.querySelector("#apply-update");
-  if (!button.hidden) return;
   const message = !online
     ? `目前離線${dataset?.info?.asOf ? `，顯示 ${dataset.info.asOf} 已保存資料` : ""}`
     : usingCachedData ? `連線不穩定，顯示 ${dataset?.info?.asOf || "上次"} 已保存資料` : "";
@@ -230,18 +299,10 @@ function renderConnectionState(online = navigator.onLine) {
 }
 
 function enablePwa() {
-  startPwa({
+  checkPwaUpdate = startPwa({
     onConnection: (online) => renderConnectionState(online),
     getDataVersion: () => dataset?.info?.generation,
     onDataUpdate: () => window.location.reload(),
-    onUpdate: (apply) => {
-      const status = document.querySelector("#app-status");
-      const button = status.querySelector("#apply-update");
-      status.querySelector("span").textContent = "株研已有新版本可用。";
-      button.hidden = false;
-      button.onclick = apply;
-      status.hidden = false;
-    },
   });
   const reminder = document.querySelector(".date-notification-button");
   const notificationStatus = document.querySelector("#settings-notifications > div > span");
@@ -261,22 +322,20 @@ function enablePwa() {
   stopUpdateCountdown = startUpdateCountdown(document.querySelector("#update-countdown"));
 }
 
-function scheduleRefresh() {
-  if (!pendingPaint) pendingPaint = new Promise((resolve, reject) => {
-    const flush = () => {
-      cancelAnimationFrame(frame); clearTimeout(timer); pendingPaint = null;
-      try { refreshData(); resolve(); } catch (error) { reject(error); }
-    };
-    const frame = requestAnimationFrame(flush);
-    // Background tabs may pause animation frames; keep ingestion resumable.
-    const timer = setTimeout(flush, 100);
-  });
-  return pendingPaint;
-}
-
 function renderPage() { renderPageView({ state, dataset, renderLoadState, updateOverviewTabs, updateSegmentedControls }); }
 
-function renderWatchlist() { renderWatchlistView({ state, snapshots, pendingSymbols, loading, loadFailed, watchState, carouselIndex: carousel.index, esc, icon, number, signed, percent, direction, stockMoney, institutionalMoney, institutionalAmount, pendingField, renderInstitutionOverview, renderOverviewVisibility, renderCarouselPagination: carousel.renderPagination, scrollToCarouselCard: carousel.scrollToCard, updateCarouselControls: carousel.updateControls }); }
+function renderWatchlist() {
+  const waiting = apiMode ? new Set(state.favorites.filter((symbol) =>
+    !snapshots.find((stock) => stock.symbol === symbol)?.institutionalSummary)) : pendingSymbols;
+  const watchSnapshots = apiMode ? snapshots.map((stock) => waiting.has(stock.symbol)
+    ? { ...stock, latest: null } : stock) : snapshots;
+  renderWatchlistView({ state, snapshots: watchSnapshots, pendingSymbols: waiting,
+    loading: apiMode ? waiting.size > 0 && !favoriteLoadFailed : loading,
+    loadFailed: apiMode ? favoriteLoadFailed : loadFailed,
+    watchState, carouselIndex: carousel.index, esc, icon, number, signed, percent, direction, stockMoney, institutionalMoney, institutionalAmount,
+    pendingField: apiMode && waiting.size ? () => favoriteLoadFailed ? pendingField() : loadingIcon() : pendingField,
+    renderInstitutionOverview, renderOverviewVisibility, renderCarouselPagination: carousel.renderPagination, scrollToCarouselCard: carousel.scrollToCard, updateCarouselControls: carousel.updateControls });
+}
 
 const updateSegmentedControl = controls.updateSegmented;
 const updateSegmentedControls = controls.updateSegmentedAll;
@@ -306,13 +365,13 @@ function renderInstitutionOverview(favorites) {
     button.setAttribute("aria-pressed", button.dataset.institutionWindow === state.institutionWindow));
   document.querySelector("#institution-overview-rows").innerHTML = favorites.map((stock) => {
     const { latest: bar, institutionalSummary: summary } = stock;
-    if (!bar) return `<article class="institution-overview-row pending-card" data-overview-symbol="${stock.symbol}" aria-busy="${loading}"><header class="institution-overview-stock"><div><span class="watch-symbol">${stock.symbol}</span><h3>${esc(stock.name)}</h3></div></header><dl class="institution-overview-metrics">${["合計買賣超", "外資", "投信", "自營商"].map((label) => `<div class="overview-metric"><dt>${label}</dt><dd>${pendingField()}</dd></div>`).join("")}</dl></article>`;
+    if (!bar) return `<article class="institution-overview-row pending-card" data-overview-symbol="${stock.symbol}" aria-busy="${apiMode ? !favoriteLoadFailed : loading}"><header class="institution-overview-stock"><div><span class="watch-symbol">${stock.symbol}</span><h3>${esc(stock.name)}</h3></div></header><dl class="institution-overview-metrics">${["合計買賣超", "外資", "投信", "自營商"].map((label) => `<div class="overview-metric"><dt>${label}</dt><dd>${apiMode && !favoriteLoadFailed ? loadingIcon() : pendingField()}</dd></div>`).join("")}</dl></article>`;
     const day = state.institutionWindow === "day";
-    const total = day ? bar.institutionalNet : summary.total[`net${state.institutionWindow}`];
+    const total = day ? (apiMode ? stock.dayInstitutionNet.total : bar.institutionalNet) : summary.total[`net${state.institutionWindow}`];
     const metric = (name, value, streak = "") => `<div class="overview-metric${name === "total" ? " overview-total" : ""}"><dt>${name === "total" ? "合計買賣超" : esc(name)}</dt><dd>${institutionalFigures(stockMoney(stock, name, state.institutionWindow), value, `data-overview-amount="${name}"`, `data-overview-net="${name}"`)}</dd>${streak}</div>`;
     return `<article class="institution-overview-row" data-overview-symbol="${stock.symbol}" aria-labelledby="overview-name-${stock.symbol}"><header><div><span class="overview-stock-code">${stock.symbol} · ${esc(stock.market)}</span><h4 id="overview-name-${stock.symbol}">${esc(stock.name)}</h4></div><button class="overview-detail-button" data-institution-details="${stock.symbol}" aria-label="查看${esc(stock.name)}三大法人動向" aria-haspopup="dialog" aria-controls="institution-dialog">明細 ${icon("chevron")}</button></header><dl class="institution-overview-metrics">${metric("total", total)}${["外資", "投信", "自營商"].map((name) => {
       const stats = summary.institutions[name];
-      const value = day ? getInstitutionNet(bar.institutions, name) : stats[`net${state.institutionWindow}`];
+      const value = day ? (apiMode ? stock.dayInstitutionNet[name] : getInstitutionNet(bar.institutions, name)) : stats[`net${state.institutionWindow}`];
       const streak = name === "自營商" ? "" : `<span class="watch-streak ${stats.streak.direction}" data-overview-streak="${name}">${institutionalStreak(stats.streak)}</span>`;
       return metric(name, value, streak);
     }).join("")}</dl></article>`;
@@ -334,12 +393,12 @@ function updateInstitutionOverviewWindow() {
   updateSegmentedControl(document.querySelector(".institution-window"));
   document.querySelectorAll("#institution-overview-rows .institution-overview-row").forEach((row) => {
     const stock = stocksBySymbol.get(row.dataset.overviewSymbol);
-    if (!stock?.latest) return;
+    if (!stock?.latest || !stock.institutionalSummary) return;
     const values = {
-      total: day ? stock.latest.institutionalNet : stock.institutionalSummary.total[`net${state.institutionWindow}`],
+      total: day ? (apiMode ? stock.dayInstitutionNet.total : stock.latest.institutionalNet) : stock.institutionalSummary.total[`net${state.institutionWindow}`],
     };
     for (const name of ["外資", "投信", "自營商"])
-      values[name] = day ? getInstitutionNet(stock.latest.institutions, name)
+      values[name] = day ? (apiMode ? stock.dayInstitutionNet[name] : getInstitutionNet(stock.latest.institutions, name))
         : stock.institutionalSummary.institutions[name][`net${state.institutionWindow}`];
     row.querySelectorAll("[data-overview-net]").forEach((amount) => {
       const value = values[amount.dataset.overviewNet];
@@ -353,13 +412,28 @@ function updateInstitutionOverviewWindow() {
   });
 }
 
-function sectorContext() { return { state, dataset, loading, loadFailed, latestSnapshots, loadingIcon, stockMoney, updateSegmentedControl, renderSectorDialog, direction, esc, percent, institutionalFigures, isDemo, number, institutionSparkline }; }
+function sectorContext() { return { state, dataset, loading, loadFailed, latestSnapshots,
+  sectorOverviews: apiMode ? selectedSummary?.data.sectors : null,
+  sectorDetail: apiMode ? sectorDetailCache.get(`${summaryKey(state.date)}:${state.sectorName}`) : null,
+  loadingIcon, stockMoney, updateSegmentedControl, renderSectorDialog, direction, esc, percent, institutionalFigures, isDemo, number, institutionSparkline }; }
 function renderSectorOverview() { renderSectorOverviewView(sectorContext()); }
 function renderSectorDialog(name) { renderSectorDialogView(name, sectorContext()); }
 
 function openSectorDialog(name, focusHandle = true) {
   state.sectorName = name;
-  renderSectorDialog(name);
+  if (apiMode) {
+    const key = `${summaryKey(state.date)}:${name}`;
+    if (sectorDetailCache.has(key)) renderSectorDialog(name);
+    else {
+      document.querySelector("#sector-dialog-content").innerHTML = '<p role="status">資料載入中…</p>';
+      marketClient.sector(name, state.date, state.settings).then(({ data }) => {
+        sectorDetailCache.set(key, data.data);
+        if (state.sectorName === name && key === `${summaryKey(state.date)}:${name}`) renderSectorDialog(name);
+      }).catch((error) => {
+        if (state.sectorName === name) document.querySelector("#sector-dialog-content").textContent = error.message;
+      });
+    }
+  } else renderSectorDialog(name);
   const dialog = document.querySelector("#sector-dialog");
   dialogs.open(dialog, {
     focus: focusHandle,
@@ -388,7 +462,9 @@ function institutionalDetails(stock) {
 }
 
 function renderInstitutionDialog() {
-  const stock = snapshots.find((item) => item.symbol === state.institutionSymbol);
+  const summaryStock = snapshots.find((item) => item.symbol === state.institutionSymbol);
+  const detail = apiMode ? stockDetailCache.get(`${summaryKey(state.date)}:${state.institutionSymbol}`) : null;
+  const stock = detail ? { ...summaryStock, ...detail } : summaryStock;
   if (!stock?.latest) return;
   document.querySelector("#institution-heading").textContent = `${stock.name} 三大法人動向`;
   document.querySelector("#institution-meta").textContent =
@@ -400,6 +476,14 @@ function openInstitutionDialog(symbol, focusClose = true) {
   if (!state.favorites.includes(symbol)) return;
   state.institutionSymbol = symbol;
   renderInstitutionDialog();
+  if (apiMode) {
+    const key = `${summaryKey(state.date)}:${symbol}`;
+    if (!stockDetailCache.has(key)) marketClient.analysis(symbol, state.date, state.settings)
+      .then(({ data }) => {
+        stockDetailCache.set(key, data.data);
+        if (state.institutionSymbol === symbol) renderInstitutionDialog();
+      }).catch((error) => { if (state.institutionSymbol === symbol) toast(error.message); });
+  }
   const dialog = document.querySelector("#institution-dialog");
   dialogs.open(dialog, {
     focus: focusClose,
@@ -519,6 +603,7 @@ function bindEvents() {
   document.addEventListener("click", (event) => {
     const home = event.target.closest("[data-home]");
     if (home) {
+      void checkPwaUpdate().catch((error) => console.warn("PWA update check failed", error));
       event.preventDefault();
       state.page = "market";
       renderPage();
@@ -534,6 +619,17 @@ function bindEvents() {
     }
     const button = event.target.closest("button");
     if (!button) return;
+    if (button.id !== "check-update" && button.id !== "reload-data")
+      void checkPwaUpdate().catch((error) => console.warn("PWA update check failed", error));
+    if (button.id === "check-update") {
+      button.disabled = true;
+      button.textContent = "檢查中…";
+      checkPwaUpdate(true).then((updated) => {
+        if (!updated) toast("已是最新版本");
+      }).catch((error) => toast(error.message || "無法檢查更新"))
+        .finally(() => { button.disabled = false; button.textContent = "檢查更新"; });
+      return;
+    }
     if (button.id === "reload-data") { window.location.reload(); return; }
     if (button.dataset.dialog) openDialog(button.dataset.dialog, !touchInteraction);
     if (button.dataset.overview) {
@@ -560,6 +656,7 @@ function bindEvents() {
     if (button.dataset.page) {
       state.page = button.dataset.page;
       renderPage();
+      if (state.page === "favorites") void ensureFavoriteSummaries();
       window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     }
     if (button.dataset.institutionDetails) openInstitutionDialog(button.dataset.institutionDetails, !touchInteraction);
@@ -579,6 +676,7 @@ function bindEvents() {
         : [...state.favorites, symbol];
       savePreferences();
       renderWatchlist();
+      if (state.page === "favorites" && !wasFavorite) void ensureFavoriteSummaries();
       if (state.view === "favorites") renderTable();
       else syncTableFavorite(symbol);
       if (position) restoreMarketPosition(position, !touchInteraction);
@@ -629,13 +727,21 @@ function bindEvents() {
       renderTable();
     });
   document.querySelector("#trade-date").addEventListener("change", (event) => {
-    state.date = event.target.value;
-    refreshData();
+    const previousDate = state.date;
+    const requestedDate = event.target.value;
+    state.date = requestedDate;
+    void selectSummary(requestedDate).catch((error) => {
+      if (state.date !== requestedDate) return;
+      state.date = previousDate;
+      event.target.value = previousDate;
+      toast(error.message);
+    });
   });
   document.addEventListener("submit", (event) => {
     if (event.target.id !== "settings-form") return;
     event.preventDefault();
     const form = new FormData(event.target);
+    const previousSettings = state.settings;
     state.settings = Object.fromEntries(
       ["period", "kSmooth", "dSmooth"].map((key) => [
         key,
@@ -645,7 +751,11 @@ function bindEvents() {
     state.theme = form.get("theme") === "dark" ? "dark" : "light";
     applyTheme();
     savePreferences();
-    refreshData();
+    void selectSummary(state.date).catch((error) => {
+      state.settings = previousSettings;
+      savePreferences();
+      toast(error.message);
+    });
     document.querySelector("#info-dialog").close();
     toast("設定已儲存");
   });
@@ -678,7 +788,6 @@ function bindEvents() {
 async function init() {
   readPreferences();
   applyTheme();
-  const apiMode = import.meta.env.VITE_DATA_MODE === "api";
   const prepare = () => {
     state.date = dataset.info.asOf;
     state.favorites = [...new Set(state.favorites)].filter((symbol) => dataset.stocks.some((stock) => stock.symbol === symbol));
@@ -689,34 +798,26 @@ async function init() {
     snapshots = []; latestSnapshots = [];
     pendingSymbols.clear();
     shell(); bindEvents(); enablePwa(); refreshData();
+    const loaded = await loadMarketSummary(fetch, { settings: state.settings,
+      onCacheFallback: () => { usingCachedData = true; renderConnectionState(); } });
+    dataset = loaded.dataset;
+    prepare();
+    latestSummary = loaded.summary;
+    selectedSummary = loaded.summary;
+    summaryCache.set(summaryKey(state.date), loaded.summary);
+    loadProgress = { loaded: dataset.stocks.length, total: dataset.stocks.length };
+    document.querySelector(".demo-badge").innerHTML = `<span></span>${esc(dataset.info.label)}`;
+    document.querySelector("#trade-date").innerHTML = dataset.dates.slice(-30).reverse()
+      .map((date) => `<option value="${date}">${date.replaceAll("-", " / ")}</option>`).join("");
+    document.querySelector("#sector-filter").innerHTML = '<option value="all">全部產業</option>' +
+      [...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("");
+    loading = false;
+    refreshData(); renderConnectionState(); savePreferences();
+    return;
   }
-  dataset = await loadDataset({ prioritySymbols: state.favorites,
-    onCacheFallback: () => { usingCachedData = true; renderConnectionState(); },
-    onManifest: async (next) => {
-      dataset = next;
-      pendingSymbols.clear();
-      for (const stock of dataset.stocks) pendingSymbols.add(stock.symbol);
-      prepare();
-      loadProgress = { loaded: 0, total: dataset.stocks.length };
-      document.querySelector(".demo-badge").innerHTML = `<span></span>${esc(dataset.info.label)}`;
-      document.querySelector("#trade-date").innerHTML = dataset.dates.slice(-30).reverse()
-        .map((date) => `<option value="${date}">${date.replaceAll("-", " / ")}</option>`).join("");
-      document.querySelector("#sector-filter").innerHTML = '<option value="all">全部產業</option>' +
-        [...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("");
-      await scheduleRefresh();
-    },
-    onChunk: async ({ loaded, total, stocks }) => {
-      for (const stock of stocks) pendingSymbols.delete(stock.symbol);
-      loadProgress = { loaded, total };
-      await scheduleRefresh();
-    },
-  });
-  loading = false;
-  pendingSymbols.clear();
-  if (!apiMode) {
-    isDemo = dataset.info.mode === "demo";
-    prepare(); shell(); bindEvents(); enablePwa();
-  }
+  dataset = await loadDataset();
+  isDemo = dataset.info.mode === "demo";
+  prepare(); shell(); bindEvents(); enablePwa();
   refreshData();
   renderConnectionState();
   savePreferences();

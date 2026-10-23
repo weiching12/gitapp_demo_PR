@@ -1,50 +1,13 @@
 import { MarketApiClient } from "./api/market-client.js";
 
-export function startPwa({ onConnection, onUpdate, getDataVersion, onDataUpdate } = {}) {
+export function startPwa({ onConnection, getDataVersion, onDataUpdate } = {}) {
   const marketClient = new MarketApiClient();
   const reportConnection = () => onConnection?.(navigator.onLine);
   window.addEventListener("online", reportConnection);
   window.addEventListener("offline", reportConnection);
   reportConnection();
 
-  if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
-
-  navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((registration) => {
-    let lastUpdateCheck = 0;
-    let checkingData = false;
-    const checkForUpdate = async () => {
-      if (!navigator.onLine || document.visibilityState === "hidden") return;
-      const now = Date.now();
-      if (now - lastUpdateCheck < 60_000) return;
-      lastUpdateCheck = now;
-      registration.update().catch((error) => console.warn("PWA update check failed", error));
-      const currentVersion = getDataVersion?.();
-      if (!currentVersion || checkingData) return;
-      checkingData = true;
-      try {
-        const { data: latest } = await marketClient.market({ cache: "no-store" });
-        if (latest?.generation && latest.generation !== currentVersion) onDataUpdate?.(latest);
-      } catch (error) {
-        console.warn("Market data update check failed", error);
-      } finally {
-        checkingData = false;
-      }
-    };
-    const notify = () => {
-      if (registration.waiting && navigator.serviceWorker.controller) onUpdate?.(() => {
-        registration.waiting.postMessage({ type: "SKIP_WAITING" });
-      });
-    };
-    notify();
-    registration.addEventListener("updatefound", () => {
-      registration.installing?.addEventListener("statechange", notify);
-    });
-    document.addEventListener("visibilitychange", checkForUpdate);
-    window.addEventListener("pageshow", checkForUpdate);
-    window.addEventListener("focus", checkForUpdate);
-    window.setInterval(checkForUpdate, 5 * 60_000);
-    checkForUpdate();
-  }).catch((error) => console.warn("PWA registration failed", error));
+  if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return async () => false;
 
   const controlledAtStart = Boolean(navigator.serviceWorker.controller);
   let refreshing = false;
@@ -53,4 +16,44 @@ export function startPwa({ onConnection, onUpdate, getDataVersion, onDataUpdate 
     refreshing = true;
     location.reload();
   });
+
+  const registrationPromise = navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
+  registrationPromise.catch((error) => console.warn("PWA registration failed", error));
+  let lastCheckedAt = 0;
+  let pendingCheck;
+  const check = async () => {
+    if (!navigator.onLine) throw new Error("目前沒有網路連線");
+    const registration = await registrationPromise;
+    await registration.update();
+    if (registration.installing) {
+      await new Promise((resolve) => {
+        const worker = registration.installing;
+        if (["installed", "activated", "redundant"].includes(worker.state)) return resolve();
+        worker.addEventListener("statechange", () => {
+          if (["installed", "activated", "redundant"].includes(worker.state)) resolve();
+        });
+      });
+    }
+    if (registration.waiting && navigator.serviceWorker.controller) {
+      registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      return true;
+    }
+    const currentVersion = getDataVersion?.();
+    if (!currentVersion) return false;
+    const { data: latest } = await marketClient.market({ cache: "no-store" });
+    if (latest?.generation && latest.generation !== currentVersion) {
+      onDataUpdate?.(latest);
+      return true;
+    }
+    return false;
+  };
+  return (force = false) => {
+    if (pendingCheck) return pendingCheck;
+    if (!force && Date.now() - lastCheckedAt < 60_000) return Promise.resolve(false);
+    pendingCheck = check().then((updated) => {
+      lastCheckedAt = Date.now();
+      return updated;
+    }).finally(() => { pendingCheck = null; });
+    return pendingCheck;
+  };
 }

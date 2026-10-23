@@ -1,7 +1,8 @@
 import { DomainError } from "../../shared/domain-error.js";
 import { error } from "./http.js";
 
-const statuses = Object.freeze({ INVALID_QUERY: 400, STOCK_NOT_FOUND: 404, DATA_UNAVAILABLE: 503 });
+const statuses = Object.freeze({ INVALID_QUERY: 400, STOCK_NOT_FOUND: 404,
+  SECTOR_NOT_FOUND: 404, DATA_UNAVAILABLE: 503 });
 
 export function apiFailure(request, versioned, cause) {
   if (cause instanceof DomainError && Object.hasOwn(statuses, cause.code))

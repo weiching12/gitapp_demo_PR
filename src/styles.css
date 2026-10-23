@@ -396,6 +396,8 @@ button .icon {
 .settings-notifications[hidden] { display: none; }
 .settings-notifications > div { display: grid; gap: 2px; }
 .settings-notifications > div span { color: var(--muted); font-size: 12px; }
+.settings-notifications .app-version-control { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.app-version { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .workspace-status {
   display: flex;
   align-items: center;

@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { normalizeCatalog, normalizePrices, normalizeFlows, marketDay, mergeShard, createManifest, SHARD_COUNT } from "../../cloudflare/twse.js";
 import { prepareEtfRelease } from "../../scripts/prepare-etfs.js";
+import { MarketSummaryService } from "../../cloudflare/services/market-summary-service.js";
 
 const fixture = JSON.parse(readFileSync(new URL("../fixtures/twse-20261016.json", import.meta.url)));
 const date = "2026-10-16", companies = normalizeCatalog(fixture.companies);
@@ -23,15 +24,30 @@ const versioned = (value) => ({ ...value, chunks: value.chunks.map((_, index) =>
 
 test("ETF search and favorites work while every industry ranking and detail excludes ETFs", async ({ page }) => {
   let includeEtfs = false;
+  const currentData = () => includeEtfs ? extended : { manifest, chunks };
+  const services = [false, true].map((withEtfs) => {
+    const data = withEtfs ? extended : { manifest, chunks };
+    return new MarketSummaryService({ market: async () => data.manifest,
+      shards: async (_generation, indices) => indices.map((index) => data.chunks[index]) });
+  });
+  const summaries = await Promise.all(services.map((service, index) =>
+    service.summary((index ? extended : { manifest }).manifest.asOf, { period: 9, kSmooth: 3, dSmooth: 3 })));
   await page.addInitScript(() => {
     if (!localStorage.getItem("stock-insight-v1")) localStorage.setItem("stock-insight-v1", JSON.stringify({ favorites: ["2330", "3026"], catalogVersion: 2 }));
   });
-  await page.route("**/api/**", (route) => {
+  await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/presence") return route.fulfill({ json: { online: 1 } });
-    const current = includeEtfs ? extended : { manifest, chunks };
-    return route.fulfill({ json: path === "/api/v1/market" ? versioned(current.manifest)
-      : current.chunks[Number(path.split("/").at(-1))] });
+    const current = currentData();
+    if (path === "/api/v1/market") return route.fulfill({ json: versioned(current.manifest) });
+    if (path === "/api/v1/market/summary") return route.fulfill({ json: summaries[Number(includeEtfs)] });
+    if (path === "/api/v1/favorites/summary") return route.fulfill({ json:
+      await services[Number(includeEtfs)].favorites(new URL(route.request().url()).searchParams.get("symbols").split(","),
+        current.manifest.asOf, { period: 9, kSmooth: 3, dSmooth: 3 }) });
+    if (path.startsWith("/api/v1/sectors/")) return route.fulfill({ json:
+      await services[Number(includeEtfs)].sector(decodeURIComponent(path.split("/").at(-1)),
+        current.manifest.asOf, { period: 9, kSmooth: 3, dSmooth: 3 }) });
+    return route.fulfill({ status: 404 });
   });
   const ready = () => expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false");
   const sectorValues = () => page.locator("#sector-grid .sector-card").evaluateAll((cards) => cards.map((card) => ({

@@ -45,7 +45,9 @@ test("documented market, stock, history and analysis responses match the publish
   const env = { MARKET_DATA: { get: async (key) => structuredClone(data.get(key) ?? null) } };
   for (const [path, definition] of Object.entries(spec.paths)) {
     if (path.endsWith("presence") || path.includes("/push/")) continue;
-    const concrete = path.replace("{symbol}", "2330").replace("{generation}", "contract").replace("{index}", String(shardOf("2330")));
+    const concrete = path.replace("{symbol}", "2330").replace("{generation}", "contract")
+      .replace("{index}", String(shardOf("2330"))).replace("{name}", encodeURIComponent(catalog[0].sector)) +
+      (path === "/api/v1/favorites/summary" ? "?symbols=2330" : "");
     const response = await worker.fetch(new Request(`https://example.test${concrete}`), env);
     assert.equal(response.status, 200, concrete);
     check(definition.get.responses[200].content["application/json"].schema, await response.json());

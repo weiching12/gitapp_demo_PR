@@ -20,7 +20,8 @@ test("TWSE full listed-company API renders current-day prices in viewport batche
   await expect(page.locator(".demo-badge")).toHaveText("每日收盤資料");
   await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
   expect(urls.filter((url) => /\/api\/stocks\//.test(url))).toEqual([]);
-  expect(urls.filter((url) => /\/api\/v1\/market\/snapshots\/[^/]+\/shards\/\d+$/.test(new URL(url).pathname))).toHaveLength(128);
+  expect(urls.filter((url) => /\/api\/v1\/market\/snapshots\/[^/]+\/shards\/\d+$/.test(new URL(url).pathname))).toHaveLength(0);
+  expect(urls.filter((url) => new URL(url).pathname === "/api/v1/market/summary")).toHaveLength(1);
   expect(urls.some((url) => /finmind|twse\.com\.tw/i.test(new URL(url).hostname))).toBe(false);
   await page.locator('[data-page="favorites"]').click();
   for (const symbol of ["2330", "2317", "3026"]) {

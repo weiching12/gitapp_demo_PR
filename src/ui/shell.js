@@ -1,3 +1,7 @@
+import appPackage from "../../package.json" with { type: "json" };
+
+const appVersion = `v${appPackage.version}`;
+
 export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) {
   return `
     <aside class="sidebar">
@@ -11,7 +15,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
         <button class="nav-item" data-dialog="source" aria-label="資料說明">${icon("info")}<span>資料說明</span>${icon("chevron", "nav-chevron")}</button>
       </nav>
       <div class="sidebar-note"><span class="note-line"></span><p>看懂數據，<br>找到自己的節奏。</p><span>YOUR EDGE, YOUR PACE.</span></div>
-      <div class="sidebar-bottom"><button class="nav-item" data-dialog="settings" aria-label="設定">${icon("settings")}<span>設定</span></button><div class="workspace-status"><span class="status-dot"></span>${isDemo ? "前端示範版" : "每日收盤資料"} <span>v0.2</span></div></div>
+      <div class="sidebar-bottom"><button class="nav-item" data-dialog="settings" aria-label="設定">${icon("settings")}<span>設定</span></button><div class="workspace-status"><span class="status-dot"></span>${isDemo ? "前端示範版" : "每日收盤資料"} <span>${appVersion}</span></div></div>
     </aside>
     <div class="workspace">
       <header class="topbar"><div class="breadcrumb">研究工作台 ${icon("chevron")} <span id="breadcrumb-current">市場觀察清單</span></div><div class="topbar-actions"><span id="online-count" class="online-count" role="status" title="最近 90 秒內活躍的瀏覽器，同一瀏覽器多分頁計一次">${loadingIcon("正在取得在線人數")}<span>在線人數</span></span><span class="demo-badge"><span></span>${esc(dataset.info.label)}</span></div></header>
@@ -27,7 +31,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
             "",
           )}</select><button class="date-notification-button" type="button" data-dialog="settings" aria-label="開啟更新通知" aria-haspopup="dialog" hidden>${icon("bell")}</button><span id="update-countdown" class="update-countdown" role="timer">計算下次更新時間</span></div></section>
         <div id="pull-refresh" class="pull-refresh" aria-hidden="true"><span></span>下拉重新整理</div>
-        <div id="app-status" class="app-status" role="status" hidden><span></span><button class="text-button" id="apply-update" hidden>立即更新</button></div>
+        <div id="app-status" class="app-status" role="status" hidden><span></span></div>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
         <section id="watchlist" data-page-panel="favorites" aria-label="自選股票" hidden>
           <div class="overview-controls">
@@ -91,7 +95,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
         <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK RESEARCH</span></span><span>技術提示僅供研究參考。</span><button data-dialog="source">關於株研 ${icon("arrow")}</button><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
       </main>
     </div>
-    <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div><section id="settings-notifications" class="settings-notifications" hidden><div><strong>資料更新通知</strong><span>每日資料完成更新後通知你</span></div><button class="outline-button push-nav-item" id="push-notifications" type="button" aria-label="開啟每日資料更新通知" aria-pressed="false">${icon("bell")}<span>開啟更新通知</span></button></section></dialog>
+    <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div><section id="settings-notifications" class="settings-notifications" hidden><div><strong>資料更新通知</strong><span>每日資料完成更新後通知你</span></div><button class="outline-button push-nav-item" id="push-notifications" type="button" aria-label="開啟每日資料更新通知" aria-pressed="false">${icon("bell")}<span>開啟更新通知</span></button><div class="app-version-control"><button class="outline-button" id="check-update" type="button">檢查更新</button><span id="app-version" class="app-version" aria-label="目前版本 ${appVersion}">${appVersion}</span></div></section></dialog>
     <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><div class="institution-dialog-handle" role="button" tabindex="0" aria-label="關閉法人動向，可向下拖曳"></div><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向">${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
     <dialog id="sector-dialog" class="sector-dialog" aria-labelledby="sector-dialog-heading" aria-describedby="sector-dialog-meta"><div class="sector-dialog-handle" role="button" tabindex="0" aria-label="關閉產業明細，可向下拖曳"></div><header class="institution-dialog-top sector-dialog-top"><div><span class="eyebrow">SECTOR INSTITUTIONAL FLOWS</span><h2 id="sector-dialog-heading">產業法人買賣超</h2><p id="sector-dialog-meta"></p></div><button class="icon-button" id="close-sector-dialog" aria-label="關閉產業明細">${icon("close")}</button></header><div id="sector-dialog-content" class="sector-dialog-body"></div><footer class="institution-dialog-footer sector-dialog-footer">正值為買超、負值為賣超 · 1 張 = 1,000 股 · 僅統計目前研究標的</footer></dialog>
     <div id="toast" role="status" class="toast"></div>`;

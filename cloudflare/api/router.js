@@ -1,6 +1,7 @@
 import { createApplicationServices } from "../composition.js";
 import { AnalysisService } from "../services/analysis-service.js";
 import { HistoryService } from "../services/history-service.js";
+import { MarketSummaryService } from "../services/market-summary-service.js";
 import { resolveApiRoute } from "./routes.js";
 import { marketController } from "./market-controller.js";
 import { presenceController } from "./presence-controller.js";
@@ -15,8 +16,10 @@ export async function routeApi(request, env, injected) {
     "METHOD_NOT_ALLOWED", "Method not allowed", 405, { Allow: route.methods.join(", ") });
   try {
     if (route.name === "presence") return await presenceController(request, env, route.versioned);
+    if (!injected && env.MARKET_SUMMARY && ["marketSummary", "favoriteSummary", "sectorDetail"].includes(route.name))
+      return env.MARKET_SUMMARY.getByName("stock-insight-market-summary").fetch(request);
     const services = injected?.market && typeof injected.market !== "function" ? injected : injected
-      ? { market: injected, analysis: new AnalysisService(injected), history: new HistoryService(injected) }
+      ? { market: injected, analysis: new AnalysisService(injected), summary: new MarketSummaryService(injected), history: new HistoryService(injected) }
       : createApplicationServices(env);
     if (route.name === "pushConfig" || route.name === "pushSubscriptions")
       return await pushController(request, route, services.push);

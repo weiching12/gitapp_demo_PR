@@ -8,6 +8,10 @@ export function resolveApiRoute(path) {
   if (path === "/api/v1/push/subscriptions") return route("pushSubscriptions", {}, ["POST", "DELETE"]);
   const resource = versioned ? path.slice(7) : path.slice(4);
   if (resource === "/market") return route("market");
+  if (versioned && resource === "/market/summary") return route("marketSummary");
+  if (versioned && resource === "/favorites/summary") return route("favoriteSummary");
+  const sector = versioned && resource.match(/^\/sectors\/([^/]+)$/);
+  if (sector) return route("sectorDetail", { name: sector[1] });
   if (versioned && resource === "/stocks") return route("stocks");
   const chunk = resource.match(versioned
     ? /^\/market\/snapshots\/([a-z0-9-]{1,64})\/shards\/(\d{1,3})$/

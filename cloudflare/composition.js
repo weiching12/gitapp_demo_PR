@@ -1,16 +1,18 @@
 import { MarketRepository } from "./repositories/market-repository.js";
 import { MarketService } from "./services/market-service.js";
 import { AnalysisService } from "./services/analysis-service.js";
+import { MarketSummaryService } from "./services/market-summary-service.js";
 import { HistoryService } from "./services/history-service.js";
 import { PushRepository } from "./repositories/push-repository.js";
 import { PushService } from "./services/push-service.js";
 
 // Environment bindings are assembled here, outside application services.
-export const createMarketService = (env) => new MarketService(new MarketRepository(env.MARKET_DATA));
+export const createMarketService = (env) => new MarketService(new MarketRepository(env.MARKET_DATA,
+  env.MARKET_HISTORY_ENABLED === "1" ? env.T86_DB : null));
 
 export function createApplicationServices(env) {
   const market = createMarketService(env);
-  return { market, analysis: new AnalysisService(market), history: new HistoryService(market),
+  return { market, analysis: new AnalysisService(market), summary: new MarketSummaryService(market), history: new HistoryService(market),
     push: new PushService(new PushRepository(env.T86_DB), env) };
 }
 

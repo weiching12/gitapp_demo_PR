@@ -24,7 +24,7 @@ export function startPresence(node, { demo = false } = {}) {
       if (!stopped) { node.textContent = "在線人數暫無法取得"; node.dataset.state = "error"; }
     } finally { active = false; }
   };
-  const timer = setInterval(update, 30_000);
+  const timer = setInterval(update, 60_000);
   const resume = () => { if (document.visibilityState === "visible") update(); };
   document.addEventListener("visibilitychange", resume);
   window.addEventListener("pageshow", resume);
