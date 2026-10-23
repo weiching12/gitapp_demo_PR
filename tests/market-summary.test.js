@@ -172,8 +172,8 @@ test("Free-plan coordinator computes once and stores large summaries in bounded 
     if (key.includes(":shard:")) shardReads++;
     return marketData.get(key) ?? null;
   } } });
-  const url = `https://example.test/api/v1/market/summary?asOf=${date}`;
-  const oldKey = `view:${manifest.generation}:/api/v1/market/summary?asOf=${date}`;
+  const url = `https://example.test/api/v1/market/summary?period=9&kSmooth=3&dSmooth=3&asOf=${date}`;
+  const oldKey = `view:price-volume-trend-v1:${manifest.generation}:/api/v1/market/summary?period=9&kSmooth=3&dSmooth=3&asOf=${date}`;
   storageData.set(`${oldKey}:part:0`, JSON.stringify({ data: { stocks: [{ symbol: "stale" }] } }));
   storageData.set(`${oldKey}:parts`, 1);
   const first = await coordinator.fetch(new Request(url));

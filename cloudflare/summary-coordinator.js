@@ -3,7 +3,7 @@ import { createApplicationServices } from "./composition.js";
 
 const SUMMARY_ROUTES = ["/api/v1/market/summary", "/api/v1/favorites/summary"];
 // Bump when the response shape or derived rules change; old Durable Object entries persist across deploys.
-const CACHE_SCHEMA = "price-volume-trend-v1";
+const CACHE_SCHEMA = "price-volume-trend-v2";
 // Durable Object storage values are limited to 2 MB. A market summary can be
 // larger, so store serialized responses in small parts.
 const CACHE_PART_CHARS = 400_000;
