@@ -67,6 +67,43 @@ export function getInstitutionalNet(institutions) {
   return values.every(Number.isFinite) ? values.reduce((sum, n) => sum + n, 0) : null;
 }
 
+/** Today's volume against the preceding 20 market sessions, in shares. */
+export function getPriceVolumeSignal(history, tradingDates, asOf, changePercent) {
+  const index = tradingDates?.indexOf(asOf) ?? -1;
+  if (index < 20 || !Number.isFinite(changePercent)) return { rvol20: null, label: "資料不足" };
+  const bars = new Map(history.map((bar) => [bar.date, bar]));
+  const volumes = tradingDates.slice(index - 20, index + 1).map((date) => bars.get(date)?.volume);
+  if (volumes.length !== 21 || !volumes.every((volume) => Number.isFinite(volume) && volume >= 0))
+    return { rvol20: null, label: "資料不足" };
+  const average = volumes.slice(0, 20).reduce((sum, volume) => sum + volume, 0) / 20;
+  if (average === 0) return { rvol20: null, label: "資料不足" };
+  const rvol20 = volumes[20] / average;
+  const price = changePercent > 0 ? "漲了" : changePercent < 0 ? "跌了" : "價格沒變";
+  const volume = rvol20 >= 1.2 ? "交易變多" : rvol20 >= 0.8 ? "交易差不多" : "交易變少";
+  return { rvol20, label: `${price}，${volume}` };
+}
+
+/** Classify the selected session using existing MA20/MA60 values only. */
+export function getTrendStatus(history, tradingDates, asOf) {
+  const unknown = { code: "insufficient", label: "資料不足", reason: "歷史行情不足" };
+  const index = tradingDates?.indexOf(asOf) ?? -1;
+  if (index < 60) return unknown;
+  const bars = new Map(history.map((bar) => [bar.date, bar]));
+  const window = tradingDates.slice(index - 60, index + 1).map((date) => bars.get(date));
+  if (window.length !== 61 || window.some((bar) => !Number.isFinite(bar?.close) || bar.close <= 0))
+    return unknown;
+  const current = window[60], previous = window[59];
+  if (![current.ma20, current.ma60, previous.ma20, previous.ma60].every(Number.isFinite))
+    return unknown;
+  if (current.close > current.ma20 && current.ma20 > current.ma60 &&
+      current.ma20 > previous.ma20 && current.ma60 > previous.ma60)
+    return { code: "bullish", label: "偏多", reason: "月線、季線向上" };
+  if (current.close < current.ma20 && current.ma20 < current.ma60 &&
+      current.ma20 < previous.ma20 && current.ma60 < previous.ma60)
+    return { code: "bearish", label: "偏空", reason: "月線、季線向下" };
+  return { code: "unclear", label: "方向未明", reason: "趨勢條件不一致" };
+}
+
 export function getDominantInstitution(institutions) {
   const total = getInstitutionalNet(institutions);
   if (total === null || total === 0) return null;
@@ -109,6 +146,9 @@ export function getSnapshot(stock, asOf, settings) {
     ...stock,
     history,
     latest: current ? history.at(-1) : null,
+    priceVolume: getPriceVolumeSignal(history, stock.tradingDates, asOf,
+      current ? history.at(-1).changePercent : null),
+    trend: getTrendStatus(history, stock.tradingDates, asOf),
     signal: getTechnicalSignal(current ? history : []),
     institutionalSummary: getInstitutionalSummary(institutionHistory),
   };

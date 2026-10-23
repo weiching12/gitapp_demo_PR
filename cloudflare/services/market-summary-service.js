@@ -47,7 +47,8 @@ export class MarketSummaryService {
     const data = stocks.map((stock) => ({
       symbol: stock.symbol, name: stock.name, sector: stock.sector, market: stock.market,
       assetType: stock.assetType, currency: stock.currency, listedOn: stock.listedOn,
-      latest: stock.latest, signal: stock.signal,
+      latest: stock.latest, signal: stock.signal, priceVolume: stock.priceVolume,
+      trend: stock.trend,
       dominantInstitution: getDominantInstitution(stock.latest?.institutions),
       money: { day: { total: getStockInstitutionEstimate(stock, "total", "day", dates) } },
     }));

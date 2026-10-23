@@ -35,6 +35,8 @@ test("market summary matches existing indicators and omits market history", asyn
       tradingDates: manifest.dates }, date, result.meta.settings);
     assert.deepEqual(row.latest, original.latest);
     assert.deepEqual(row.signal, original.signal);
+    assert.deepEqual(row.priceVolume, original.priceVolume);
+    assert.deepEqual(row.trend, original.trend);
     assert.deepEqual(row.dominantInstitution, getDominantInstitution(original.latest?.institutions));
     assert.equal(row.money.day.total, getStockInstitutionEstimate(original, "total", "day", manifest.dates));
   }
@@ -112,6 +114,8 @@ test("backend KD and moving average match the former 45-session browser calculat
     const previous = getSnapshot(stock, asOf, settings);
     assert.deepEqual(row.latest, previous.latest);
     assert.deepEqual(row.signal, previous.signal);
+    assert.deepEqual(row.priceVolume, previous.priceVolume);
+    assert.deepEqual(row.trend, previous.trend);
   }
   const futureChanged = structuredClone(days.at(-1));
   futureChanged.records = Object.fromEntries(Object.entries(futureChanged.records).map(([symbol, row]) =>

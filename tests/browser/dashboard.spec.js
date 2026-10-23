@@ -31,6 +31,27 @@ const formatted = (value, digits = 0) => value.toLocaleString("en-US", {
 const signed = (value) => `${value > 0 ? "+" : ""}${formatted(value)}`;
 const overviewFor = (page, symbol) => page.locator(`[data-overview-symbol="${symbol}"]`);
 const institutionalNames = ["外資", "投信", "自營商"];
+test("today price and volume column remains readable on desktop and horizontally scrollable on mobile", async ({ page }) => {
+  await page.goto("/");
+  for (const width of [1280, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(page.locator(".table-scroll thead th", { hasText: "今日量價" })).toBeVisible();
+    await expect(page.locator(".table-scroll thead th", { hasText: "趨勢判斷" })).toBeVisible();
+    await expect(page.locator("#stock-rows tr").first().locator(".price-volume-cell")).toContainText(/資料不足|倍均量/);
+    await expect(page.locator("#stock-rows tr").first().locator(".trend-cell")).toContainText(/偏多|偏空|方向未明|資料不足/);
+    const metrics = await page.locator(".table-scroll").evaluate((element) => ({
+      client: element.clientWidth, content: element.scrollWidth,
+    }));
+    if (width <= 390) {
+      expect(metrics.content).toBeGreaterThan(metrics.client);
+      const trendEdge = await page.locator(".table-scroll thead th", { hasText: "趨勢判斷" }).evaluate((element) =>
+        element.getBoundingClientRect().right);
+      const viewportEdge = await page.locator(".table-scroll").evaluate((element) =>
+        element.getBoundingClientRect().right);
+      expect(trendEdge).toBeLessThanOrEqual(viewportEdge + 1);
+    }
+  }
+});
 const amountText = (shares) => {
   const lots = shares / 1000;
   const digits = Number.isInteger(lots) ? 0 : 2;

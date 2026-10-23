@@ -17,7 +17,7 @@ export class AnalysisService {
     const money = Object.fromEntries(["day", "5", "20"].map((window) => [window,
       Object.fromEntries(["total", "外資", "投信", "自營商"].map((name) => [name,
         getStockInstitutionEstimate(snapshot, name, window, dates)]))]));
-    return { data: { symbol, latest: snapshot.latest, signal: snapshot.signal,
+    return { data: { symbol, latest: snapshot.latest, signal: snapshot.signal, trend: snapshot.trend,
       institutionalSummary: snapshot.institutionalSummary, money },
     meta: { asOf, sourceAsOf: source.asOf, rulesVersion: RULES_VERSION,
       priceBasis: "unadjusted", settings } };

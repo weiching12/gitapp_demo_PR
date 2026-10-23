@@ -63,8 +63,10 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
         <section class="panel stocks-panel" data-page-panel="market" aria-label="市場觀察股票表格">
           <div class="table-toolbar"><div class="filter-tabs segmented-control" role="group" aria-label="清單篩選"><span class="segmented-indicator" aria-hidden="true"></span><button data-view="all" class="active" aria-pressed="true"><span class="filter-label-desktop">全部標的</span><span class="filter-label-mobile">全部</span></button><button data-view="favorites" aria-pressed="false"><span class="filter-label-desktop">我的自選</span><span class="filter-label-mobile">自選</span></button><button data-view="above" aria-pressed="false">站上季線</button><button data-view="below" aria-pressed="false">季線之下</button><button data-view="oversold" aria-pressed="false" aria-label="K 值低於 20">K值低於20</button></div><div class="search-controls"><label class="search-box">${icon("search")}<input id="stock-search" type="search" placeholder="搜尋代碼或名稱" aria-label="搜尋股票代碼或名稱" autocomplete="off"/><kbd>/</kbd></label><select id="sector-filter" aria-label="產業篩選"><option value="all">全部產業</option>${[...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("")}</select></div></div>
           <div class="signal-note">${icon("info")}<span>依資料日 KD 交叉與 MA20 趨勢判讀；${isDemo ? "模擬資料技術提示" : "技術提示僅供觀察"}，需搭配風險控管。</span><button class="text-button" data-dialog="signals">判讀規則 ${icon("chevron")}</button></div>
-          <div class="table-scroll" tabindex="0" role="region" aria-label="股票觀察清單，可左右捲動"><table><caption class="sr-only">${isDemo ? "模擬股票行情" : "股票收盤行情"}、KD 技術建議與三大法人買賣超。日漲跌幅與前一交易日收盤價比較，成交量位於收盤價下方，以張表示。點選星號可加入或移除上方自選總覽。</caption><colgroup><col class="favorite-column"/><col class="stock-column"/><col class="price-column"/><col class="net-column-mobile"/><col class="change-column"/><col class="kd-column"/><col class="signal-column"/><col class="position-column"/><col class="net-column"/></colgroup><thead><tr><th scope="col"><span class="sr-only">自選</span></th><th scope="col">股票</th>${[
+          <div class="table-scroll" tabindex="0" role="region" aria-label="股票觀察清單，可左右捲動"><table><caption class="sr-only">${isDemo ? "模擬股票行情" : "股票收盤行情"}、KD 技術建議與三大法人買賣超。日漲跌幅與前一交易日收盤價比較，成交量位於收盤價下方，以張表示。點選星號可加入或移除上方自選總覽。</caption><colgroup><col class="favorite-column"/><col class="stock-column"/><col class="price-column"/><col class="price-volume-column"/><col class="trend-column"/><col class="net-column-mobile"/><col class="change-column"/><col class="kd-column"/><col class="signal-column"/><col class="position-column"/><col class="net-column"/></colgroup><thead><tr><th scope="col"><span class="sr-only">自選</span></th><th scope="col">股票</th>${[
             ["close", '<span class="close-label-desktop">收盤價</span><span class="close-label-mobile">收盤／漲跌</span>'],
+            ["priceVolume", "今日量價"],
+            ["trend", "趨勢判斷"],
              ["institutionalNetMobile", "法人買賣超"],
             ["changePercent", "日漲跌幅"],
             ["k", "K 值"],
@@ -73,6 +75,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
           ]
             .map(
               ([key, label]) => {
+                if (key === "priceVolume" || key === "trend") return `<th scope="col">${label}</th>`;
                 const sortKey = key === "institutionalNetMobile" ? "institutionalNet" : key;
                 const className = key === "institutionalNetMobile"
                   ? ' class="net-heading-mobile"'

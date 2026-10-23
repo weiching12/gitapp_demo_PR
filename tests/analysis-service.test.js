@@ -21,6 +21,7 @@ test("server analysis matches browser snapshots and never includes future bars",
   const expected = browser.getSnapshot(stock, asOf, options.settings);
   assert.deepEqual(result.data.latest, expected.latest);
   assert.deepEqual(result.data.signal, expected.signal);
+  assert.deepEqual(result.data.trend, expected.trend);
   assert.equal(result.data.latest.ma60, null);
   history[69].close = 999999;
   assert.deepEqual(await stockAnalysis(market, "2330", options), result);
