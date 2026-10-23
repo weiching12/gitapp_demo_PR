@@ -182,7 +182,7 @@ function refreshData() {
     const favoriteRows = favoriteCache.get(summaryKey(state.date));
     snapshots = (selectedSummary?.data.stocks ?? []).map((stock) =>
       favoriteRows?.has(stock.symbol) ? { ...stock, ...favoriteRows.get(stock.symbol) } : stock);
-    currentSentiment = selectedSummary?.data.sentiment ?? null;
+    currentSentiment = latestSummary?.data.sentiment ?? null;
     if (currentSentiment) renderSentiment(currentSentiment);
     renderWatchlist(); renderTable(); renderSectorOverview(); renderPage();
     if (document.querySelector("#institution-dialog").open) renderInstitutionDialog();
@@ -206,7 +206,7 @@ function refreshData() {
   latestSnapshots = cached(dataset.info.asOf, latestCache);
   snapshots = state.date === dataset.info.asOf ? latestSnapshots
     : cached(state.date, historicalCache);
-  currentSentiment = calculateMarketSentiment(snapshots, state.date);
+  currentSentiment = calculateMarketSentiment(latestSnapshots, dataset.info.asOf);
   renderSentiment(currentSentiment);
   renderWatchlist();
   renderTable();
@@ -223,6 +223,7 @@ async function selectSummary(date) {
   let result = summaryCache.get(key);
   if (!result) {
     loading = true;
+    renderLoadState();
     try {
       const response = await marketClient.summary(date, state.settings);
       if (response.response.headers.get("X-PWA-Cache") === "fallback") usingCachedData = true;
@@ -230,7 +231,9 @@ async function selectSummary(date) {
       if (result.meta?.generation !== dataset.info.generation || result.meta?.asOf !== date ||
           result.data?.stocks?.length !== dataset.stocks.length) throw new Error("Invalid market summary");
       summaryCache.set(key, result);
-    } finally { if (request === summaryRequest) loading = false; }
+    } finally {
+      if (request === summaryRequest) { loading = false; renderLoadState(); }
+    }
   }
   if (request !== summaryRequest) return;
   selectedSummary = result;
@@ -284,7 +287,7 @@ function renderLoadState() {
     dateIcon.innerHTML = loadingIcon("交易日載入中");
     document.querySelector(".date-control").append(dateIcon);
   }
-  dateIcon.hidden = !loading || dataset.dates.length > 0;
+  dateIcon.hidden = !loading;
   for (const panel of document.querySelectorAll("[data-page-panel]")) panel.setAttribute("aria-busy", String(loading));
 }
 
@@ -307,7 +310,13 @@ function enablePwa() {
   const reminder = document.querySelector(".date-notification-button");
   const notificationStatus = document.querySelector("#settings-notifications > div > span");
   notificationStatus.setAttribute("role", "status");
-  startPushNotifications(document.querySelector("#push-notifications"), { onMessage: toast,
+  const pushButton = document.querySelector("#push-notifications");
+  if (!apiMode) {
+    reminder.hidden = true;
+    pushButton.disabled = true;
+    pushButton.querySelector("span").textContent = "正式版可開啟更新通知";
+    notificationStatus.textContent = "本機示範模式不提供更新通知";
+  } else startPushNotifications(pushButton, { onMessage: toast,
     onStatus: ({ supported, subscribed, permission, error }) => {
       const hidden = !supported || subscribed;
       reminder.hidden = hidden;
@@ -517,7 +526,10 @@ function openDialog(type, focusClose = true) {
   const content = document.querySelector("#dialog-content");
   document.querySelector("#settings-notifications").hidden = type !== "settings";
   if (type === "settings") {
-    content.innerHTML = `<h2 id="dialog-heading">設定</h2><p class="dialog-intro">調整顯示主題與技術指標。設定會保存在這個瀏覽器。</p><form id="settings-form"><fieldset class="settings-group"><legend>顯示</legend><div class="form-field"><label for="theme">色彩主題</label><select id="theme" name="theme"><option value="light"${state.theme === "light" ? " selected" : ""}>淺色</option><option value="dark"${state.theme === "dark" ? " selected" : ""}>深色</option></select></div></fieldset><fieldset class="settings-group"><legend>KD 指標</legend><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div></fieldset><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 儲存設定</button></div></form>`;
+    const updateStatus = document.querySelector("#update-check-status");
+    updateStatus.hidden = true;
+    updateStatus.textContent = "";
+    content.innerHTML = `<h2 id="dialog-heading">設定</h2><p class="dialog-intro">色彩主題選擇後立即套用；KD 指標需按「指標儲存」。</p><section class="settings-theme" aria-labelledby="settings-theme-heading"><h3 id="settings-theme-heading">顯示 <span>選擇後立即套用</span></h3><div class="form-field"><label for="theme">色彩主題</label><select id="theme" name="theme"><option value="light"${state.theme === "light" ? " selected" : ""}>淺色</option><option value="dark"${state.theme === "dark" ? " selected" : ""}>深色</option></select></div></section><form id="settings-form"><fieldset class="settings-group"><legend>KD 指標</legend><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div></fieldset><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 指標儲存</button></div></form>`;
   } else if (type === "sentiment") {
     content.innerHTML = sentimentDialogMarkup(currentSentiment);
   } else if (type === "signals") {
@@ -622,11 +634,14 @@ function bindEvents() {
     if (button.id !== "check-update" && button.id !== "reload-data")
       void checkPwaUpdate().catch((error) => console.warn("PWA update check failed", error));
     if (button.id === "check-update") {
+      const status = document.querySelector("#update-check-status");
+      status.hidden = false;
+      status.textContent = "正在檢查更新…";
       button.disabled = true;
       button.textContent = "檢查中…";
       checkPwaUpdate(true).then((updated) => {
-        if (!updated) toast("已是最新版本");
-      }).catch((error) => toast(error.message || "無法檢查更新"))
+        status.textContent = updated ? "發現新版本，正在更新…" : "已是最新版本";
+      }).catch((error) => { status.textContent = error.message || "無法檢查更新"; })
         .finally(() => { button.disabled = false; button.textContent = "檢查更新"; });
       return;
     }
@@ -712,7 +727,6 @@ function bindEvents() {
     if (button.id === "default-settings") {
       for (const [key, value] of Object.entries(DEFAULT_SETTINGS))
         document.querySelector(`#${key}`).value = value;
-      document.querySelector("#theme").value = "light";
     }
   });
   document.querySelector("#stock-search").addEventListener("input", (event) => {
@@ -737,6 +751,12 @@ function bindEvents() {
       toast(error.message);
     });
   });
+  document.addEventListener("change", (event) => {
+    if (event.target.id !== "theme") return;
+    state.theme = event.target.value === "dark" ? "dark" : "light";
+    applyTheme();
+    savePreferences();
+  });
   document.addEventListener("submit", (event) => {
     if (event.target.id !== "settings-form") return;
     event.preventDefault();
@@ -748,8 +768,6 @@ function bindEvents() {
         Number(form.get(key)),
       ]),
     );
-    state.theme = form.get("theme") === "dark" ? "dark" : "light";
-    applyTheme();
     savePreferences();
     void selectSummary(state.date).catch((error) => {
       state.settings = previousSettings;
@@ -808,7 +826,7 @@ async function init() {
     loadProgress = { loaded: dataset.stocks.length, total: dataset.stocks.length };
     document.querySelector(".demo-badge").innerHTML = `<span></span>${esc(dataset.info.label)}`;
     document.querySelector("#trade-date").innerHTML = dataset.dates.slice(-30).reverse()
-      .map((date) => `<option value="${date}">${date.replaceAll("-", " / ")}</option>`).join("");
+      .map((date) => `<option value="${date}">${date.replaceAll("-", "/")}</option>`).join("");
     document.querySelector("#sector-filter").innerHTML = '<option value="all">全部產業</option>' +
       [...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("");
     loading = false;

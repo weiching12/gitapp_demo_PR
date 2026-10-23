@@ -235,14 +235,14 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
     await expect(page.locator('[data-sort-heading="close"]')).toContainText("收盤／漲跌");
     await expect(page.locator('#stock-rows tr').first().locator(".mobile-change")).toBeVisible();
     await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-net")).toContainText("億");
-    await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-lots")).toContainText("張");
+    await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-volume-share")).toHaveText(/^量 [+-]?\d+\.\d+%$/);
     await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-leader")).toBeVisible();
     const mergedChange = await page.locator('#stock-rows tr').first().evaluate((row) => {
       const volume = getComputedStyle(row.querySelector(".stock-volume"));
       const change = getComputedStyle(row.querySelector(".mobile-change"));
       const close = getComputedStyle(row.querySelector(".stock-close"));
       const net = getComputedStyle(row.querySelector(".net-cell-mobile .institution-net"));
-      const lots = getComputedStyle(row.querySelector(".net-cell-mobile .institution-lots"));
+      const lots = getComputedStyle(row.querySelector(".net-cell-mobile .institution-volume-share"));
       const closeBox = row.querySelector(".stock-close").getBoundingClientRect();
       const changeBox = row.querySelector(".mobile-change").getBoundingClientRect();
       return {
@@ -359,7 +359,7 @@ test("empty favorites persist and offer a working path back to stock selection",
 test("KD settings recalculate every favorite and table suggestion and persist", async ({ page }) => {
   await page.getByRole("button", { name: "設定", exact: true }).click();
   await page.getByLabel("RSV 回溯週期").fill("14");
-  await page.getByRole("button", { name: "儲存設定" }).click();
+  await page.getByRole("button", { name: "指標儲存" }).click();
   const { stocks, info } = await demoProvider.load();
   for (const stock of stocks) {
     const { latest, signal } = getSnapshot(stock, info.asOf, { period: 14, kSmooth: 3, dSmooth: 3 });
@@ -381,22 +381,28 @@ test("KD settings recalculate every favorite and table suggestion and persist", 
   await expect(page.getByRole("dialog")).toContainText("沒有連接交易所");
 });
 
-test("market sentiment follows the selected date and explains its components", async ({ page }) => {
+test("market sentiment stays on the latest five days when the table date changes", async ({ page }) => {
   const card = page.locator("#market-sentiment");
   await expect(card).toBeVisible();
   await expect(card.locator(".sentiment-score")).not.toHaveText("—");
   const firstDate = await page.locator("#trade-date").inputValue();
   await expect(card.locator(".sentiment-date")).toContainText(firstDate);
+  const score = await card.locator(".sentiment-score").textContent();
+  await page.locator("#trade-date").selectOption({ index: 1 });
+  await expect(card.locator(".sentiment-score")).toHaveText(score);
+  await expect(card.locator(".sentiment-date")).toContainText(firstDate);
   await card.getByRole("button").click();
   await expect(page.getByRole("dialog")).toContainText("市場漲跌家數");
+  await expect(page.getByRole("dialog")).toContainText("最新資料日回推 5 個交易日");
   await expect(page.getByRole("dialog")).toContainText("ETF 與缺漏值不納入分母");
 });
 
 test("general settings persist the dark theme", async ({ page }) => {
   await page.getByRole("button", { name: "設定", exact: true }).click();
   await page.getByLabel("色彩主題").selectOption("dark");
-  await page.getByRole("button", { name: "儲存設定" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "關閉視窗" }).click();
   await expect(page.locator("#market-sentiment > button")).toHaveCSS("background-color", "rgb(17, 27, 43)");
   await expect(page.locator("#sector-filter")).toHaveCSS("background-color", "rgb(13, 23, 38)");
   await expect(page.locator("#sector-filter")).toHaveCSS("color", "rgb(229, 237, 248)");
@@ -409,6 +415,20 @@ test("general settings persist the dark theme", async ({ page }) => {
   await expect(stockName.locator(":scope > span")).toHaveCSS("color", "rgb(154, 171, 194)");
   await page.getByRole("button", { name: "自選總覽" }).click();
   await expect(page.locator(".overview-controls")).toHaveCSS("background-color", "rgb(17, 27, 43)");
+  await page.locator("#watchlist-institutions-tab").click();
+  await expect(page.locator(".overview-total").first()).toHaveCSS("background-color", "rgb(22, 34, 56)");
+  await expect(page.locator(".overview-detail-button").first()).toHaveCSS("background-color", "rgb(22, 34, 56)");
+  await expect(page.locator(".overview-metric .watch-streak").first()).not.toHaveCSS("background-color", "rgb(241, 245, 249)");
+  await page.locator(".overview-detail-button").first().click();
+  await expect(page.locator("#institution-dialog .institution-dialog-top")).toHaveCSS("background-color", "rgb(17, 27, 43)");
+  await expect(page.locator("#institution-dialog .watch-flow-total")).toHaveCSS("background-color", "rgb(22, 34, 56)");
+  await expect(page.locator("#institution-dialog .watch-total-history .watch-history")).toHaveCSS("background-color", "rgb(22, 34, 56)");
+  await expect(page.locator("#institution-dialog .institution-dialog-footer")).toHaveCSS("background-color", "rgb(17, 27, 43)");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "法人買株" }).click();
+  await page.locator("#sector-grid [data-sector-details]").first().click();
+  await expect(page.locator("#sector-dialog .sector-dialog-top")).toHaveCSS("background-color", "rgb(17, 27, 43)");
+  await page.keyboard.press("Escape");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
@@ -539,7 +559,7 @@ test("favorite metrics remain unclipped across narrow screens, tablets and deskt
   await page.getByLabel("RSV 回溯週期").fill("60");
   await page.getByLabel("K 平滑係數").fill("20");
   await page.getByLabel("D 平滑係數").fill("20");
-  await page.getByRole("button", { name: "儲存設定" }).click();
+  await page.getByRole("button", { name: "指標儲存" }).click();
   await openPage(page, "favorites");
   for (const width of [320, 360, 390, 520, 521, 768, 1000, 1001, 1024, 1250, 1251, 1440, 1920]) {
     await page.setViewportSize({ width, height: 1000 });

@@ -29,3 +29,15 @@ test("sentiment bands keep stable public thresholds", () => {
   assert.equal(sentimentBand(79).label, "貪婪");
   assert.equal(sentimentBand(80).label, "極度貪婪");
 });
+
+test("market sentiment averages the latest five trading days rather than using only the current day", () => {
+  const mixed = stock("2330");
+  mixed.history = mixed.history.slice(-6);
+  mixed.history[0].changePercent = -1;
+  mixed.history[5].changePercent = -1;
+  const result = calculateMarketSentiment([mixed], "2026-09-41", 6);
+  assert.equal(result.components.breadth, 80);
+  assert.equal(result.series[3].score, null);
+  assert.equal(result.series[4].components.breadth, 80);
+  assert.equal(result.version, "tw-market-sentiment-v2");
+});

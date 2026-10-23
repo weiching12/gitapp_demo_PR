@@ -72,6 +72,7 @@ test("switching dates fetches that date once and reuses the result", async ({ pa
   const datedService = new MarketSummaryService({ market: async () => datedManifest,
     shards: async (_generation, indices) => indices.map((index) => datedChunks[index]) });
   const datesRequested = [];
+  const historicalResponse = defer();
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url()), path = url.pathname;
     if (path === "/api/v1/presence") return route.fulfill({ json: { online: 1 } });
@@ -79,6 +80,7 @@ test("switching dates fetches that date once and reuses the result", async ({ pa
       `/api/v1/market/snapshots/${datedManifest.generation}/shards/${index}`) } });
     if (path === "/api/v1/market/summary") {
       datesRequested.push(url.searchParams.get("asOf"));
+      if (url.searchParams.get("asOf") === date) await historicalResponse.promise;
       return route.fulfill({ json: await datedService.summary(url.searchParams.get("asOf"),
         { period: 9, kSmooth: 3, dSmooth: 3 }) });
     }
@@ -87,7 +89,11 @@ test("switching dates fetches that date once and reuses the result", async ({ pa
   await page.goto("/");
   await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false");
   await page.locator("#trade-date").selectOption(date);
+  await expect(page.locator("#date-loading")).toBeVisible();
+  await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "true");
+  historicalResponse.resolve();
   await expect(page.locator("#table-summary")).toContainText(date);
+  await expect(page.locator("#date-loading")).toBeHidden();
   await page.locator("#trade-date").selectOption(next);
   await expect(page.locator("#table-summary")).toContainText(next);
   expect(datesRequested).toEqual([next, date]);

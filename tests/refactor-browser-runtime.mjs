@@ -65,6 +65,25 @@ try {
     await page.route(/https:\/\/(?:fonts\.googleapis\.com|fonts\.gstatic\.com)\//, (route) => route.abort());
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false");
+    if (width <= 700) {
+      for (const phoneWidth of [390, 320]) {
+        await page.setViewportSize({ width: phoneWidth, height: 900 });
+        const heading = await page.locator('.page-heading').boundingBox();
+        const control = await page.locator('.date-control').boundingBox();
+        const title = await page.locator('#page-title').boundingBox();
+        const label = await page.locator('.date-control label').boundingBox();
+        const select = await page.locator('#trade-date').boundingBox();
+        assert.ok(heading && control && title && label && select &&
+          Math.abs(heading.x + heading.width - control.x - control.width) < 2 &&
+          title.x + title.width <= label.x &&
+          (phoneWidth <= 380 ? label.width <= 1 : label.x + label.width <= select.x) &&
+          Math.abs(title.y + title.height / 2 - select.y - select.height / 2) < 3 &&
+          (phoneWidth <= 380 || Math.abs(label.y + label.height / 2 - select.y - select.height / 2) < 3),
+        `trade date should align right of the title at ${phoneWidth}px: ${JSON.stringify({ heading, control, title, label, select })}`);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      }
+      await page.setViewportSize({ width, height: 900 });
+    }
     assert.equal(apiRequests.filter((path) => path.includes("/shards/")).length, 0);
     assert.equal(apiRequests.filter((path) => path === "/api/v1/market/summary").length, width === 1440 ? 1 : 2);
     assert.equal(apiRequests.filter((path) => path === "/api/v1/favorites/summary").length, previousFavoriteRequests);

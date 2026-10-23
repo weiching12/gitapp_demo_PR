@@ -1,7 +1,8 @@
 import { getInstitutionalNet } from "./indicators.js";
 import { isEtf } from "./market-codec.js";
 
-export const SENTIMENT_VERSION = "tw-market-sentiment-v1";
+export const SENTIMENT_VERSION = "tw-market-sentiment-v2";
+export const SENTIMENT_WINDOW = 5;
 export const SENTIMENT_WEIGHTS = Object.freeze({ breadth: 25, trend: 20, momentum: 20, institutions: 25, volume: 10 });
 const clamp = (value, min = 0, max = 100) => Math.min(max, Math.max(min, value));
 const shareScore = (values, predicate) => values.length ? values.filter(predicate).length / values.length * 100 : null;
@@ -46,8 +47,20 @@ function combine(components) {
 }
 
 export function calculateMarketSentiment(stocks, asOf, days = 20) {
-  const dates = [...new Set(stocks.flatMap((stock) => stock.history.map((bar) => bar.date)))].filter((date) => date <= asOf).sort().slice(-days);
-  const series = dates.map((date) => { const components = componentsForDate(stocks, date); const score = combine(components); return { date, score, components, band: sentimentBand(score) }; });
+  const dates = [...new Set(stocks.flatMap((stock) => stock.history.map((bar) => bar.date)))].filter((date) => date <= asOf).sort().slice(-(days + SENTIMENT_WINDOW - 1));
+  const daily = dates.map((date) => componentsForDate(stocks, date));
+  const series = dates.slice(-days).map((date, offset) => {
+    const index = dates.length - Math.min(days, dates.length) + offset;
+    const window = daily.slice(Math.max(0, index - SENTIMENT_WINDOW + 1), index + 1);
+    const components = Object.fromEntries(Object.keys(SENTIMENT_WEIGHTS).map((key) => {
+      const values = window.map((item) => item[key]);
+      return [key, window.length === SENTIMENT_WINDOW && values.every(Number.isFinite)
+        ? values.reduce((sum, value) => sum + value, 0) / SENTIMENT_WINDOW : null];
+    }));
+    components.coverage = daily[index].coverage;
+    const score = combine(components);
+    return { date, score, components, band: sentimentBand(score) };
+  });
   const current = series.at(-1) ?? { date: asOf, score: null, components: {}, band: sentimentBand(null) };
   return { ...current, series, version: SENTIMENT_VERSION };
 }

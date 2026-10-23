@@ -20,16 +20,16 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
     <div class="workspace">
       <header class="topbar"><div class="breadcrumb">研究工作台 ${icon("chevron")} <span id="breadcrumb-current">市場觀察清單</span></div><div class="topbar-actions"><span id="online-count" class="online-count" role="status" title="最近 90 秒內活躍的瀏覽器，同一瀏覽器多分頁計一次">${loadingIcon("正在取得在線人數")}<span>在線人數</span></span><span class="demo-badge"><span></span>${esc(dataset.info.label)}</span></div></header>
       <main id="main" tabindex="-1">
-        <section class="page-heading"><div><div class="eyebrow" id="page-eyebrow">TAIWAN STOCK EXPLORER</div><h1 id="page-title">市場觀察清單<span class="heading-dot">.</span></h1><p id="page-description">比較全部標的的價量、技術指標與法人籌碼。</p></div><div class="date-control"><label for="trade-date">${icon("calendar")} 資料交易日</label><select id="trade-date">${dataset.dates
+        <section class="page-heading"><div><div class="eyebrow" id="page-eyebrow">TAIWAN STOCK EXPLORER</div><h1 id="page-title">市場觀察清單<span class="heading-dot">.</span></h1><p id="page-description">比較全部標的的價量、技術指標與法人籌碼。</p></div><div class="date-control"><label for="trade-date">${icon("calendar")}<span class="date-label-text">資料交易日</span></label><select id="trade-date">${dataset.dates
           .slice(-30)
           .reverse()
           .map(
             (date) =>
-              `<option value="${date}">${date.replaceAll("-", " / ")}</option>`,
+              `<option value="${date}">${date.replaceAll("-", "/")}</option>`,
           )
           .join(
             "",
-          )}</select><button class="date-notification-button" type="button" data-dialog="settings" aria-label="開啟更新通知" aria-haspopup="dialog" hidden>${icon("bell")}</button><span id="update-countdown" class="update-countdown" role="timer">計算下次更新時間</span></div></section>
+          )}</select><div class="date-status"><button class="date-notification-button" type="button" data-dialog="settings" aria-label="開啟更新通知" aria-haspopup="dialog" hidden>${icon("bell")}</button><span id="update-countdown" class="update-countdown" role="timer">計算下次更新時間</span></div></div></section>
         <div id="pull-refresh" class="pull-refresh" aria-hidden="true"><span></span>下拉重新整理</div>
         <div id="app-status" class="app-status" role="status" hidden><span></span></div>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
@@ -92,10 +92,10 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
           <div id="sector-grid" class="sector-grid sector-ranking"></div>
           <p class="sector-note">金額以億元顯示，張數為輔。金額依各股每日法人淨買賣股數 × 當日收盤價累計，非實際成交金額。TOP1 百分比為該個股的區間漲跌幅；點選產業可同時查看當日、5 日、20 日買賣超。僅統計目前研究標的。</p>
         </section>
-        <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK RESEARCH</span></span><span>技術提示僅供研究參考。</span><button data-dialog="source">關於株研 ${icon("arrow")}</button><button data-dialog="methodology">計算方法 ${icon("arrow")}</button></footer>
+        <footer class="page-footer"><span class="footer-brand">株研 <span>STOCK RESEARCH</span></span><span>技術提示僅供研究參考。</span><button data-dialog="source">關於株研 ${icon("arrow")}</button></footer>
       </main>
     </div>
-    <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT / GUIDE</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div><section id="settings-notifications" class="settings-notifications" hidden><div><strong>資料更新通知</strong><span>每日資料完成更新後通知你</span></div><button class="outline-button push-nav-item" id="push-notifications" type="button" aria-label="開啟每日資料更新通知" aria-pressed="false">${icon("bell")}<span>開啟更新通知</span></button><div class="app-version-control"><button class="outline-button" id="check-update" type="button">檢查更新</button><span id="app-version" class="app-version" aria-label="目前版本 ${appVersion}">${appVersion}</span></div></section></dialog>
+    <dialog id="info-dialog" aria-labelledby="dialog-heading"><div class="dialog-top"><span class="eyebrow">STOCK INSIGHT</span><button class="icon-button" id="close-dialog" aria-label="關閉視窗">${icon("close")}</button></div><div id="dialog-content"></div><section id="settings-notifications" class="settings-notifications" hidden><div><strong>資料更新通知</strong><span>每日資料完成更新後通知你</span></div><button class="outline-button push-nav-item" id="push-notifications" type="button" aria-label="開啟每日資料更新通知" aria-pressed="false">${icon("bell")}<span>開啟更新通知</span></button><div class="app-version-control"><strong class="settings-version-title">版本更新</strong><button class="outline-button" id="check-update" type="button">檢查更新</button><span id="app-version" class="app-version" aria-label="目前版本 ${appVersion}">${appVersion}</span></div><p id="update-check-status" class="update-check-status" role="status" aria-live="polite" hidden></p></section></dialog>
     <dialog id="institution-dialog" class="institution-dialog" aria-labelledby="institution-heading" aria-describedby="institution-meta"><div class="institution-dialog-handle" role="button" tabindex="0" aria-label="關閉法人動向，可向下拖曳"></div><header class="institution-dialog-top"><div><span class="eyebrow">INSTITUTIONAL FLOWS</span><h2 id="institution-heading">三大法人動向</h2><p id="institution-meta"></p></div><button class="icon-button" id="close-institution-dialog" aria-label="關閉法人動向">${icon("close")}</button></header><div id="institution-content" class="institution-dialog-body"></div><footer class="institution-dialog-footer">買賣量以張顯示 · 1 張 = 1,000 股</footer></dialog>
     <dialog id="sector-dialog" class="sector-dialog" aria-labelledby="sector-dialog-heading" aria-describedby="sector-dialog-meta"><div class="sector-dialog-handle" role="button" tabindex="0" aria-label="關閉產業明細，可向下拖曳"></div><header class="institution-dialog-top sector-dialog-top"><div><span class="eyebrow">SECTOR INSTITUTIONAL FLOWS</span><h2 id="sector-dialog-heading">產業法人買賣超</h2><p id="sector-dialog-meta"></p></div><button class="icon-button" id="close-sector-dialog" aria-label="關閉產業明細">${icon("close")}</button></header><div id="sector-dialog-content" class="sector-dialog-body"></div><footer class="institution-dialog-footer sector-dialog-footer">正值為買超、負值為賣超 · 1 張 = 1,000 股 · 僅統計目前研究標的</footer></dialog>
     <div id="toast" role="status" class="toast"></div>`;
