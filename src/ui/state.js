@@ -5,7 +5,7 @@ export const createState = () => ({
   view: "all",
   sector: "all",
   query: "",
-  sort: null,
+  sort: "entryScore",
   sortDirection: -1,
   favorites: [],
   overview: "price",

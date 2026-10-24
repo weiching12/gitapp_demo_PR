@@ -590,7 +590,8 @@ function resetFilters() {
   state.query = "";
   state.sector = "all";
   state.view = "all";
-  state.sort = null;
+  state.sort = "entryScore";
+  state.sortDirection = -1;
   document.querySelector("#stock-search").value = "";
   document.querySelector("#sector-filter").value = "all";
   renderTable();
