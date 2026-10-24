@@ -14,7 +14,7 @@ export const createMarketService = (env) => new MarketService(new MarketReposito
 export function createApplicationServices(env) {
   const market = createMarketService(env);
   const actions = env.CORPORATE_ACTIONS_ENABLED === "1" ? new CorporateActionRepository(env.T86_DB) : null;
-  return { market, actions, analysis: new AnalysisService(market), summary: new MarketSummaryService(market, actions), history: new HistoryService(market),
+  return { market, actions, analysis: new AnalysisService(market, actions), summary: new MarketSummaryService(market, actions), history: new HistoryService(market),
     push: new PushService(new PushRepository(env.T86_DB), env) };
 }
 

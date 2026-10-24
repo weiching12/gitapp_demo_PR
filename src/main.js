@@ -23,6 +23,8 @@ import { bindResponsiveSearchOrder } from "./ui/responsive-layout.js";
 import { bindKeyboardNavigation } from "./ui/keyboard.js";
 import { createTableBatchController } from "./ui/table-batches.js";
 import { calculateMarketSentiment } from "../shared/sentiment.js";
+import { getEntryScore } from "../shared/entry-score.js";
+import { entryScoreDialogMarkup } from "./ui/entry-score.js";
 import { renderSentiment, sentimentDialogMarkup } from "./ui/sentiment.js";
 import {
   DEFAULT_SETTINGS,
@@ -123,7 +125,7 @@ const dialogs = createDialogController();
 let dataset, snapshots, latestSnapshots, currentSentiment;
 const apiMode = import.meta.env.VITE_DATA_MODE === "api";
 const marketClient = new MarketApiClient();
-const summaryCache = new Map(), sectorDetailCache = new Map(), stockDetailCache = new Map();
+const summaryCache = new Map(), sectorDetailCache = new Map(), stockDetailCache = new Map(), entryDetailCache = new Map();
 const favoriteCache = new Map(), favoriteRequests = new Map();
 let favoriteLoadFailed = false;
 let selectedSummary, latestSummary, summaryRequest = 0;
@@ -193,6 +195,7 @@ function refreshData() {
     const snapshot = getSnapshot(stock, date, state.settings);
     snapshot.priceVolume = getPriceVolumeSignal(snapshot.history, dataset.dates, date,
       snapshot.latest?.changePercent ?? null);
+    snapshot.entryScore = getEntryScore(snapshot, dataset.dates, date);
     // The sentiment series needs 60 closes at its oldest point.
     snapshot.history = snapshot.history.slice(-80);
     return snapshot;
@@ -533,6 +536,12 @@ function openDialog(type, focusClose = true) {
     updateStatus.hidden = true;
     updateStatus.textContent = "";
     content.innerHTML = `<h2 id="dialog-heading">設定</h2><p class="dialog-intro">色彩主題選擇後立即套用；KD 指標需按「指標儲存」。</p><section class="settings-theme" aria-labelledby="settings-theme-heading"><h3 id="settings-theme-heading">顯示 <span>選擇後立即套用</span></h3><div class="form-field"><label for="theme">色彩主題</label><select id="theme" name="theme"><option value="light"${state.theme === "light" ? " selected" : ""}>淺色</option><option value="dark"${state.theme === "dark" ? " selected" : ""}>深色</option></select></div></section><form id="settings-form"><fieldset class="settings-group"><legend>KD 指標</legend><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div></fieldset><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 指標儲存</button></div></form>`;
+  } else if (type.startsWith("entry:")) {
+    const symbol = type.slice(6);
+    const stock = snapshots.find((item) => item.symbol === symbol);
+    const detail = entryDetailCache.get(`${summaryKey(state.date)}:${symbol}`);
+    content.innerHTML = stock ? entryScoreDialogMarkup(detail ? { ...stock, entryScore: detail } : stock, esc, number, percent) :
+      `<h2 id="dialog-heading">個股進場評估</h2><p>找不到這檔股票。</p>`;
   } else if (type === "sentiment") {
     content.innerHTML = sentimentDialogMarkup(currentSentiment);
   } else if (type === "signals") {
@@ -553,6 +562,28 @@ function openDialog(type, focusClose = true) {
   const close = dialog.querySelector("#close-dialog");
   if (focusClose) close.focus({ preventScroll: true });
   else if (dialog.contains(document.activeElement)) document.activeElement.blur();
+}
+
+async function openEntryScoreDialog(symbol, focusClose = true) {
+  const date = state.date, key = `${summaryKey(date)}:${symbol}`;
+  const dialog = document.querySelector("#info-dialog");
+  dialog.dataset.entrySymbol = symbol;
+  openDialog(`entry:${symbol}`, focusClose);
+  if (!apiMode || entryDetailCache.has(key)) return;
+  try {
+    const { data } = await marketClient.analysis(symbol, date, { ...state.settings });
+    const summary = snapshots.find((stock) => stock.symbol === symbol)?.entryScore;
+    const detail = data.data?.entryScore;
+    if (data.meta?.asOf !== date || detail?.modelVersion !== summary?.modelVersion ||
+        detail?.totalScore !== summary?.totalScore) throw new Error("清單與個股評分版本不一致");
+    entryDetailCache.set(key, detail);
+    if (dialog.open && dialog.dataset.entrySymbol === symbol && state.date === date)
+      document.querySelector("#dialog-content").innerHTML = entryScoreDialogMarkup(
+        { ...snapshots.find((stock) => stock.symbol === symbol), entryScore: detail }, esc, number, percent);
+  } catch (error) {
+    if (dialog.open && dialog.dataset.entrySymbol === symbol && state.date === date)
+      document.querySelector("#dialog-content").innerHTML = `<h2 id="dialog-heading">個股進場評估</h2><p role="alert">${esc(error.message || "評分明細載入失敗")}</p>`;
+  }
 }
 
 function resetFilters() {
@@ -650,6 +681,7 @@ function bindEvents() {
     }
     if (button.id === "reload-data") { window.location.reload(); return; }
     if (button.dataset.dialog) openDialog(button.dataset.dialog, !touchInteraction);
+    if (button.dataset.entryScore) void openEntryScoreDialog(button.dataset.entryScore, !touchInteraction);
     if (button.dataset.overview) {
       state.overview = button.dataset.overview;
       renderOverviewVisibility();

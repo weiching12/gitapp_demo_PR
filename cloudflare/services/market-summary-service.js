@@ -2,6 +2,7 @@ import { expandStock, shardOf, SHARD_COUNT, validSymbol } from "../../shared/mar
 import { getSnapshot, getStockInstitutionEstimate, getStockInstitutionSeries,
   getDominantInstitution, getInstitutionNet } from "../../shared/indicators.js";
 import { calculateMarketSentiment } from "../../shared/sentiment.js";
+import { entryScoreSummary, getEntryScore } from "../../shared/entry-score.js";
 import { getSectorDetail, getSectorOverview } from "../../shared/sectors.js";
 import { DomainError } from "../../shared/domain-error.js";
 
@@ -44,12 +45,13 @@ export class MarketSummaryService {
 
   async summary(date, settings) {
     const { manifest, asOf, dates, stocks } = await this.snapshots(date, settings);
-    const actions = this.actions ? await this.actions.window(dates.slice(-40)) : null;
+    const actions = this.actions ? await this.actions.window(dates.slice(-61)) : null;
     const data = stocks.map((stock) => ({
       symbol: stock.symbol, name: stock.name, sector: stock.sector, market: stock.market,
       assetType: stock.assetType, currency: stock.currency, listedOn: stock.listedOn,
       latest: stock.latest, signal: stock.signal, priceVolume: stock.priceVolume,
-      trend: stock.trend,
+      trend: stock.trend, entryScore: entryScoreSummary(getEntryScore(stock, dates, asOf,
+        { priceBasis: "unadjusted", corporateActions: actions })),
       dominantInstitution: getDominantInstitution(stock.latest?.institutions),
       money: { day: { total: getStockInstitutionEstimate(stock, "total", "day", dates) } },
     }));

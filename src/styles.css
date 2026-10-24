@@ -816,13 +816,33 @@ h1 {
   table-layout: fixed;
   border-collapse: collapse;
   width: 100%;
-  min-width: 1310px;
+  min-width: 1390px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .favorite-column { width: var(--table-favorite-width); }
 .stock-column { width: 15%; }
+.entry-column { width: 88px; }
+.entry-cell { text-align: right; }
+.entry-score-button { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 3px;
+  max-width: 100%; text-align: right; color: var(--ink); }
+.entry-score-button strong { font-size: 14px; white-space: nowrap; }
+.entry-score-button small { color: var(--muted); font-size: 11px; white-space: normal; line-height: 1.25; }
+.entry-score-button .entry-price-caution { color: #a16207; }
+[data-theme="dark"] .entry-score-button .entry-price-caution { color: #facc15; }
+.entry-score-button:hover strong, .entry-score-button:focus-visible strong { color: var(--accent); }
+.entry-summary { display: grid; gap: 7px; padding: 16px; border: 1px solid var(--border);
+  border-radius: 12px; background: var(--accent-soft); }
+.entry-summary > strong { font-size: 30px; font-variant-numeric: tabular-nums; }
+.entry-summary p { margin: 0; line-height: 1.5; }
+.entry-categories, .entry-evidence { margin-top: 22px; }
+.entry-categories h3, .entry-evidence h3 { margin: 14px 0 9px; font-size: 16px; }
+.entry-categories > div { margin: 12px 0; }
+.entry-categories > div > div { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.entry-categories progress { display: block; width: 100%; height: 8px; margin-top: 5px; accent-color: var(--accent); }
+.entry-evidence ul { margin: 0 0 14px; padding-left: 20px; line-height: 1.7; }
+.entry-evidence p { line-height: 1.6; }
 .price-column { width: 11%; }
 .price-volume-column { width: 155px; }
 .trend-column { width: 140px; }
@@ -839,7 +859,7 @@ h1 {
 .change-column { width: 9.5%; }
 .kd-column { width: 7.5%; }
 .signal-column { width: 25%; }
-.position-column { width: 10.5%; }
+.position-column { width: 8.5%; }
 .table-scroll thead {
   background: #fff;
 }
@@ -893,9 +913,9 @@ h1 {
 .table-scroll tbody td:last-child {
   padding-right: 20px;
 }
-.table-scroll tbody td:nth-child(3),
-.table-scroll tbody td:nth-child(5),
-.table-scroll tbody td:nth-child(9) {
+.table-scroll tbody td:nth-child(4),
+.table-scroll tbody td:nth-child(6),
+.table-scroll tbody td:nth-child(10) {
   letter-spacing: 0.2px;
 }
 .table-scroll tbody tr:hover {
@@ -2795,17 +2815,19 @@ dialog.institution-dialog {
     --table-favorite-width: 28px;
     --table-stock-width: clamp(52px, 16cqw, 72px);
     --table-price-width: clamp(90px, 28cqw, 110px);
-    --table-signal-width: 160px;
-    --table-insight-width: calc((100cqw - var(--table-favorite-width) - var(--table-stock-width) - var(--table-price-width)) / 2);
+    --table-entry-width: 78px;
+    --table-signal-width: 132px;
+    --table-insight-width: max(82px, calc((100cqw - var(--table-favorite-width) - var(--table-stock-width) - var(--table-entry-width) - var(--table-price-width)) / 2));
     --table-net-mobile-width: 120px;
     container-type: inline-size;
   }
   .table-scroll table {
     table-layout: fixed;
-    width: calc(100cqw + var(--table-net-mobile-width) + 72px + var(--table-signal-width) + 112px);
+    width: calc(var(--table-favorite-width) + var(--table-stock-width) + var(--table-entry-width) + var(--table-price-width) + 2 * var(--table-insight-width) + var(--table-net-mobile-width) + 72px + var(--table-signal-width) + 94px);
     min-width: 0;
   }
   .stock-column { width: var(--table-stock-width); }
+  .entry-column { width: var(--table-entry-width); }
   .price-column { width: var(--table-price-width); }
   .price-volume-column,
   .trend-column { width: var(--table-insight-width); }
@@ -2826,7 +2848,7 @@ dialog.institution-dialog {
   .kd-column { width: 72px; }
   .signal-column { width: var(--table-signal-width); }
   .table-scroll .signal-cell { min-width: 0; }
-  .position-column { width: 112px; }
+  .position-column { width: 94px; }
   .net-column,
   .net-heading-desktop,
   .net-cell-desktop { display: none; }

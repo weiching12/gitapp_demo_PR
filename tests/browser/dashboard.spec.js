@@ -52,6 +52,8 @@ test("today price and volume column remains readable on desktop and horizontally
       expect(priceVolumeBounds.badgeLeft >= priceVolumeBounds.cellLeft - 1 &&
         priceVolumeBounds.badgeRight <= priceVolumeBounds.cellRight + 1,
       `Price-volume badge should fit its ${width}px phone column: ${JSON.stringify(priceVolumeBounds)}`).toBe(true);
+      // The entry-score column now follows the stock name; narrower phones retain access by horizontal scroll.
+      await page.locator(".table-scroll thead th", { hasText: "趨勢判斷" }).scrollIntoViewIfNeeded();
       const trendEdge = await page.locator(".table-scroll thead th", { hasText: "趨勢判斷" }).evaluate((element) =>
         element.getBoundingClientRect().right);
       const viewportEdge = await page.locator(".table-scroll").evaluate((element) =>
@@ -312,11 +314,17 @@ test("mobile table keeps prices and daily changes visible with volume beneath ea
     const columns = await page.locator('.table-scroll').evaluate((table) => {
       const header = table.querySelector('.signal-heading').getBoundingClientRect();
       const cell = table.querySelector('.signal-cell').getBoundingClientRect();
-      return { headerWidth: header.width, cellWidth: cell.width, offset: header.left - cell.left };
+      const signalCell = table.querySelector('.signal-cell');
+      const positionCell = table.querySelector('#stock-rows tr td:nth-of-type(10)');
+      return { headerWidth: header.width, cellWidth: cell.width, offset: header.left - cell.left,
+        signalFits: signalCell.scrollWidth <= signalCell.clientWidth,
+        positionFits: positionCell.scrollWidth <= positionCell.clientWidth };
     });
-    expect(columns.headerWidth).toBeCloseTo(160, 0);
-    expect(columns.cellWidth).toBeCloseTo(160, 0);
+    expect(columns.headerWidth).toBeCloseTo(132, 0);
+    expect(columns.cellWidth).toBeCloseTo(132, 0);
     expect(columns.offset).toBeCloseTo(0, 0);
+    expect(columns.signalFits).toBe(true);
+    expect(columns.positionFits).toBe(true);
     await expect(page.locator('[data-sort-heading="close"]')).toContainText("收盤／漲跌");
     await expect(page.locator('#stock-rows tr').first().locator(".mobile-change")).toBeVisible();
     await expect(page.locator('#stock-rows tr').first().locator(".net-cell-mobile .institution-net")).toContainText("億");

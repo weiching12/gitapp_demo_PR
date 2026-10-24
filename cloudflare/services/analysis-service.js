@@ -1,10 +1,11 @@
 import { DEFAULT_SETTINGS, getSnapshot, getStockInstitutionEstimate } from "../../shared/indicators.js";
 import { DomainError } from "../../shared/domain-error.js";
+import { getEntryScore } from "../../shared/entry-score.js";
 
 export const RULES_VERSION = "technical-v1";
 
 export class AnalysisService {
-  constructor(marketService) { this.marketService = marketService; }
+  constructor(marketService, actions = null) { this.marketService = marketService; this.actions = actions; }
 
   async stock(symbol, options = {}) {
     const source = await this.marketService.stock(symbol);
@@ -14,10 +15,14 @@ export class AnalysisService {
     const settings = options.settings ?? DEFAULT_SETTINGS;
     const snapshot = getSnapshot(source.stock, asOf, settings);
     const dates = source.stock.tradingDates.filter((date) => date <= asOf);
+    const actions = this.actions ? await this.actions.window(dates.slice(-61)) : null;
+    const entryScore = getEntryScore(snapshot, dates, asOf,
+      { priceBasis: "unadjusted", corporateActions: actions });
     const money = Object.fromEntries(["day", "5", "20"].map((window) => [window,
       Object.fromEntries(["total", "外資", "投信", "自營商"].map((name) => [name,
         getStockInstitutionEstimate(snapshot, name, window, dates)]))]));
     return { data: { symbol, latest: snapshot.latest, signal: snapshot.signal, trend: snapshot.trend,
+      entryScore,
       institutionalSummary: snapshot.institutionalSummary, money },
     meta: { asOf, sourceAsOf: source.asOf, rulesVersion: RULES_VERSION,
       priceBasis: "unadjusted", settings } };

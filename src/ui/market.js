@@ -29,8 +29,10 @@ export function renderMarketView(context) {
     visibleStocks.sort((a, b) => {
       if (!a.latest) return b.latest ? 1 : 0;
       if (!b.latest) return -1;
-      const av = state.sort === "institutionalNet" ? stockMoney(a, "total", "day") : a.latest[state.sort];
-      const bv = state.sort === "institutionalNet" ? stockMoney(b, "total", "day") : b.latest[state.sort];
+      const av = state.sort === "entryScore" ? a.entryScore?.finalScore ?? null :
+        state.sort === "institutionalNet" ? stockMoney(a, "total", "day") : a.latest[state.sort];
+      const bv = state.sort === "entryScore" ? b.entryScore?.finalScore ?? null :
+        state.sort === "institutionalNet" ? stockMoney(b, "total", "day") : b.latest[state.sort];
       if (av === null) return bv === null ? 0 : 1;
       if (bv === null) return -1;
       return (av - bv) * state.sortDirection;
@@ -55,7 +57,7 @@ export function renderMarketView(context) {
       if (!cached || cached.stock !== stock || cached.favorite !== favorite || cached.loading !== loading) {
         row ??= document.createElement("tr");
         row.dataset.symbol = stock.symbol;
-        row.innerHTML = `<td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${stock.symbol}</strong><span>${esc(stock.name)}</span></div></th><td>${pendingField()}</td><td class="price-volume-cell">${pendingField()}</td><td class="trend-cell">${pendingField()}</td><td class="net-cell-mobile">${pendingField()}</td>${Array.from({ length: 4 }, () => `<td>${pendingField()}</td>`).join("")}<td class="net-cell-desktop">${pendingField()}</td>`;
+        row.innerHTML = `<td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${stock.symbol}</strong><span>${esc(stock.name)}</span></div></th><td class="entry-cell">${pendingField()}</td><td>${pendingField()}</td><td class="price-volume-cell">${pendingField()}</td><td class="trend-cell">${pendingField()}</td><td class="net-cell-mobile">${pendingField()}</td>${Array.from({ length: 4 }, () => `<td>${pendingField()}</td>`).join("")}<td class="net-cell-desktop">${pendingField()}</td>`;
         tableRowCache.set(row, { stock, favorite, loading });
       }
     } else if (!cached || cached.stock !== stock || cached.favorite !== favorite) {
@@ -72,7 +74,10 @@ export function renderMarketView(context) {
       const trend = stock.trend ?? { code: "insufficient", label: "資料不足", reason: "歷史行情不足" };
       const trendCell = `<span class="trend-label ${esc(trend.code)}">${esc(trend.label)}</span><small class="trend-reason">${esc(trend.reason)}</small>`;
       const mobileNetCell = `<span class="institution-net">${institutionalMoney(netAmount)}</span><small class="institution-volume-share" title="法人淨買賣超股數 ÷ 個股當日成交股數 × 100%">${volumeRatio === null ? "" : `占比 ${percent(volumeRatio)}`}</small><small class="institution-leader">${leaderLabel}</small>`;
-      const html = `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${stock.symbol}</strong><span>${esc(stock.name)}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="price-cell"><span class="stock-price-line"><span class="stock-close">${number(bar.close, 2)}</span><span class="mobile-change change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="price-volume-cell">${priceVolumeCell}</td><td class="trend-cell">${trendCell}</td><td class="net-cell-mobile ${direction(bar.institutionalNet)}">${mobileNetCell}</td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="net-cell-desktop ${direction(bar.institutionalNet)}">${netCell}</td></tr>`;
+      const entry = stock.entryScore;
+      const caution = entry?.priceCaution || entry?.conflictingEvidence?.some((item) => item.includes("未還原價格"));
+      const entryCell = `<button type="button" class="entry-score-button" data-entry-score="${stock.symbol}" aria-label="查看${esc(stock.name)}株研評分"><strong>${Number.isFinite(entry?.finalScore) ? `${entry.displayScore} / 100` : "—"}</strong><small>${esc(Number.isFinite(entry?.finalScore) ? entry.coreConditionsPassed ? "核心條件已通過" : "核心條件未完整" : entry?.missingData?.[0] ?? "資料不足")}</small>${caution ? '<small class="entry-price-caution">價格待核對</small>' : ""}</button>`;
+      const html = `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${stock.symbol}</strong><span>${esc(stock.name)}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="entry-cell">${entryCell}</td><td class="price-cell"><span class="stock-price-line"><span class="stock-close">${number(bar.close, 2)}</span><span class="mobile-change change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="price-volume-cell">${priceVolumeCell}</td><td class="trend-cell">${trendCell}</td><td class="net-cell-mobile ${direction(bar.institutionalNet)}">${mobileNetCell}</td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="net-cell-desktop ${direction(bar.institutionalNet)}">${netCell}</td></tr>`;
       const holder = document.createElement("tbody");
       holder.innerHTML = html;
       if (row) row.replaceChildren(...holder.firstElementChild.childNodes);
@@ -83,7 +88,7 @@ export function renderMarketView(context) {
     if (row === cursor) cursor = cursor.nextElementSibling;
     else body.insertBefore(row, cursor);
   });
-  if (loading && !dataset.stocks.length) body.innerHTML = `<tr class="initial-field-row" aria-busy="true"><td></td><th scope="row">股票資料</th>${Array.from({ length: 9 }, () => `<td>${loadingIcon()}</td>`).join("")}</tr>`;
+  if (loading && !dataset.stocks.length) body.innerHTML = `<tr class="initial-field-row" aria-busy="true"><td></td><th scope="row">股票資料</th>${Array.from({ length: 10 }, () => `<td>${loadingIcon()}</td>`).join("")}</tr>`;
   document.querySelector("#table-empty").hidden = visibleStocks.length !== 0 || loading || loadFailed;
   document.querySelector("#favorite-count").textContent =
     state.favorites.length;
