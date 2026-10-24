@@ -687,8 +687,8 @@ function bindEvents() {
   };
   document.addEventListener("pointerdown", (event) => {
     const plot = event.target.closest(".entry-chart-plot");
-    if (!plot) return;
-    plot.focus({ preventScroll: true });
+    if (!plot || !event.isPrimary || event.button !== 0) return;
+    if (event.pointerType === "mouse") plot.focus({ preventScroll: true });
     plot.setPointerCapture(event.pointerId);
     selectEntryChartPoint(plot, chartIndexAt(plot, event.clientX), number);
   });
@@ -696,6 +696,19 @@ function bindEvents() {
     const plot = event.target.closest(".entry-chart-plot");
     if (plot?.hasPointerCapture(event.pointerId))
       selectEntryChartPoint(plot, chartIndexAt(plot, event.clientX), number);
+  });
+  document.addEventListener("input", (event) => {
+    if (!event.target.matches(".entry-chart-range")) return;
+    const plot = event.target.closest(".entry-price-chart").querySelector(".entry-chart-plot");
+    selectEntryChartPoint(plot, Number(event.target.value), number);
+  });
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-chart-step], [data-chart-latest]");
+    if (!button) return;
+    const plot = button.closest(".entry-price-chart").querySelector(".entry-chart-plot");
+    const index = button.hasAttribute("data-chart-latest") ? Number(plot.getAttribute("aria-valuemax")) - 1
+      : Number(plot.dataset.index) + Number(button.dataset.chartStep);
+    selectEntryChartPoint(plot, index, number);
   });
   document.addEventListener("keydown", (event) => {
     const plot = event.target.closest(".entry-chart-plot");

@@ -35,10 +35,18 @@ function priceChartMarkup(stock, asOf, esc, number) {
   const readout = `${last.date} · ${Number.isFinite(last.close) ? `收盤 ${number(last.close, 2)}` : "無收盤價"}`;
   return `<section class="entry-price-chart" data-trend="${trend}">${heading}<p class="entry-chart-note">${esc(readout)} · 未還原價格</p>
     <div class="entry-chart-scale"><span>高 ${number(high, 2)}</span><span>低 ${number(low, 2)}</span></div>
-    <div class="entry-chart-plot" role="slider" tabindex="0" aria-label="${esc(stock.symbol)}近 ${series.length} 個交易日收盤價；點選圖表或使用左右方向鍵查看" aria-orientation="horizontal" aria-valuemin="1" aria-valuemax="${series.length}" aria-valuenow="${series.length}" aria-valuetext="${esc(readout)}" data-index="${series.length - 1}" data-points="${esc(JSON.stringify(series))}"><svg viewBox="0 0 600 150" aria-hidden="true">
+    <div class="entry-chart-plot" role="slider" tabindex="0" aria-label="${esc(stock.symbol)}近 ${series.length} 個交易日收盤價；點選圖表或使用左右方向鍵查看" aria-orientation="horizontal" aria-valuemin="1" aria-valuemax="${series.length}" aria-valuenow="${series.length}" aria-valuetext="${esc(readout)}" data-index="${series.length - 1}" data-points="${esc(JSON.stringify(series))}"><svg viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true">
       <line x1="8" y1="16" x2="592" y2="16"/><line x1="8" y1="74" x2="592" y2="74"/><line x1="8" y1="132" x2="592" y2="132"/>
       <path d="${path.trim()}"/><g class="entry-chart-points">${dots}</g><line class="entry-chart-cursor" x1="${x(series.length - 1).toFixed(1)}" x2="${x(series.length - 1).toFixed(1)}" y1="16" y2="132"/></svg></div>
-    <div class="entry-chart-dates"><span>${esc(series[0].date)}</span><span>${esc(last.date)}</span></div></section>`;
+    <div class="entry-chart-dates"><span>${esc(series[0].date)}</span><span>${esc(last.date)}</span></div>
+    <div class="entry-chart-controls" role="group" aria-label="走勢日期選擇">
+      <button type="button" data-chart-step="-1"${series.length === 1 ? " disabled" : ""}>前一日</button>
+      <span class="entry-chart-position">${series.length} / ${series.length}</span>
+      <button type="button" data-chart-step="1" disabled>後一日</button>
+      <button type="button" data-chart-latest disabled>最新</button>
+    </div>
+    <input class="entry-chart-range" type="range" min="0" max="${series.length - 1}" value="${series.length - 1}" step="1" aria-label="選擇交易日期" aria-valuetext="${esc(readout)}"${series.length === 1 ? " disabled" : ""}>
+    <p class="entry-chart-help">點選或左右拖曳圖表查看；也可用日期滑桿與按鈕逐日切換。</p></section>`;
 }
 
 export function selectEntryChartPoint(plot, index, number) {
@@ -49,7 +57,15 @@ export function selectEntryChartPoint(plot, index, number) {
   plot.dataset.index = String(selected);
   plot.setAttribute("aria-valuenow", String(selected + 1));
   plot.setAttribute("aria-valuetext", readout);
-  plot.closest(".entry-price-chart").querySelector(".entry-chart-note").textContent = `${readout} · 未還原價格`;
+  const chart = plot.closest(".entry-price-chart");
+  chart.querySelector(".entry-chart-note").textContent = `${readout} · 未還原價格`;
+  const range = chart.querySelector(".entry-chart-range");
+  range.value = String(selected);
+  range.setAttribute("aria-valuetext", readout);
+  chart.querySelector(".entry-chart-position").textContent = `${selected + 1} / ${points.length}`;
+  chart.querySelector('[data-chart-step="-1"]').disabled = selected === 0;
+  chart.querySelector('[data-chart-step="1"]').disabled = selected === points.length - 1;
+  chart.querySelector("[data-chart-latest]").disabled = selected === points.length - 1;
   const x = 8 + selected * 584 / Math.max(1, points.length - 1);
   const cursor = plot.querySelector(".entry-chart-cursor");
   cursor.setAttribute("x1", x.toFixed(1));
