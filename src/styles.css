@@ -824,11 +824,16 @@ h1 {
 .entry-score-button { display: inline-flex; align-items: center; justify-content: flex-end;
   max-width: 100%; text-align: right; color: var(--ink); }
 .entry-score-button strong { font-size: 14px; white-space: nowrap; }
-.entry-score-button:hover strong, .entry-score-button:focus-visible strong { color: var(--accent); }
 .entry-dialog { color: var(--ink); overflow-wrap: anywhere; }
+#info-dialog:has(.entry-dialog) { position: relative; padding-top: 18px; }
+#info-dialog:has(.entry-dialog) .dialog-top { height: 0; margin: 0; }
+#info-dialog:has(.entry-dialog) .dialog-top .eyebrow { display: none; }
+#info-dialog:has(.entry-dialog) #close-dialog { position: absolute; top: 11px; right: 13px; z-index: 1; }
 .entry-dialog-sector { margin: 0 0 4px; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; }
-.entry-dialog h2 { margin: 6px 0 4px; font-size: 20px; line-height: 1.4; }
-.entry-dialog-meta { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.entry-dialog-title { display: flex; align-items: center; gap: 8px; }
+.entry-dialog h2 { flex: 1; min-width: 0; margin: 6px 0 4px; font-size: 20px; line-height: 1.4; }
+.entry-dialog-title .favorite-button { flex: none; }
+.entry-dialog-meta { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .entry-summary { padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--accent-soft); }
 .entry-summary-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; }
 .entry-summary-head strong { font-size: 30px; font-variant-numeric: tabular-nums; line-height: 1.2; }
@@ -837,18 +842,37 @@ h1 {
 .entry-summary-facts div, .entry-condition-data span { min-width: 0; }
 .entry-summary-facts dt, .entry-condition-data dt { color: var(--muted); font-size: 12px; }
 .entry-summary-facts dd, .entry-condition-data dd { margin: 3px 0 0; font-variant-numeric: tabular-nums; }
-.entry-price-chart { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.entry-price-chart { --ma20-tone: #b47b20; margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+[data-theme="dark"] .entry-price-chart { --ma20-tone: #f3bc66; }
 .entry-price-chart[data-trend="up"] { --chart-tone: var(--up); }
 .entry-price-chart[data-trend="down"] { --chart-tone: var(--down); }
 .entry-price-chart[data-trend="flat"] { --chart-tone: var(--accent); }
-.entry-price-chart h3 { margin: 0; font-size: 16px; }
-.entry-chart-note { margin: 4px 0 12px; color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+.entry-chart-header { position: relative; height: 44px; }
+.entry-price-chart h3 { position: absolute; inset: 0; margin: 0; font-size: 16px; line-height: 1.5; }
+.entry-price-chart h3[hidden], .entry-chart-readout[hidden] { display: none; }
+.entry-chart-readout { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font-variant-numeric: tabular-nums; }
+.entry-chart-readout > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; min-width: 0; }
+.entry-chart-selected-date, .entry-chart-selected-close { color: var(--ink); font-size: 16px; font-weight: 600; }
+.entry-chart-selected-volume { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.entry-chart-selected-change { flex: none; color: var(--muted); font-size: 14px; }
+.entry-chart-selected-change.up { color: var(--up); }
+.entry-chart-selected-change.down { color: var(--down); }
+.entry-chart-legend { display: flex; flex-wrap: wrap; gap: 4px 11px; margin: 0 0 7px; color: var(--muted); font-size: 11px; }
+.entry-chart-legend span::before { display: inline-block; width: 11px; height: 2px; margin: 0 4px 3px 0; background: var(--chart-tone); content: ""; }
+.entry-chart-legend span:nth-child(2)::before { background: var(--ma20-tone); }
+.entry-chart-legend span:nth-child(3)::before { background: var(--accent); }
+.entry-chart-legend span:nth-child(4)::before { background: var(--muted); }
 .entry-chart-scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.entry-chart-plot { cursor: crosshair; touch-action: pan-y; border-radius: 5px; }
+.entry-chart-plot { cursor: crosshair; touch-action: pan-y; border-radius: 5px; user-select: none; }
 .entry-chart-plot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.entry-price-chart svg { display: block; width: 100%; height: auto; min-height: 145px; }
+.entry-price-chart svg { display: block; width: 100%; height: 180px; }
 .entry-price-chart svg line { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .entry-price-chart svg path { fill: none; stroke: var(--chart-tone); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.entry-price-chart svg .entry-chart-ma20 { stroke: var(--ma20-tone); stroke-width: 2; }
+.entry-price-chart svg .entry-chart-ma { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 4; opacity: .85; }
+.entry-price-chart svg .entry-chart-volume { fill: var(--muted); opacity: .45; }
+.entry-price-chart svg .entry-chart-volume.up { fill: var(--up); opacity: .7; }
+.entry-price-chart svg .entry-chart-volume.down { fill: var(--down); opacity: .7; }
 .entry-price-chart svg circle { fill: var(--chart-tone); }
 .entry-price-chart svg circle.selected { r: 5; stroke: var(--surface); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .entry-price-chart svg .entry-chart-cursor { stroke: var(--chart-tone); stroke-dasharray: 3 4; opacity: .55; }
@@ -972,6 +996,8 @@ h1 {
 .table-scroll tbody tr:hover {
   background: #f6f8fa;
 }
+.table-scroll tbody tr[data-symbol] { cursor: pointer; }
+.table-scroll tbody tr[data-symbol]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .table-scroll tbody th {
   text-align: left;
   padding-left: 0;
@@ -3786,3 +3812,4 @@ dialog.sector-dialog {
 [data-theme="dark"] .watch-streak { background: #26364d; color: var(--muted); }
 [data-theme="dark"] .watch-streak.buy { background: #3b2528; color: var(--up); }
 [data-theme="dark"] .watch-streak.sell { background: #16352e; color: var(--down); }
+.table-scroll thead th[data-sort-heading="entryScore"][aria-sort] button { color: inherit; }

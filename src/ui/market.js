@@ -84,6 +84,8 @@ export function renderMarketView(context) {
       tableRowCache.set(row, { stock, favorite });
     }
     row.setAttribute("aria-busy", String(!stock.latest && loading));
+    row.tabIndex = 0;
+    row.setAttribute("aria-label", `查看${stock.name}株研評分`);
     if (row === cursor) cursor = cursor.nextElementSibling;
     else body.insertBefore(row, cursor);
   });

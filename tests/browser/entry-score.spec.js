@@ -4,8 +4,20 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await page.goto("/");
   await expect(page.locator('[data-sort-heading="entryScore"]')).toContainText("株研評分");
   await expect(page.locator('[data-sort-heading="entryScore"]')).toHaveAttribute("aria-sort", "descending");
+  const headingColors = await page.locator('[data-sort-heading="entryScore"]').evaluate((heading) =>
+    ({ heading: getComputedStyle(heading).color, button: getComputedStyle(heading.querySelector("button")).color }));
+  expect(headingColors.button).toBe(headingColors.heading);
+  await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+  const darkHeadingColors = await page.locator('[data-sort-heading="entryScore"]').evaluate((heading) =>
+    ({ heading: getComputedStyle(heading).color, button: getComputedStyle(heading.querySelector("button")).color }));
+  expect(darkHeadingColors.button).toBe(darkHeadingColors.heading);
+  await page.evaluate(() => { document.documentElement.dataset.theme = "light"; });
   const rows = page.locator("#stock-rows tr");
   await expect(rows.first().locator(".entry-score-button")).toBeVisible();
+  const scoreColor = await rows.first().locator(".entry-score-button strong").evaluate((element) => getComputedStyle(element).color);
+  await rows.first().locator(".entry-score-button").hover();
+  expect(await rows.first().locator(".entry-score-button strong").evaluate((element) => getComputedStyle(element).color))
+    .toBe(scoreColor);
   const initialScores = await rows.locator(".entry-score-button strong").allTextContents();
   const initialNumeric = initialScores.map((value) => Number(value)).filter(Number.isFinite);
   expect(initialNumeric).toEqual([...initialNumeric].sort((a, b) => b - a));
@@ -23,10 +35,22 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(page.locator(".entry-summary-head strong")).toHaveAttribute("data-score-target", String(Number(firstListScore)));
   await expect(page.locator(".entry-summary-facts dd").last()).toContainText(firstListScore);
   const chart = page.locator(".entry-price-chart");
-  await expect(chart).toContainText("近 30 個交易日收盤價走勢");
-  await expect(chart.locator(".entry-chart-points circle")).toHaveCount(30);
-  await expect(chart.locator(".entry-chart-range")).toHaveCount(0);
   const plot = chart.locator(".entry-chart-plot");
+  await expect(chart.locator("h3")).toBeVisible();
+  await expect(chart.locator(".entry-chart-readout")).toBeHidden();
+  await expect(chart.locator(".entry-chart-points circle")).toHaveCount(30);
+  await expect(chart.locator(".entry-chart-bars rect")).toHaveCount(30);
+  const chartPoints = JSON.parse(await plot.getAttribute("data-points"));
+  const barClasses = await chart.locator(".entry-chart-bars rect").evaluateAll((bars) =>
+    bars.map((bar) => bar.getAttribute("class")));
+  chartPoints.forEach((point, index) => {
+    const tone = point.changePercent > 0 ? "up" : point.changePercent < 0 ? "down" : "flat";
+    expect(barClasses[index]).toContain(tone);
+  });
+  await expect(chart.locator(".entry-chart-ma")).toHaveAttribute("d", /[ML]/);
+  await expect(chart.locator(".entry-chart-ma20")).toHaveAttribute("d", /[ML]/);
+  await expect(chart.locator(".entry-chart-legend")).toContainText("月線 MA20");
+  await expect(chart.locator(".entry-chart-range")).toHaveCount(0);
   const closes = JSON.parse(await plot.getAttribute("data-points")).map((point) => point.close)
     .filter((close) => Number.isFinite(close) && close > 0);
   const trend = closes.at(-1) > closes[0] ? "up" : closes.at(-1) < closes[0] ? "down" : "flat";
@@ -45,11 +69,20 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   expect(stroke).toBe(tone);
   const box = await plot.boundingBox();
   await page.mouse.click(box.x + 10, box.y + box.height / 2);
-  await expect(chart.locator(".entry-chart-note")).toContainText("收盤");
+  await expect(chart.locator("h3")).toBeVisible();
   await expect(plot).toHaveAttribute("aria-valuenow", "1");
   await page.keyboard.press("ArrowRight");
   await expect(plot).toHaveAttribute("aria-valuenow", "2");
+  await expect(chart.locator(".entry-chart-readout")).toBeVisible();
   await expect(page.locator(".entry-core-panel .entry-condition")).toHaveCount(5);
+  await expect(page.locator(".entry-dialog-title [data-favorite]")).toHaveCount(1);
+  await expect(page.locator("#info-dialog .dialog-top .eyebrow")).toBeHidden();
+  const dialogFavorite = page.locator(".entry-dialog-title [data-favorite]");
+  const wasFavorite = await dialogFavorite.getAttribute("aria-pressed");
+  await dialogFavorite.click();
+  await expect(dialogFavorite).toHaveAttribute("aria-pressed", wasFavorite === "true" ? "false" : "true");
+  await expect(page.locator(`#stock-rows [data-favorite="${firstSymbol}"]`))
+    .toHaveAttribute("aria-pressed", wasFavorite === "true" ? "false" : "true");
   await expect(page.locator(".entry-condition-icon svg")).toHaveCount(5);
   await expect(page.locator(".entry-condition-data").first()).toBeHidden();
   await page.locator(".entry-condition summary").first().click();
@@ -68,6 +101,15 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await page.locator(".entry-metrics summary").click();
   await expect(page.locator(".entry-metrics .entry-guide-item")).toHaveCount(4);
   await page.locator("#close-dialog").click();
+  await rows.first().locator(".price-cell").click();
+  await expect(page.locator("#info-dialog")).toBeVisible();
+  await page.locator("#close-dialog").click();
+  await rows.first().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#info-dialog")).toBeVisible();
+  await page.locator("#close-dialog").click();
+  await rows.first().locator("[data-favorite]").click();
+  await expect(page.locator("#info-dialog")).toBeHidden();
   await page.locator('[data-sort="entryScore"]').click();
   const scores = await rows.locator(".entry-score-button strong").allTextContents();
   const numeric = scores.map((value) => Number(value)).filter(Number.isFinite);

@@ -24,7 +24,8 @@ import { bindKeyboardNavigation } from "./ui/keyboard.js";
 import { createTableBatchController } from "./ui/table-batches.js";
 import { calculateMarketSentiment } from "../shared/sentiment.js";
 import { getEntryScore } from "../shared/entry-score.js";
-import { entryScoreDialogMarkup, selectEntryChartPoint } from "./ui/entry-score.js";
+import { dailyCloseSeries } from "../shared/price-history.js";
+import { entryScoreDialogMarkup, selectEntryChartPoint, restoreEntryChartTitle } from "./ui/entry-score.js";
 import { renderSentiment, sentimentDialogMarkup } from "./ui/sentiment.js";
 import {
   DEFAULT_SETTINGS,
@@ -186,6 +187,7 @@ function refreshData() {
   const forDisplay = (stock, date) => {
     const snapshot = getSnapshot({ ...stock, tradingDates: dataset.dates }, date, state.settings);
     snapshot.entryScore = getEntryScore(snapshot, dataset.dates, date);
+    snapshot.priceHistory = dailyCloseSeries(snapshot.history, dataset.dates, date);
     // The sentiment series needs 60 closes at its oldest point.
     snapshot.history = snapshot.history.slice(-80);
     return snapshot;
@@ -573,7 +575,8 @@ function openDialog(type, focusClose = true) {
     const symbol = type.slice(6);
     const stock = snapshots.find((item) => item.symbol === symbol);
     const detail = stockDetailCache.get(`${summaryKey(state.date)}:${symbol}`);
-    content.innerHTML = stock ? entryScoreDialogMarkup(detail ? { ...stock, ...detail } : stock, esc, number, percent) :
+    content.innerHTML = stock ? entryScoreDialogMarkup(detail ? { ...stock, ...detail } : stock, esc, number, percent,
+      state.favorites.includes(symbol), icon) :
       `<h2 id="dialog-heading">個股進場評估</h2><p>找不到這檔股票。</p>`;
   } else if (type === "sentiment") {
     content.innerHTML = sentimentDialogMarkup(currentSentiment);
@@ -616,7 +619,8 @@ async function openEntryScoreDialog(symbol, focusClose = true) {
     stockDetailCache.set(key, entryDetail);
     if (isCurrent()) {
       document.querySelector("#dialog-content").innerHTML = entryScoreDialogMarkup(
-        { ...snapshots.find((stock) => stock.symbol === symbol), ...entryDetail }, esc, number, percent);
+        { ...snapshots.find((stock) => stock.symbol === symbol), ...entryDetail }, esc, number, percent,
+        state.favorites.includes(symbol), icon);
       animateEntryScore(dialog);
     }
   } catch (error) {
@@ -697,6 +701,15 @@ function bindEvents() {
     if (plot?.hasPointerCapture(event.pointerId))
       selectEntryChartPoint(plot, chartIndexAt(plot, event.clientX), number);
   });
+  for (const eventName of ["pointerup", "pointercancel"])
+    document.addEventListener(eventName, (event) => {
+      const plot = event.target.closest(".entry-chart-plot");
+      if (plot) restoreEntryChartTitle(plot);
+    });
+  document.addEventListener("focusout", (event) => {
+    const plot = event.target.closest(".entry-chart-plot");
+    if (plot) restoreEntryChartTitle(plot);
+  });
   document.addEventListener("keydown", (event) => {
     const plot = event.target.closest(".entry-chart-plot");
     if (!plot || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -704,6 +717,12 @@ function bindEvents() {
     const index = Number(plot.dataset.index), last = Number(plot.getAttribute("aria-valuemax")) - 1;
     selectEntryChartPoint(plot, event.key === "Home" ? 0 : event.key === "End" ? last :
       index + (event.key === "ArrowRight" ? 1 : -1), number);
+  });
+  document.addEventListener("keydown", (event) => {
+    const row = event.target.closest("#stock-rows tr[data-symbol]");
+    if (event.target !== row || !["Enter", " "].includes(event.key)) return;
+    event.preventDefault();
+    void openEntryScoreDialog(row.dataset.symbol, true);
   });
   tableBatches.observe();
   controls.bind();
@@ -726,6 +745,11 @@ function bindEvents() {
     const sectorCard = event.target.closest("#sector-grid [data-sector-details]");
     if (sectorCard) {
       openSectorDialog(sectorCard.dataset.sectorDetails, !touchInteraction);
+      return;
+    }
+    const stockRow = event.target.closest("#stock-rows tr[data-symbol]");
+    if (stockRow && !event.target.closest("button, a, input, select, textarea")) {
+      void openEntryScoreDialog(stockRow.dataset.symbol, !touchInteraction);
       return;
     }
     const button = event.target.closest("button");
@@ -795,6 +819,12 @@ function bindEvents() {
       if (state.page === "favorites" && !wasFavorite) void ensureFavoriteSummaries();
       if (state.view === "favorites") renderTable();
       else syncTableFavorite(symbol);
+      const dialogFavorite = document.querySelector(`#info-dialog [data-favorite="${symbol}"]`);
+      if (dialogFavorite) {
+        dialogFavorite.classList.toggle("is-favorite", !wasFavorite);
+        dialogFavorite.setAttribute("aria-pressed", String(!wasFavorite));
+        dialogFavorite.setAttribute("aria-label", `${wasFavorite ? "加入" : "移除"}${snapshots.find((stock) => stock.symbol === symbol)?.name ?? symbol}自選`);
+      }
       if (position) restoreMarketPosition(position, !touchInteraction);
       else {
         const scope = wasInOverview ? "#watchlist" : "#stock-rows";

@@ -23,7 +23,7 @@ export class AnalysisService {
       Object.fromEntries(["total", "外資", "投信", "自營商"].map((name) => [name,
         getStockInstitutionEstimate(snapshot, name, window, dates)]))]));
     return { data: { symbol, latest: snapshot.latest, signal: snapshot.signal, trend: snapshot.trend,
-      priceHistory: dailyCloseSeries(source.stock.history, source.stock.tradingDates, asOf),
+      priceHistory: dailyCloseSeries(snapshot.history, source.stock.tradingDates, asOf),
       entryScore,
       institutionalSummary: snapshot.institutionalSummary, money },
     meta: { asOf, sourceAsOf: source.asOf, rulesVersion: RULES_VERSION,

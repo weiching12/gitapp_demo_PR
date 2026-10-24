@@ -10,6 +10,11 @@ export function priceTrend(series) {
   return valid.at(-1).close > valid[0].close ? "up" : valid.at(-1).close < valid[0].close ? "down" : "flat";
 }
 
+const chartChange = (value) => Number.isFinite(value)
+  ? `${value > 0 ? "+" : ""}${value.toFixed(2)}%` : "—";
+const chartReadout = (point, number) =>
+  `${point.date} · ${Number.isFinite(point.close) ? `收盤 ${number(point.close, 2)}` : "無收盤價"}`;
+
 function priceChartMarkup(stock, asOf, esc, number) {
   const series = stock.priceHistory ?? dailyCloseSeries(stock.history,
     stock.tradingDates ?? stock.history?.map((bar) => bar.date), asOf);
@@ -17,27 +22,41 @@ function priceChartMarkup(stock, asOf, esc, number) {
   if (!series.length) return `<section class="entry-price-chart">${heading}<p>走勢資料載入中…</p></section>`;
   const valid = series.filter(({ close }) => Number.isFinite(close) && close > 0);
   if (!valid.length) return `<section class="entry-price-chart">${heading}<p>近 30 個交易日沒有可用的收盤價。</p></section>`;
-  const values = valid.map(({ close }) => close);
+  const values = series.flatMap(({ close, ma20, ma60 }) => [close, ma20, ma60]
+    .filter((value) => Number.isFinite(value) && value > 0));
   const low = Math.min(...values), high = Math.max(...values);
   const trend = priceTrend(series);
   const padding = Math.max((high - low) * 0.12, high * 0.01);
   const floor = low - padding, ceiling = high + padding;
   const x = (index) => 8 + index * 584 / Math.max(1, series.length - 1);
-  const y = (close) => 132 - (close - floor) / (ceiling - floor) * 116;
-  let path = "", continuous = false;
+  const y = (close) => 140 - (close - floor) / (ceiling - floor) * 124;
+  let path = "", ma20Path = "", ma60Path = "", continuous = false, ma20Continuous = false, ma60Continuous = false;
+  const maxVolume = Math.max(0, ...series.map(({ volume }) => Number.isFinite(volume) ? volume : 0));
+  const bars = series.map(({ volume, changePercent }, index) => Number.isFinite(volume) && maxVolume > 0
+    ? `<rect class="entry-chart-volume ${Number.isFinite(changePercent) ? changePercent > 0 ? "up" : changePercent < 0 ? "down" : "flat" : "flat"}" x="${(x(index) - 5).toFixed(1)}" y="${(197 - volume / maxVolume * 30).toFixed(1)}" width="10" height="${(volume / maxVolume * 30).toFixed(1)}"/>` : "").join("");
   const dots = series.map(({ date, close }, index) => {
+    const { ma20, ma60 } = series[index];
+    if (Number.isFinite(ma20) && ma20 > 0) {
+      ma20Path += `${ma20Continuous ? " L" : " M"}${x(index).toFixed(1)} ${y(ma20).toFixed(1)}`;
+      ma20Continuous = true;
+    } else ma20Continuous = false;
+    if (Number.isFinite(ma60) && ma60 > 0) {
+      ma60Path += `${ma60Continuous ? " L" : " M"}${x(index).toFixed(1)} ${y(ma60).toFixed(1)}`;
+      ma60Continuous = true;
+    } else ma60Continuous = false;
     if (!Number.isFinite(close) || close <= 0) { continuous = false; return ""; }
     path += `${continuous ? " L" : " M"}${x(index).toFixed(1)} ${y(close).toFixed(1)}`;
     continuous = true;
     return `<circle data-index="${index}" cx="${x(index).toFixed(1)}" cy="${y(close).toFixed(1)}" r="3"${index === series.length - 1 ? ' class="selected"' : ""}><title>${esc(date)} 收盤 ${number(close, 2)}</title></circle>`;
   }).join("");
   const last = series.at(-1);
-  const readout = `${last.date} · ${Number.isFinite(last.close) ? `收盤 ${number(last.close, 2)}` : "無收盤價"}`;
-  return `<section class="entry-price-chart" data-trend="${trend}">${heading}<p class="entry-chart-note">${esc(readout)} · 未還原價格</p>
+  const readout = chartReadout(last, number);
+  return `<section class="entry-price-chart" data-trend="${trend}"><div class="entry-chart-header">${heading}<div class="entry-chart-readout" aria-label="選定交易日資訊" hidden><div><strong class="entry-chart-selected-date">${esc(last.date.slice(5).replace("-", "/"))}</strong><span class="entry-chart-selected-close">${esc(Number.isFinite(last.close) ? `收盤 ${number(last.close, 2)}` : "無收盤價")}</span><small class="entry-chart-selected-volume">${esc(Number.isFinite(last.volume) ? `量 ${number(last.volume / 1000)} 張` : "成交量不足")}</small></div><strong class="entry-chart-selected-change ${Number.isFinite(last.changePercent) ? last.changePercent > 0 ? "up" : last.changePercent < 0 ? "down" : "" : ""}">${chartChange(last.changePercent)}</strong></div></div>
+    <div class="entry-chart-legend"><span>收盤價</span><span>月線 MA20</span><span>季線 MA60</span><span>成交量</span></div>
     <div class="entry-chart-scale"><span>高 ${number(high, 2)}</span><span>低 ${number(low, 2)}</span></div>
-    <div class="entry-chart-plot" role="slider" tabindex="0" aria-label="${esc(stock.symbol)}近 ${series.length} 個交易日收盤價；點選圖表或使用左右方向鍵查看" aria-orientation="horizontal" aria-valuemin="1" aria-valuemax="${series.length}" aria-valuenow="${series.length}" aria-valuetext="${esc(readout)}" data-index="${series.length - 1}" data-points="${esc(JSON.stringify(series))}"><svg viewBox="0 0 600 150" aria-hidden="true">
-      <line x1="8" y1="16" x2="592" y2="16"/><line x1="8" y1="74" x2="592" y2="74"/><line x1="8" y1="132" x2="592" y2="132"/>
-      <path d="${path.trim()}"/><g class="entry-chart-points">${dots}</g><line class="entry-chart-cursor" x1="${x(series.length - 1).toFixed(1)}" x2="${x(series.length - 1).toFixed(1)}" y1="16" y2="132"/></svg></div>
+    <div class="entry-chart-plot" role="slider" tabindex="0" aria-label="${esc(stock.symbol)}近 ${series.length} 個交易日收盤價；點選或左右滑動圖表查看，鍵盤可用方向鍵" aria-orientation="horizontal" aria-valuemin="1" aria-valuemax="${series.length}" aria-valuenow="${series.length}" aria-valuetext="${esc(readout)}" data-index="${series.length - 1}" data-points="${esc(JSON.stringify(series))}"><svg viewBox="0 0 600 210" preserveAspectRatio="none" aria-hidden="true">
+      <line x1="8" y1="16" x2="592" y2="16"/><line x1="8" y1="78" x2="592" y2="78"/><line x1="8" y1="140" x2="592" y2="140"/><line x1="8" y1="197" x2="592" y2="197"/>
+      <path class="entry-chart-close" d="${path.trim()}"/><path class="entry-chart-ma20" d="${ma20Path.trim()}"/><path class="entry-chart-ma" d="${ma60Path.trim()}"/><g class="entry-chart-bars">${bars}</g><g class="entry-chart-points">${dots}</g><line class="entry-chart-cursor" x1="${x(series.length - 1).toFixed(1)}" x2="${x(series.length - 1).toFixed(1)}" y1="16" y2="197"/></svg></div>
     <div class="entry-chart-dates"><span>${esc(series[0].date)}</span><span>${esc(last.date)}</span></div></section>`;
 }
 
@@ -45,11 +64,19 @@ export function selectEntryChartPoint(plot, index, number) {
   const points = JSON.parse(plot.dataset.points);
   const selected = Math.max(0, Math.min(points.length - 1, index));
   const point = points[selected];
-  const readout = `${point.date} · ${Number.isFinite(point.close) ? `收盤 ${number(point.close, 2)}` : "無收盤價"}`;
+  const readout = chartReadout(point, number);
   plot.dataset.index = String(selected);
   plot.setAttribute("aria-valuenow", String(selected + 1));
   plot.setAttribute("aria-valuetext", readout);
-  plot.closest(".entry-price-chart").querySelector(".entry-chart-note").textContent = `${readout} · 未還原價格`;
+  const chart = plot.closest(".entry-price-chart");
+  chart.querySelector("h3").hidden = true;
+  chart.querySelector(".entry-chart-readout").hidden = false;
+  chart.querySelector(".entry-chart-selected-date").textContent = point.date.slice(5).replace("-", "/");
+  chart.querySelector(".entry-chart-selected-close").textContent = Number.isFinite(point.close) ? `收盤 ${number(point.close, 2)}` : "無收盤價";
+  chart.querySelector(".entry-chart-selected-volume").textContent = Number.isFinite(point.volume) ? `量 ${number(point.volume / 1000)} 張` : "成交量不足";
+  const change = chart.querySelector(".entry-chart-selected-change");
+  change.textContent = chartChange(point.changePercent);
+  change.className = `entry-chart-selected-change ${Number.isFinite(point.changePercent) ? point.changePercent > 0 ? "up" : point.changePercent < 0 ? "down" : "" : ""}`;
   const x = 8 + selected * 584 / Math.max(1, points.length - 1);
   const cursor = plot.querySelector(".entry-chart-cursor");
   cursor.setAttribute("x1", x.toFixed(1));
@@ -57,15 +84,21 @@ export function selectEntryChartPoint(plot, index, number) {
   plot.querySelector(".entry-chart-points .selected")?.classList.remove("selected");
   plot.querySelector(`.entry-chart-points [data-index="${selected}"]`)?.classList.add("selected");
 }
+
+export function restoreEntryChartTitle(plot) {
+  const chart = plot.closest(".entry-price-chart");
+  chart.querySelector("h3").hidden = false;
+  chart.querySelector(".entry-chart-readout").hidden = true;
+}
 const CORE_LABELS = { trend: "趨勢結構", momentum: "KD 動能", priceVolume: "量價表現",
   institutional: "法人籌碼", entryRisk: "進場位置與風險" };
 const CORE_DATA_LABELS = { close: "收盤價", ma20: "月線", ma60: "季線", previousMa20: "前日月線", previousMa60: "前日季線", k: "K 值", d: "D 值", previousK: "前日 K 值", dayBeforeK: "前二日 K 值", changePercent: "漲跌幅", rvol20: "均量倍數", institutionalNet5: "近五日法人淨額", deviation20: "月線乖離", previous10Low: "近十日前低點", atr14: "平均波動" };
 const coreData = (data, esc, number) => Object.entries(data ?? {}).map(([key, value]) =>
   `<span><dt>${esc(CORE_DATA_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2"))}</dt><dd>${Number.isFinite(value) ? number(value, 2) : esc(value ?? "—")}</dd></span>`).join("");
 
-export function entryScoreDialogMarkup(stock, esc, number, percent) {
+export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = false, icon = () => "") {
   const score = stock.entryScore;
-  const heading = `<p class="entry-dialog-sector">${esc(stock.sector ?? "產業未分類")}</p><h2 id="dialog-heading">${esc(stock.symbol)} ${esc(stock.name)}｜株研評分</h2>`;
+  const heading = `<p class="entry-dialog-sector">${esc(stock.sector ?? "產業未分類")}</p><div class="entry-dialog-title"><h2 id="dialog-heading">${esc(stock.symbol)} ${esc(stock.name)}｜株研評分</h2><button type="button" class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${esc(stock.symbol)}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></div>`;
   if (!score) return `${heading}<p>資料不足，無法評分。</p>`;
   const valid = Number.isFinite(score.finalScore);
   if (!score.categories || !Object.keys(score.categories).length && valid)
