@@ -29,16 +29,8 @@ import { renderSentiment, sentimentDialogMarkup } from "./ui/sentiment.js";
 import {
   DEFAULT_SETTINGS,
   getSnapshot,
-  getPriceVolumeSignal,
-  filterStocks,
-  getDominantInstitution,
-  getDirectionalLeader,
   getInstitutionNet,
-  getStockInstitutionValue as stockInstitutionValue,
-  getSectorInstitutionSummary,
-  getSectorInstitutionEstimate,
   getStockInstitutionEstimate,
-  getInstitutionVolumeRatio,
   getStockInstitutionSeries,
 } from "./indicators.js";
 
@@ -125,7 +117,7 @@ const dialogs = createDialogController();
 let dataset, snapshots, latestSnapshots, currentSentiment;
 const apiMode = import.meta.env.VITE_DATA_MODE === "api";
 const marketClient = new MarketApiClient();
-const summaryCache = new Map(), sectorDetailCache = new Map(), stockDetailCache = new Map(), entryDetailCache = new Map();
+const summaryCache = new Map(), sectorDetailCache = new Map(), stockDetailCache = new Map();
 const favoriteCache = new Map(), favoriteRequests = new Map();
 let favoriteLoadFailed = false;
 let selectedSummary, latestSummary, summaryRequest = 0;
@@ -192,9 +184,7 @@ function refreshData() {
     return;
   }
   const forDisplay = (stock, date) => {
-    const snapshot = getSnapshot(stock, date, state.settings);
-    snapshot.priceVolume = getPriceVolumeSignal(snapshot.history, dataset.dates, date,
-      snapshot.latest?.changePercent ?? null);
+    const snapshot = getSnapshot({ ...stock, tradingDates: dataset.dates }, date, state.settings);
     snapshot.entryScore = getEntryScore(snapshot, dataset.dates, date);
     // The sentiment series needs 60 closes at its oldest point.
     snapshot.history = snapshot.history.slice(-80);
@@ -226,20 +216,25 @@ async function selectSummary(date) {
   if (!apiMode) { refreshData(); return; }
   const request = ++summaryRequest;
   const key = summaryKey(date);
+  const settings = { ...state.settings };
   let result = summaryCache.get(key);
-  if (!result) {
-    loading = true;
-    renderLoadState();
-    try {
-      const response = await marketClient.summary(date, state.settings);
+  // A cached selection must also clear a superseded network request's spinner.
+  loading = !result;
+  renderLoadState();
+  try {
+    if (!result) {
+      const response = await marketClient.summary(date, settings);
       if (response.response.headers.get("X-PWA-Cache") === "fallback") usingCachedData = true;
       result = response.data;
       if (result.meta?.generation !== dataset.info.generation || result.meta?.asOf !== date ||
           result.data?.stocks?.length !== dataset.stocks.length) throw new Error("Invalid market summary");
       summaryCache.set(key, result);
-    } finally {
-      if (request === summaryRequest) { loading = false; renderLoadState(); }
     }
+  } catch (error) {
+    if (request !== summaryRequest) return;
+    throw error;
+  } finally {
+    if (request === summaryRequest) { loading = false; renderLoadState(); }
   }
   if (request !== summaryRequest) return;
   selectedSummary = result;
@@ -275,7 +270,9 @@ async function ensureFavoriteSummaries() {
   })();
   favoriteRequests.set(key, task);
   try { await task; }
-  catch (error) { favoriteLoadFailed = true; renderWatchlist(); toast(error.message); }
+  catch (error) {
+    if (key === summaryKey(state.date)) { favoriteLoadFailed = true; renderWatchlist(); toast(error.message); }
+  }
   finally { favoriteRequests.delete(key); }
 }
 
@@ -348,6 +345,15 @@ function renderWatchlist() {
     !snapshots.find((stock) => stock.symbol === symbol)?.institutionalSummary)) : pendingSymbols;
   const watchSnapshots = apiMode ? snapshots.map((stock) => waiting.has(stock.symbol)
     ? { ...stock, latest: null } : stock) : snapshots;
+  let retry = document.querySelector("#favorite-load-status");
+  if (!retry) {
+    retry = document.createElement("p");
+    retry.id = "favorite-load-status";
+    retry.setAttribute("role", "status");
+    retry.innerHTML = '自選資料載入失敗。<button type="button" id="retry-favorites" class="outline-button">重新載入自選</button>';
+    document.querySelector("#watchlist-grid").before(retry);
+  }
+  retry.hidden = !apiMode || !favoriteLoadFailed || waiting.size === 0;
   renderWatchlistView({ state, snapshots: watchSnapshots, pendingSymbols: waiting,
     loading: apiMode ? waiting.size > 0 && !favoriteLoadFailed : loading,
     loadFailed: apiMode ? favoriteLoadFailed : loadFailed,
@@ -432,8 +438,8 @@ function updateInstitutionOverviewWindow() {
 }
 
 function sectorContext() { return { state, dataset, loading, loadFailed, latestSnapshots,
-  sectorOverviews: apiMode ? selectedSummary?.data.sectors : null,
-  sectorDetail: apiMode ? sectorDetailCache.get(`${summaryKey(state.date)}:${state.sectorName}`) : null,
+  sectorOverviews: apiMode ? latestSummary?.data.sectors : null,
+  sectorDetail: apiMode ? sectorDetailCache.get(`${summaryKey(dataset.info.asOf)}:${state.sectorName}`) : null,
   loadingIcon, stockMoney, updateSegmentedControl, renderSectorDialog, direction, esc, percent, institutionalFigures, isDemo, number, institutionSparkline }; }
 function renderSectorOverview() { renderSectorOverviewView(sectorContext()); }
 function renderSectorDialog(name) { renderSectorDialogView(name, sectorContext()); }
@@ -441,13 +447,15 @@ function renderSectorDialog(name) { renderSectorDialogView(name, sectorContext()
 function openSectorDialog(name, focusHandle = true) {
   state.sectorName = name;
   if (apiMode) {
-    const key = `${summaryKey(state.date)}:${name}`;
+    const date = dataset.info.asOf, key = `${summaryKey(date)}:${name}`;
     if (sectorDetailCache.has(key)) renderSectorDialog(name);
     else {
       document.querySelector("#sector-dialog-content").innerHTML = '<p role="status">資料載入中…</p>';
-      marketClient.sector(name, state.date, state.settings).then(({ data }) => {
+      marketClient.sector(name, date, { ...state.settings }).then(({ data }) => {
+        if (data.meta?.generation !== dataset.info.generation || data.meta?.asOf !== date)
+          throw new Error("產業資料版本不一致，請重新載入");
         sectorDetailCache.set(key, data.data);
-        if (state.sectorName === name && key === `${summaryKey(state.date)}:${name}`) renderSectorDialog(name);
+        if (state.sectorName === name && key === `${summaryKey(dataset.info.asOf)}:${name}`) renderSectorDialog(name);
       }).catch((error) => {
         if (state.sectorName === name) document.querySelector("#sector-dialog-content").textContent = error.message;
       });
@@ -551,6 +559,9 @@ function animateEntryScore(dialog) {
 }
 
 function openDialog(type, focusClose = true) {
+  const infoDialog = document.querySelector("#info-dialog");
+  infoDialog.dataset.entrySymbol = type.startsWith("entry:") ? type.slice(6) : "";
+  infoDialog.dataset.request = String(Number(infoDialog.dataset.request ?? 0) + 1);
   const content = document.querySelector("#dialog-content");
   document.querySelector("#settings-notifications").hidden = type !== "settings";
   if (type === "settings") {
@@ -561,7 +572,7 @@ function openDialog(type, focusClose = true) {
   } else if (type.startsWith("entry:")) {
     const symbol = type.slice(6);
     const stock = snapshots.find((item) => item.symbol === symbol);
-    const detail = entryDetailCache.get(`${summaryKey(state.date)}:${symbol}`);
+    const detail = stockDetailCache.get(`${summaryKey(state.date)}:${symbol}`);
     content.innerHTML = stock ? entryScoreDialogMarkup(detail ? { ...stock, ...detail } : stock, esc, number, percent) :
       `<h2 id="dialog-heading">個股進場評估</h2><p>找不到這檔股票。</p>`;
   } else if (type === "sentiment") {
@@ -590,24 +601,26 @@ function openDialog(type, focusClose = true) {
 async function openEntryScoreDialog(symbol, focusClose = true) {
   const date = state.date, key = `${summaryKey(date)}:${symbol}`;
   const dialog = document.querySelector("#info-dialog");
-  dialog.dataset.entrySymbol = symbol;
   openDialog(`entry:${symbol}`, focusClose);
-  if (!apiMode || entryDetailCache.has(key)) return;
+  const request = dialog.dataset.request;
+  const isCurrent = () => dialog.open && dialog.dataset.request === request &&
+    dialog.dataset.entrySymbol === symbol && key === `${summaryKey(state.date)}:${symbol}`;
+  if (!apiMode || stockDetailCache.has(key)) return;
+  const summary = snapshots.find((stock) => stock.symbol === symbol)?.entryScore;
   try {
     const { data } = await marketClient.analysis(symbol, date, { ...state.settings });
-    const summary = snapshots.find((stock) => stock.symbol === symbol)?.entryScore;
     const detail = data.data?.entryScore;
     if (data.meta?.asOf !== date || detail?.modelVersion !== summary?.modelVersion ||
         detail?.totalScore !== summary?.totalScore) throw new Error("清單與個股評分版本不一致");
-    const entryDetail = { entryScore: detail, priceHistory: data.data.priceHistory };
-    entryDetailCache.set(key, entryDetail);
-    if (dialog.open && dialog.dataset.entrySymbol === symbol && state.date === date) {
+    const entryDetail = data.data;
+    stockDetailCache.set(key, entryDetail);
+    if (isCurrent()) {
       document.querySelector("#dialog-content").innerHTML = entryScoreDialogMarkup(
         { ...snapshots.find((stock) => stock.symbol === symbol), ...entryDetail }, esc, number, percent);
       animateEntryScore(dialog);
     }
   } catch (error) {
-    if (dialog.open && dialog.dataset.entrySymbol === symbol && state.date === date)
+    if (isCurrent())
       document.querySelector("#dialog-content").innerHTML = `<h2 id="dialog-heading">個股進場評估</h2><p role="alert">${esc(error.message || "評分明細載入失敗")}</p>`;
   }
 }
@@ -732,6 +745,7 @@ function bindEvents() {
       return;
     }
     if (button.id === "reload-data") { window.location.reload(); return; }
+    if (button.id === "retry-favorites") { void ensureFavoriteSummaries(); return; }
     if (button.dataset.dialog) openDialog(button.dataset.dialog, !touchInteraction);
     if (button.dataset.entryScore) void openEntryScoreDialog(button.dataset.entryScore, !touchInteraction);
     if (button.dataset.overview) {
@@ -828,13 +842,14 @@ function bindEvents() {
       renderTable();
     });
   document.querySelector("#trade-date").addEventListener("change", (event) => {
-    const previousDate = state.date;
+    const previousDate = selectedSummary?.meta.asOf ?? state.date;
     const requestedDate = event.target.value;
     state.date = requestedDate;
     void selectSummary(requestedDate).catch((error) => {
       if (state.date !== requestedDate) return;
       state.date = previousDate;
       event.target.value = previousDate;
+      refreshData();
       toast(error.message);
     });
   });
@@ -848,16 +863,19 @@ function bindEvents() {
     if (event.target.id !== "settings-form") return;
     event.preventDefault();
     const form = new FormData(event.target);
-    const previousSettings = state.settings;
+    const previousSettings = selectedSummary?.meta.settings ?? state.settings;
     state.settings = Object.fromEntries(
       ["period", "kSmooth", "dSmooth"].map((key) => [
         key,
         Number(form.get(key)),
       ]),
     );
+    const requestedSettings = state.settings;
     savePreferences();
     void selectSummary(state.date).catch((error) => {
+      if (state.settings !== requestedSettings) return;
       state.settings = previousSettings;
+      refreshData();
       savePreferences();
       toast(error.message);
     });

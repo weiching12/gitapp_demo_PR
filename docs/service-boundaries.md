@@ -51,7 +51,7 @@ recording a visit and counting.
 - Unit/contract tests preserve v1 and legacy status/body/header behavior.
 - Sector regression tests compare prior behavior across dates/windows/sorts.
 - TWSE fixture hashes include parsers, coverage, all 128 shards and the manifest.
-- `npm run test:presence-runtime` uses isolated workerd/SQLite for daily visits and expiry.
+- `npm run test:presence-runtime` uses isolated workerd/SQLite for daily visits and Taipei midnight reset.
 - `npm run test:refactor-browser` (after `npm run build:cloudflare`) serves local
   fixed fixtures and verifies desktop/phone sectors, details, favorites and navigation.
 - Set `CHROMIUM_PATH` when using an installed browser instead of Playwright's bundle.

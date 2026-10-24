@@ -1,3 +1,5 @@
+import { validSymbol } from "../../shared/market-codec.js";
+
 export const EX_RIGHTS_URL = "https://www.twse.com.tw/exchangeReport/TWT49U";
 export const REDUCTION_URL = "https://www.twse.com.tw/exchangeReport/TWTAUU";
 export const PAR_VALUE_URL = "https://www.twse.com.tw/exchangeReport/TWTB8U";
@@ -33,9 +35,8 @@ export function parseExRightsReport(report, start, end) {
     const date = parseDate(row[0]), symbol = String(row[1]);
     if (date < start || date > end)
       throw new Error("TWSE ex-rights row outside requested range");
-    // The official report also contains alphanumeric ETF and preferred-share codes.
-    // Market sentiment considers ordinary listed shares only.
-    if (!/^\d{4,6}$/.test(symbol)) continue;
+    // Entry scoring includes letter-suffixed ETFs as well as ordinary shares.
+    if (!validSymbol(symbol)) continue;
     const beforeClose = Number(String(row[3]).replaceAll(",", ""));
     const reference = Number(String(row[4]).replaceAll(",", ""));
     if (!(beforeClose > 0) || !(reference > 0)) throw new Error("Invalid TWSE ex-rights prices");
@@ -67,7 +68,7 @@ function parseResumptionReport(report, start, end, kind) {
     if (!Array.isArray(row) || row.length < 5) throw new Error(`Invalid TWSE ${kind} row`);
     const date = parseResumeDate(row[0]), symbol = String(row[1]);
     if (date < start || date > end) throw new Error(`TWSE ${kind} row outside requested range`);
-    if (!/^\d{4,6}$/.test(symbol)) continue;
+    if (!validSymbol(symbol)) continue;
     const beforeClose = Number(String(row[3]).replaceAll(",", ""));
     const reference = Number(String(row[4]).replaceAll(",", ""));
     if (!(beforeClose > 0) || !(reference > 0)) throw new Error(`Invalid TWSE ${kind} prices`);

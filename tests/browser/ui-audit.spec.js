@@ -5,6 +5,7 @@ async function loadMarket(page, count = 150, initialCount = 30) {
   await page.route("**/src/provider.js*", (route) => route.fulfill({
     contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
+      export async function loadMarketSummary() { throw new Error("API loading is unavailable in this demo fixture"); }
       export async function loadDataset() {
         const data = await demoProvider.load();
         data.stocks = Array.from({ length: ${count} }, (_, index) => {
@@ -126,6 +127,7 @@ test("market prices and long names fit their cells on phones and desktops", asyn
   await page.route("**/src/provider.js*", (route) => route.fulfill({
     contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
+      export async function loadMarketSummary() { throw new Error("API loading is unavailable in this demo fixture"); }
       export async function loadDataset() {
         const data = await demoProvider.load();
         for (const stock of data.stocks) {
@@ -159,6 +161,7 @@ test("phone sector identity stays compact while amounts and percentages align fo
   await page.route("**/src/provider.js*", (route) => route.fulfill({
     contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
+      export async function loadMarketSummary() { throw new Error("API loading is unavailable in this demo fixture"); }
       export async function loadDataset() {
         const data = await demoProvider.load();
         data.stocks.forEach((stock, index) => {

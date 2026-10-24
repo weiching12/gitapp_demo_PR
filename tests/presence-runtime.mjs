@@ -27,16 +27,18 @@ try {
     });
     assert.equal(response.status, 200); return response.json();
   };
-  const duplicates = await Promise.all(Array.from({ length: 6 }, () => send(first, 100000)));
-  assert.ok(duplicates.every((value) => value.online === 1));
-  assert.equal((await send(second, 100000)).online, 2);
-  assert.equal((await send(first, 130000)).online, 2);
-  assert.equal((await send(first, 190000)).online, 1);
-  const expired = await object.fetch("https://internal/presence?time=280000");
-  assert.deepEqual(await expired.json(), { online: 0, windowSeconds: 90 });
+  const beforeMidnight = Date.UTC(2026, 9, 22, 15, 50);
+  const duplicates = await Promise.all(Array.from({ length: 6 }, () => send(first, beforeMidnight)));
+  assert.ok(duplicates.every((value) => value.today === 1));
+  assert.equal((await send(second, beforeMidnight)).today, 2);
+  assert.equal((await send(first, beforeMidnight + 9 * 60_000)).today, 2);
+  const midnight = beforeMidnight + 10 * 60_000;
+  const expired = await object.fetch(`https://internal/presence?time=${midnight}`);
+  assert.deepEqual(await expired.json(), { today: 0, asOf: "2026-10-23" });
+  assert.deepEqual(await send(first, midnight), { today: 1, asOf: "2026-10-23" });
   const forbidden = await mf.dispatchFetch("https://example.test/api/v1/presence", {
     method: "POST", headers: { Origin: "https://other.test" }, body: JSON.stringify({ id: first }),
   });
   assert.equal(forbidden.status, 403);
-  console.log("PASS workerd presence: concurrent deduplication, TTL expiry, SQL persistence and origin policy");
+  console.log("PASS workerd presence: concurrent deduplication, Taipei midnight reset, SQL persistence and origin policy");
 } finally { await mf.dispose(); }

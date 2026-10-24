@@ -64,6 +64,7 @@ test("favorite institution cards and their details keep money primary when inter
 test("sector ranking and TOP1 follow money when net share volume has the opposite sign", async ({ page }) => {
   await page.route("**/src/provider.js*", (route) => route.fulfill({ contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
+      export async function loadMarketSummary() { throw new Error("API loading is unavailable in this demo fixture"); }
       export async function loadDataset() {
         const data = await demoProvider.load();
         data.stocks = data.stocks.slice(0, 3).map((stock, index) => ({ ...stock,

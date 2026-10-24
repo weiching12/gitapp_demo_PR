@@ -230,3 +230,30 @@ test("corporate-action revision invalidates the cached market summary", async ()
     assert.equal(shardReads, SHARD_COUNT * 2);
   } finally { db.sqlite.close(); }
 });
+
+
+test("simultaneous HEAD then GET receives a complete shared summary body", async () => {
+  const values = new Map([[MANIFEST_KEY, manifest], ...shards.map((shard) =>
+    [shardKey(manifest.generation, shard.index), shard])]);
+  const cache = new Map();
+  let release, entered;
+  const blocked = new Promise((resolve) => { release = resolve; });
+  const started = new Promise((resolve) => { entered = resolve; });
+  const coordinator = new MarketSummaryCoordinator({ storage: {
+    get: async (key) => cache.get(key), put: async (key, value) => cache.set(key, value),
+  } }, { MARKET_DATA: { get: async (key) => {
+    if (key.includes(":shard:")) { entered(); await blocked; }
+    return values.get(key) ?? null;
+  } } });
+  const url = `https://example.test/api/v1/market/summary?asOf=${date}`;
+  const headRequest = coordinator.fetch(new Request(url, { method: "HEAD" }));
+  await started;
+  const getRequest = coordinator.fetch(new Request(url));
+  // Wait until GET has joined the same pending calculation.
+  await new Promise((resolve) => setImmediate(resolve));
+  release();
+  const [head, get] = await Promise.all([headRequest, getRequest]);
+  assert.equal(await head.text(), "");
+  assert.equal((await get.json()).data.stocks.length, catalog.length);
+  assert.equal((await (await coordinator.fetch(new Request(url))).json()).data.stocks.length, catalog.length);
+});

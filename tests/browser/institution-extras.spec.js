@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 async function loadFixture(page) {
   await page.route("**/src/provider.js*", (route) => route.fulfill({ contentType: "application/javascript",
     body: `import { demoProvider } from "/src/data.js";
+      export async function loadMarketSummary() { throw new Error("API loading is unavailable in this demo fixture"); }
       export async function loadDataset() {
         const data = await demoProvider.load();
         const dates = data.dates.slice(-6);
