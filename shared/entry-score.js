@@ -158,10 +158,11 @@ export function getEntryScore(stock, tradingDates, asOf, options = {}) {
   base.coreConditionsPassed = base.passedCount === CORE_KEYS.length;
   if (base.priceBasis === "unadjusted" && options.corporateActions) {
     const { coveredDates, eventsBySymbol } = options.corporateActions;
-    const eventDates = new Set(window.slice(1).filter(Boolean).map((bar) => bar.date));
+    const requiredActionDates = index >= 0 ? tradingDates.slice(Math.max(0, index - 59), index + 1) : [];
+    const eventDates = new Set(requiredActionDates);
     if (eventsBySymbol?.get(stock.symbol) && [...eventsBySymbol.get(stock.symbol).keys()].some((date) => eventDates.has(date)))
       base.missingData.push("評估區間發生公司行動；未還原價格不適合直接評分");
-    else if (coveredDates && window.slice(1).some((bar) => !bar || !coveredDates.has(bar.date)))
+    else if (coveredDates && requiredActionDates.some((date) => !coveredDates.has(date)))
       base.conflictingEvidence.push("部分歷史日期尚未完成公司行動查核；採未還原價格評分");
   } else if (base.priceBasis === "unadjusted") {
     base.conflictingEvidence.push("未還原價格且未提供公司行動查核；除權息可能影響分數");

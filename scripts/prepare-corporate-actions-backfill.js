@@ -10,7 +10,16 @@ const market = await marketResponse.json();
 const calendar = market.dates ?? market.data?.dates;
 if (!Array.isArray(calendar) || calendar.length < 40 || calendar.some((date) => !/^\d{4}-\d{2}-\d{2}$/.test(date)))
   throw new Error("Market manifest does not contain 40 verified trading dates");
-const dates = calendar.slice(-40), start = dates[0], end = dates.at(-1);
+if (Boolean(args.start) !== Boolean(args.end))
+  throw new Error("Specify both --start and --end for a bounded backfill");
+let dates;
+if (args.start) {
+  const startIndex = calendar.indexOf(args.start), endIndex = calendar.indexOf(args.end);
+  if (startIndex < 0 || endIndex < startIndex)
+    throw new Error("Backfill dates must be ordered market trading dates");
+  dates = calendar.slice(startIndex, endIndex + 1);
+} else dates = calendar.slice(-40);
+const start = dates[0], end = dates.at(-1);
 const parsed = [];
 for (const [url, parse] of [[exRightsUrl, parseExRightsReport],
   [reductionUrl, parseReductionReport], [parValueUrl, parseParValueReport]]) {

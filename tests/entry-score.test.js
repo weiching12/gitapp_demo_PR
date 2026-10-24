@@ -159,9 +159,11 @@ test("missing institution day, missing market date and short history never becom
   assert.equal(short.score(short.dates[40]).totalScore, null);
   const gap = fixture({ mutate: (bars) => { bars.splice(60, 1); } });
   assert.equal(gap.score().totalScore, null);
-  assert.equal(gap.score(gap.dates.at(-1), { corporateActions: {
+  const coveredGap = gap.score(gap.dates.at(-1), { corporateActions: {
     coveredDates: new Set(gap.dates), eventsBySymbol: new Map(),
-  } }).totalScore, null);
+  } });
+  assert.equal(coveredGap.totalScore, null);
+  assert.equal(coveredGap.conflictingEvidence.some((item) => item.includes("未還原價格")), false);
 });
 
 test("historical selection excludes future prices and reuses the same model result", () => {
