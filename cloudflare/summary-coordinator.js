@@ -3,7 +3,7 @@ import { createApplicationServices } from "./composition.js";
 
 const SUMMARY_ROUTES = ["/api/v1/market/summary", "/api/v1/favorites/summary"];
 // Bump when the response shape or derived rules change; old Durable Object entries persist across deploys.
-const CACHE_SCHEMA = "entry-score-v1.2-qualified";
+const CACHE_SCHEMA = "entry-score-v1.2-session-continuity";
 // Durable Object storage values are limited to 2 MB. A market summary can be
 // larger, so store serialized responses in small parts.
 const CACHE_PART_CHARS = 400_000;
@@ -42,7 +42,9 @@ export class MarketSummaryCoordinator {
         if (body.meta?.generation !== manifest.generation)
           return Response.json({ error: { code: "DATA_UNAVAILABLE", message: "Market generation changed during calculation" } }, { status: 503 });
         await this.writeCached(key, body);
-        return respond(body);
+        // In-flight work is shared by HEAD and GET. Always retain a GET body;
+        // strip it only for the individual HEAD caller below.
+        return Response.json(body, { headers: { "Cache-Control": "public, max-age=60" } });
       });
       this.pending.set(key, task);
       task.finally(() => this.pending.delete(key)).catch(() => {});

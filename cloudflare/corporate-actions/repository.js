@@ -40,6 +40,12 @@ export class CorporateActionRepository {
   }
 
   async save(dates, events, verifiedAt) {
+    if (!dates.length || events.some((event) => !dates.includes(event.date)))
+      throw new Error("Corporate-action events must belong to the verified dates");
+    // A verified report replaces those dates, including events removed by a
+    // source correction. Other dates remain untouched.
+    const clearEvents = this.db.prepare("DELETE FROM corporate_action_events WHERE Date IN (SELECT value FROM json_each(?))")
+      .bind(JSON.stringify(dates));
     const insertEvents = this.db.prepare(`INSERT INTO corporate_action_events
       (Date,Symbol,Kind,BeforeClose,ReferencePrice)
       SELECT json_extract(value,'$.date'),json_extract(value,'$.symbol'),
@@ -55,7 +61,7 @@ export class CorporateActionRepository {
       .bind(verifiedAt, JSON.stringify(dates));
     const revision = this.db.prepare(`INSERT INTO corporate_action_meta(Key,Value)
       VALUES('revision',?) ON CONFLICT(Key) DO UPDATE SET Value=excluded.Value`).bind(verifiedAt);
-    // All three statements form one transaction; the cache revision advances last.
-    await this.db.batch([insertEvents, markCoverage, revision]);
+    // Replacement and coverage are atomic; the cache revision advances last.
+    await this.db.batch([clearEvents, insertEvents, markCoverage, revision]);
   }
 }

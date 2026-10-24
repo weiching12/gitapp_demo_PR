@@ -46,3 +46,19 @@ test("analysis parameter validation follows frontend bounds", () => {
   for (const query of ["period=0", "period=61", "dSmooth=21", "kSmooth=no", "asOf=2026-02-30"])
     assert.throws(() => analysisOptions(new URLSearchParams(query)));
 });
+
+
+test("KD signal requires the immediately preceding market session after a suspension", () => {
+  const dates = Array.from({ length: 25 }, (_, index) =>
+    new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10));
+  const stock = { symbol: "2330", tradingDates: dates, history: dates.map((date, index) =>
+    ({ date, open: 100 + index, close: 100 + index, high: 101 + index, low: 99 + index,
+      volume: 1000, institutions: [] })) };
+  assert.notEqual(domain.getSnapshot(stock, dates.at(-1)).signal.code, "insufficient");
+  stock.history.splice(-2, 1);
+  const snapshot = domain.getSnapshot(stock, dates.at(-1));
+  assert.equal(snapshot.latest.date, dates.at(-1));
+  assert.equal(snapshot.signal.code, "insufficient");
+  // A known calendar is mandatory for suspension checks, legacy callers remain supported.
+  assert.notEqual(domain.getSnapshot({ ...stock, tradingDates: undefined }, dates.at(-1)).signal.code, "insufficient");
+});

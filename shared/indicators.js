@@ -161,6 +161,9 @@ export function getSnapshot(stock, asOf, settings) {
     settings,
   );
   const current = history.at(-1)?.date === asOf;
+  const sessionIndex = stock.tradingDates?.indexOf(asOf) ?? -1;
+  const consecutive = !stock.tradingDates || (sessionIndex > 0 &&
+    history.at(-2)?.date === stock.tradingDates[sessionIndex - 1]);
   // Never rank a suspended/unpriced company using its last traded day's price.
   const byDate = new Map(history.map((bar) => [bar.date, bar]));
   const institutionHistory = stock.tradingDates
@@ -173,7 +176,7 @@ export function getSnapshot(stock, asOf, settings) {
     priceVolume: getPriceVolumeSignal(history, stock.tradingDates, asOf,
       current ? history.at(-1).changePercent : null),
     trend: getTrendStatus(history, stock.tradingDates, asOf),
-    signal: getTechnicalSignal(current ? history : []),
+    signal: getTechnicalSignal(current && consecutive ? history : []),
     institutionalSummary: getInstitutionalSummary(institutionHistory),
   };
 }

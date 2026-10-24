@@ -158,3 +158,26 @@ test("presence HTTP responses preserve validation, origin and storage failure be
     assert.deepEqual(await unavailable.json(), { error: "Daily visitor count unavailable" });
   } finally { f.db.close(); }
 });
+
+test("a long-lived page records a new visit after Taipei midnight and otherwise reads counts", async () => {
+  const { startPresence } = await import("../src/presence.js");
+  let now = Date.UTC(2026, 9, 22, 15, 59, 50);
+  const calls = [];
+  const node = { textContent: "", dataset: {} };
+  const client = {
+    recordVisit: async () => { calls.push("POST"); return { today: 1 }; },
+    count: async () => { calls.push("GET"); return { today: 2 }; },
+  };
+  const presence = startPresence(node, { client, now: () => now });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(calls, ["POST"]);
+  await presence.refresh(true);
+  assert.deepEqual(calls, ["POST", "GET"]);
+  now += 20_000;
+  await presence.refresh();
+  assert.deepEqual(calls, ["POST", "GET", "POST"]);
+  assert.equal(node.textContent, "今日造訪人數 1 人");
+  await presence.refresh();
+  assert.equal(calls.length, 3);
+  presence.stop();
+});

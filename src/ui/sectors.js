@@ -48,7 +48,7 @@ export function renderSectorDialogView(name, context) {
   const periods = [["day", "當日"], ["5", "5 日"], ["20", "20 日"]];
 
   document.querySelector("#sector-dialog-heading").textContent = name;
-  document.querySelector("#sector-dialog-meta").textContent = `${isDemo ? "最新完整交易日" : "報表交易日"} ${state.date}`;
+  document.querySelector("#sector-dialog-meta").textContent = `${isDemo ? "最新完整交易日" : "報表交易日"} ${tradingDates.at(-1)}`;
   document.querySelector("#sector-dialog-content").innerHTML = `
     <section class="sector-detail-summary" aria-labelledby="sector-summary-heading">
       <div class="sector-detail-heading"><div><h3 id="sector-summary-heading">法人淨買賣超金額</h3><p>當日與近 5／20 個交易日累計；金額：億，張數為輔</p></div></div>

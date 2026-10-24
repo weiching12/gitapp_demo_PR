@@ -26,10 +26,11 @@ function fixture() {
   return { db, repository: new CorporateActionRepository(db) };
 }
 
-test("TWSE event report validates the source and keeps ordinary numeric symbols", () => {
+test("TWSE event report validates the source and keeps supported stock and ETF symbols", () => {
   assert.match(exRightsUrl(date, date), /startDate=20261022&endDate=20261022$/);
   assert.deepEqual(parseExRightsReport(report, date, date),
-    [{ date, symbol: "2330", kind: "息", beforeClose: 100, reference: 95 }]);
+    [{ date, symbol: "2330", kind: "息", beforeClose: 100, reference: 95 },
+      { date, symbol: "00984D", kind: "息", beforeClose: 10, reference: 9 }]);
   assert.throws(() => parseExRightsReport({ ...report, stat: "NO DATA" }, date, date));
   assert.deepEqual(parseExRightsReport({ stat: "很抱歉，沒有符合條件的資料!" }, date, date), []);
   assert.throws(() => parseExRightsReport({ ...report, data: [...report.data, report.data[0]] }, date, date));
@@ -59,7 +60,7 @@ test("D1 stores sparse events and verified event-free trading dates atomically",
   assert.deepEqual([...window.eventsBySymbol.get("2330").keys()], [date]);
   assert.deepEqual(window.eventsBySymbol.get("2330").get(date),
     { kind: "息", beforeClose: 100, reference: 95 });
-  assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM corporate_action_events").get().n, 1);
+  assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM corporate_action_events").get().n, 2);
   assert.equal(await repository.revision(), "2026-10-22T11:00:00Z");
 });
 
@@ -128,4 +129,25 @@ test("an empty daily report needs a second confirmation before marking coverage 
   assert.equal((await syncDailyCorporateActions(env, state, new Date("2026-10-22T13:15:00Z"), empty)).status, "complete");
   assert.equal((await repository.window([date])).coveredDates.has(date), true);
   assert.equal(calls, 6);
+});
+
+
+test("corrected reports replace only verified dates and roll back on failure", async () => {
+  const { db, repository } = fixture();
+  try {
+    const events = parseExRightsReport(report, date, date);
+    const older = { ...events[0], date: "2026-10-21" };
+    await repository.save([older.date, date], [older, ...events], "revision-1");
+    await repository.save([date], [], "revision-2");
+    const corrected = await repository.window([older.date, date]);
+    assert.deepEqual([...corrected.eventsBySymbol.get("2330").keys()], [older.date]);
+    assert.equal(corrected.eventsBySymbol.has("00984D"), false);
+    assert.equal(await repository.revision(), "revision-2");
+    db.beforeStatement = (sql) => { if (sql.includes("INSERT INTO corporate_action_events")) throw new Error("write failed"); };
+    await assert.rejects(repository.save([older.date], [], "revision-3"), /write failed/);
+    db.beforeStatement = null;
+    assert.equal((await repository.window([older.date])).eventsBySymbol.get("2330").has(older.date), true);
+    assert.equal(await repository.revision(), "revision-2");
+    await assert.rejects(repository.save([date], [older], "revision-4"), /verified dates/);
+  } finally { db.sqlite.close(); }
 });
