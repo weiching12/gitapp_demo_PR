@@ -10,6 +10,7 @@ import { MarketRepository } from "../cloudflare/repositories/market-repository.j
 import { MarketSummaryCoordinator } from "../cloudflare/summary-coordinator.js";
 import { MANIFEST_KEY, shardKey } from "../cloudflare/storage/market-keys.js";
 import { testDatabase } from "./helpers/t86-db.js";
+import { CorporateActionRepository } from "../cloudflare/corporate-actions/repository.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/twse-20261016.json", import.meta.url)));
 const catalog = normalizeCatalog(fixture.companies);
@@ -48,6 +49,11 @@ test("market summary matches existing indicators and omits market history", asyn
   assert.equal(favorites.data[0].dayInstitutionNet.total,
     result.data.stocks.find((stock) => stock.symbol === catalog[0].symbol).latest?.institutionalNet ?? null);
   assert.equal(result.data.sentiment.date, date);
+  assert.equal(result.data.sentiment.status, "insufficient");
+  assert.equal(result.data.sentiment.requestedDate, date);
+  assert.equal(result.data.sentiment.series.at(-1).components.trend, null);
+  assert.equal(result.data.sentiment.series.at(-1).components.momentum, null);
+  assert.ok(Number.isFinite(result.data.sentiment.latestEffectiveWeight));
   assert.ok(result.data.sectors.day.length > 0);
   const sector = await service.sector(catalog[0].sector, date, result.meta.settings);
   assert.equal(sector.data.name, catalog[0].sector);
@@ -173,7 +179,7 @@ test("Free-plan coordinator computes once and stores large summaries in bounded 
     return marketData.get(key) ?? null;
   } } });
   const url = `https://example.test/api/v1/market/summary?period=9&kSmooth=3&dSmooth=3&asOf=${date}`;
-  const oldKey = `view:price-volume-trend-v1:${manifest.generation}:/api/v1/market/summary?period=9&kSmooth=3&dSmooth=3&asOf=${date}`;
+  const oldKey = `view:price-volume-trend-v2:${manifest.generation}:/api/v1/market/summary?period=9&kSmooth=3&dSmooth=3&asOf=${date}`;
   storageData.set(`${oldKey}:part:0`, JSON.stringify({ data: { stocks: [{ symbol: "stale" }] } }));
   storageData.set(`${oldKey}:parts`, 1);
   const first = await coordinator.fetch(new Request(url));
@@ -195,4 +201,28 @@ test("Free-plan coordinator computes once and stores large summaries in bounded 
   assert.ok([...storageData.entries()].filter(([key]) => key.startsWith("large:part:"))
     .every(([, value]) => new TextEncoder().encode(value).length < 2_000_000));
   assert.deepEqual(await coordinator.readCached("large"), large);
+});
+
+test("corporate-action revision invalidates the cached market summary", async () => {
+  const db = testDatabase();
+  try {
+    db.sqlite.exec(readFileSync(new URL("../cloudflare/migrations/0004_corporate_actions.sql", import.meta.url), "utf8"));
+    const marketData = new Map([[MANIFEST_KEY, manifest]]);
+    for (const shard of shards) marketData.set(shardKey(manifest.generation, shard.index), shard);
+    let shardReads = 0;
+    const cache = new Map();
+    const coordinator = new MarketSummaryCoordinator({ storage: {
+      get: async (key) => cache.get(key),
+      put: async (key, value) => { cache.set(key, value); },
+    } }, { MARKET_DATA: { get: async (key) => {
+      if (key.includes(":shard:")) shardReads++;
+      return marketData.get(key) ?? null;
+    } }, T86_DB: db, CORPORATE_ACTIONS_ENABLED: "1" });
+    const url = `https://example.test/api/v1/market/summary?period=9&kSmooth=3&dSmooth=3&asOf=${date}`;
+    assert.equal((await coordinator.fetch(new Request(url))).status, 200);
+    assert.equal(shardReads, SHARD_COUNT);
+    await new CorporateActionRepository(db).save([date], [], "2026-10-22T12:00:00Z");
+    assert.equal((await coordinator.fetch(new Request(url))).status, 200);
+    assert.equal(shardReads, SHARD_COUNT * 2);
+  } finally { db.sqlite.close(); }
 });

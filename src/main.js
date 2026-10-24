@@ -193,8 +193,8 @@ function refreshData() {
     const snapshot = getSnapshot(stock, date, state.settings);
     snapshot.priceVolume = getPriceVolumeSignal(snapshot.history, dataset.dates, date,
       snapshot.latest?.changePercent ?? null);
-    // Demo indicators use complete history; rendering needs the latest 41 rows.
-    snapshot.history = snapshot.history.slice(-41);
+    // The sentiment series needs 60 closes at its oldest point.
+    snapshot.history = snapshot.history.slice(-80);
     return snapshot;
   };
   const settingsKey = [state.settings.period, state.settings.kSmooth, state.settings.dSmooth].join(":");
@@ -209,7 +209,7 @@ function refreshData() {
   latestSnapshots = cached(dataset.info.asOf, latestCache);
   snapshots = state.date === dataset.info.asOf ? latestSnapshots
     : cached(state.date, historicalCache);
-  currentSentiment = calculateMarketSentiment(latestSnapshots, dataset.info.asOf);
+  currentSentiment = calculateMarketSentiment(latestSnapshots, dataset.info.asOf, 20, dataset.dates);
   renderSentiment(currentSentiment);
   renderWatchlist();
   renderTable();

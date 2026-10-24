@@ -470,20 +470,34 @@ test("KD settings recalculate every favorite and table suggestion and persist", 
   await expect(page.getByRole("dialog")).toContainText("沒有連接交易所");
 });
 
-test("market sentiment stays on the latest five days when the table date changes", async ({ page }) => {
+test("daily market sentiment stays on the latest date when the table date changes", async ({ page }) => {
   const card = page.locator("#market-sentiment");
   await expect(card).toBeVisible();
   await expect(card.locator(".sentiment-score")).not.toHaveText("—");
   const firstDate = await page.locator("#trade-date").inputValue();
   await expect(card.locator(".sentiment-date")).toContainText(firstDate);
+  await expect(card.locator(".sentiment-date")).toContainText("當日");
   const score = await card.locator(".sentiment-score").textContent();
   await page.locator("#trade-date").selectOption({ index: 1 });
   await expect(card.locator(".sentiment-score")).toHaveText(score);
   await expect(card.locator(".sentiment-date")).toContainText(firstDate);
   await card.getByRole("button").click();
   await expect(page.getByRole("dialog")).toContainText("市場漲跌家數");
-  await expect(page.getByRole("dialog")).toContainText("最新資料日回推 5 個交易日");
-  await expect(page.getByRole("dialog")).toContainText("ETF 與缺漏值不納入分母");
+  await expect(page.getByRole("dialog")).toContainText("折線每個點是該交易日的分數");
+  await expect(page.getByRole("dialog")).toContainText("各項至少 80% 樣本覆蓋");
+});
+
+test("mobile market eyebrow stays on one line", async ({ page }) => {
+  await page.setViewportSize({ width: 475, height: 956 });
+  const eyebrow = page.locator("#page-eyebrow");
+  await expect(eyebrow).toHaveText("MARKET WATCHLIST");
+  await expect(eyebrow).toHaveCSS("white-space", "nowrap");
+  const lines = await eyebrow.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return range.getClientRects().length;
+  });
+  expect(lines).toBe(1);
 });
 
 test("general settings persist the dark theme", async ({ page }) => {

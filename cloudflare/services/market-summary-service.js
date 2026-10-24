@@ -9,7 +9,7 @@ const WINDOWS = ["day", "5", "20"];
 const INSTITUTIONS = ["total", "外資", "投信", "自營商"];
 
 export class MarketSummaryService {
-  constructor(market) { this.market = market; }
+  constructor(market, actions = null) { this.market = market; this.actions = actions; }
 
   async snapshots(date, settings, sector, symbols) {
     const manifest = await this.market.market();
@@ -35,8 +35,8 @@ export class MarketSummaryService {
       const rows = compact.get(stock.symbol);
       if (!rows) throw new DomainError("DATA_UNAVAILABLE", "市場資料不完整");
       const snapshot = getSnapshot({ ...expandStock(stock, rows), tradingDates: dates }, asOf, settings);
-      // Retain only the rows needed by sector returns and the 20-session sentiment series.
-      snapshot.history = snapshot.history.slice(-41);
+      // The 20-session sentiment series needs 60 closes at its oldest point.
+      snapshot.history = snapshot.history.slice(-80);
       return snapshot;
     });
     return { manifest, asOf, dates, stocks };
@@ -44,6 +44,7 @@ export class MarketSummaryService {
 
   async summary(date, settings) {
     const { manifest, asOf, dates, stocks } = await this.snapshots(date, settings);
+    const actions = this.actions ? await this.actions.window(dates.slice(-40)) : null;
     const data = stocks.map((stock) => ({
       symbol: stock.symbol, name: stock.name, sector: stock.sector, market: stock.market,
       assetType: stock.assetType, currency: stock.currency, listedOn: stock.listedOn,
@@ -56,7 +57,7 @@ export class MarketSummaryService {
       getSectorOverview(stocks, { window, sort: "net-desc", tradingDates: dates, asOf })
         .map(({ stocks: _stocks, leader, ...sector }) => ({ ...sector,
           leader: leader ? { symbol: leader.symbol, name: leader.name } : null }))]));
-    return { data: { stocks: data, sentiment: calculateMarketSentiment(stocks, asOf), sectors },
+    return { data: { stocks: data, sentiment: calculateMarketSentiment(stocks, asOf, 20, dates, actions), sectors },
       meta: { asOf, sourceAsOf: manifest.asOf, generation: manifest.generation,
         rulesVersion: "technical-v1", settings } };
   }
