@@ -24,7 +24,7 @@ import { bindKeyboardNavigation } from "./ui/keyboard.js";
 import { createTableBatchController } from "./ui/table-batches.js";
 import { calculateMarketSentiment } from "../shared/sentiment.js";
 import { getEntryScore } from "../shared/entry-score.js";
-import { entryScoreDialogMarkup } from "./ui/entry-score.js";
+import { entryScoreDialogMarkup, selectEntryChartPoint } from "./ui/entry-score.js";
 import { renderSentiment, sentimentDialogMarkup } from "./ui/sentiment.js";
 import {
   DEFAULT_SETTINGS,
@@ -562,7 +562,7 @@ function openDialog(type, focusClose = true) {
     const symbol = type.slice(6);
     const stock = snapshots.find((item) => item.symbol === symbol);
     const detail = entryDetailCache.get(`${summaryKey(state.date)}:${symbol}`);
-    content.innerHTML = stock ? entryScoreDialogMarkup(detail ? { ...stock, entryScore: detail } : stock, esc, number, percent) :
+    content.innerHTML = stock ? entryScoreDialogMarkup(detail ? { ...stock, ...detail } : stock, esc, number, percent) :
       `<h2 id="dialog-heading">個股進場評估</h2><p>找不到這檔股票。</p>`;
   } else if (type === "sentiment") {
     content.innerHTML = sentimentDialogMarkup(currentSentiment);
@@ -599,10 +599,11 @@ async function openEntryScoreDialog(symbol, focusClose = true) {
     const detail = data.data?.entryScore;
     if (data.meta?.asOf !== date || detail?.modelVersion !== summary?.modelVersion ||
         detail?.totalScore !== summary?.totalScore) throw new Error("清單與個股評分版本不一致");
-    entryDetailCache.set(key, detail);
+    const entryDetail = { entryScore: detail, priceHistory: data.data.priceHistory };
+    entryDetailCache.set(key, entryDetail);
     if (dialog.open && dialog.dataset.entrySymbol === symbol && state.date === date) {
       document.querySelector("#dialog-content").innerHTML = entryScoreDialogMarkup(
-        { ...snapshots.find((stock) => stock.symbol === symbol), entryScore: detail }, esc, number, percent);
+        { ...snapshots.find((stock) => stock.symbol === symbol), ...entryDetail }, esc, number, percent);
       animateEntryScore(dialog);
     }
   } catch (error) {
@@ -666,6 +667,31 @@ function syncTableFavorite(symbol) {
 }
 
 function bindEvents() {
+  const chartIndexAt = (plot, clientX) => {
+    const rect = plot.querySelector("svg").getBoundingClientRect();
+    const position = ((clientX - rect.left) / rect.width * 600 - 8) / 584;
+    return Math.round(Math.max(0, Math.min(1, position)) * (Number(plot.getAttribute("aria-valuemax")) - 1));
+  };
+  document.addEventListener("pointerdown", (event) => {
+    const plot = event.target.closest(".entry-chart-plot");
+    if (!plot) return;
+    plot.focus({ preventScroll: true });
+    plot.setPointerCapture(event.pointerId);
+    selectEntryChartPoint(plot, chartIndexAt(plot, event.clientX), number);
+  });
+  document.addEventListener("pointermove", (event) => {
+    const plot = event.target.closest(".entry-chart-plot");
+    if (plot?.hasPointerCapture(event.pointerId))
+      selectEntryChartPoint(plot, chartIndexAt(plot, event.clientX), number);
+  });
+  document.addEventListener("keydown", (event) => {
+    const plot = event.target.closest(".entry-chart-plot");
+    if (!plot || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const index = Number(plot.dataset.index), last = Number(plot.getAttribute("aria-valuemax")) - 1;
+    selectEntryChartPoint(plot, event.key === "Home" ? 0 : event.key === "End" ? last :
+      index + (event.key === "ArrowRight" ? 1 : -1), number);
+  });
   tableBatches.observe();
   controls.bind();
   bindResponsiveSearchOrder();

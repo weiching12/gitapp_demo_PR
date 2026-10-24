@@ -29,7 +29,7 @@ with versioned API routes added only when those capabilities exist.
 | GET / HEAD | `/api/v1/stocks` | Paginated security metadata, including ETFs |
 | GET / HEAD | `/api/v1/stocks/{symbol}` | Stock metadata and available history, existing snapshot format |
 | GET / HEAD | `/api/v1/stocks/{symbol}/history` | `{data: [...], meta: {symbol, asOf, updatedAt, tradingDates}}` |
-| GET / HEAD | `/api/v1/stocks/{symbol}/analysis` | Shared indicator rules, latest bar, signal and institutional summary |
+| GET / HEAD | `/api/v1/stocks/{symbol}/analysis` | Shared indicator rules, latest bar, signal, institutional summary, and up to 30 daily closes through `asOf` |
 | GET / POST | `/api/v1/presence` | Taipei-day cumulative browser count / record one browser visit; same-origin protection retained |
 
 The stocks collection supports `offset` (default 0), `limit` (default 100, 1–200),

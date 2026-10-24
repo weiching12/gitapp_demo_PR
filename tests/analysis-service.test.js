@@ -22,10 +22,24 @@ test("server analysis matches browser snapshots and never includes future bars",
   assert.deepEqual(result.data.latest, expected.latest);
   assert.deepEqual(result.data.signal, expected.signal);
   assert.deepEqual(result.data.trend, expected.trend);
+  assert.equal(result.data.priceHistory.length, 30);
+  assert.equal(result.data.priceHistory.at(-1).date, asOf);
+  assert.equal(result.data.priceHistory.at(-1).close, history[40].close);
   assert.equal(result.data.latest.ma60, null);
   history[69].close = 999999;
   assert.deepEqual(await stockAnalysis(market, "2330", options), result);
   await assert.rejects(stockAnalysis(market, "2330", { ...options, asOf: "2099-01-01" }), /交易日/);
+});
+
+test("daily close series preserves missing market days and excludes later prices", async () => {
+  const dates = Array.from({ length: 35 }, (_, index) => new Date(Date.UTC(2026, 6, index + 1)).toISOString().slice(0, 10));
+  const history = dates.filter((_, index) => index !== 10).map((date, index) => ({ date, close: 100 + index }));
+  const { dailyCloseSeries } = await import("../shared/price-history.js");
+  const series = dailyCloseSeries(history, dates, dates[30]);
+  assert.equal(series.length, 30);
+  assert.deepEqual(series.find((point) => point.date === dates[10]), { date: dates[10], close: null });
+  assert.equal(series.at(-1).date, dates[30]);
+  assert.ok(series.every((point) => point.date <= dates[30]));
 });
 
 test("analysis parameter validation follows frontend bounds", () => {

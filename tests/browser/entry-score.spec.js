@@ -22,6 +22,33 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(page.locator(".entry-summary-head strong")).toContainText(firstListScore);
   await expect(page.locator(".entry-summary-head strong")).toHaveAttribute("data-score-target", String(Number(firstListScore)));
   await expect(page.locator(".entry-summary-facts dd").last()).toContainText(firstListScore);
+  const chart = page.locator(".entry-price-chart");
+  await expect(chart).toContainText("近 30 個交易日收盤價走勢");
+  await expect(chart.locator(".entry-chart-points circle")).toHaveCount(30);
+  await expect(chart.locator(".entry-chart-range")).toHaveCount(0);
+  const plot = chart.locator(".entry-chart-plot");
+  const closes = JSON.parse(await plot.getAttribute("data-points")).map((point) => point.close)
+    .filter((close) => Number.isFinite(close) && close > 0);
+  const trend = closes.at(-1) > closes[0] ? "up" : closes.at(-1) < closes[0] ? "down" : "flat";
+  await expect(chart).toHaveAttribute("data-trend", trend);
+  const { stroke, tone } = await chart.evaluate((element) => {
+    const kind = element.dataset.trend;
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(
+      kind === "up" ? "--up" : kind === "down" ? "--down" : "--accent");
+    const probe = document.createElement("span");
+    probe.style.color = raw;
+    element.append(probe);
+    const tone = getComputedStyle(probe).color;
+    probe.remove();
+    return { stroke: getComputedStyle(element.querySelector("svg path")).stroke, tone };
+  });
+  expect(stroke).toBe(tone);
+  const box = await plot.boundingBox();
+  await page.mouse.click(box.x + 10, box.y + box.height / 2);
+  await expect(chart.locator(".entry-chart-note")).toContainText("收盤");
+  await expect(plot).toHaveAttribute("aria-valuenow", "1");
+  await page.keyboard.press("ArrowRight");
+  await expect(plot).toHaveAttribute("aria-valuenow", "2");
   await expect(page.locator(".entry-core-panel .entry-condition")).toHaveCount(5);
   await expect(page.locator(".entry-condition-icon svg")).toHaveCount(5);
   await expect(page.locator(".entry-condition-data").first()).toBeHidden();
@@ -52,4 +79,8 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   expect(bounds.content).toBeGreaterThan(bounds.client);
   await rows.first().locator(".entry-score-button").click();
   await expect(page.locator("#info-dialog")).toBeVisible();
+  await expect(page.locator(".entry-price-chart svg circle")).toHaveCount(30);
+  const chartBounds = await page.locator(".entry-price-chart").evaluate((element) =>
+    ({ width: element.clientWidth, scroll: element.scrollWidth }));
+  expect(chartBounds.scroll).toBeLessThanOrEqual(chartBounds.width);
 });

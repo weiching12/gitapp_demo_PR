@@ -1,8 +1,26 @@
 const labels = { breadth: "市場漲跌家數", trend: "站上季線", momentum: "20 日動能", institutions: "法人方向", volume: "成交量熱度" };
 const value = (number) => Number.isFinite(number) ? `${Math.round(number)}` : "—";
+const toneStops = [
+  [0, [59, 130, 246]], [20, [96, 165, 250]], [40, [142, 169, 188]],
+  [50, [196, 157, 105]], [60, [223, 152, 114]], [80, [232, 135, 112]], [100, [232, 102, 102]],
+];
+
+export function sentimentTone(score) {
+  if (!Number.isFinite(score)) return "#64748b";
+  const bounded = Math.min(100, Math.max(0, score));
+  const upperIndex = toneStops.findIndex(([point]) => point >= bounded);
+  const [upperPoint, upperColor] = toneStops[upperIndex];
+  if (upperIndex === 0 || upperPoint === bounded) return `#${upperColor.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+  const [lowerPoint, lowerColor] = toneStops[upperIndex - 1];
+  const mix = (bounded - lowerPoint) / (upperPoint - lowerPoint);
+  return `#${upperColor.map((channel, index) => Math.round(lowerColor[index] + (channel - lowerColor[index]) * mix)
+    .toString(16).padStart(2, "0")).join("")}`;
+}
+
 export function renderSentiment(sentiment) {
   const card = document.querySelector("#market-sentiment"); if (!card) return;
   card.dataset.sentiment = sentiment.band.key;
+  card.querySelector("button").style.setProperty("--sentiment-tone", sentimentTone(sentiment.score));
   card.querySelector(".sentiment-score").textContent = value(sentiment.score);
   card.querySelector(".sentiment-band").textContent = sentiment.band.label;
   card.style.setProperty("--sentiment-score", `${sentiment.score ?? 0}%`);

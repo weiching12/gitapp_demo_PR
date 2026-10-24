@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, getSnapshot, getStockInstitutionEstimate } from "../../shared/indicators.js";
 import { DomainError } from "../../shared/domain-error.js";
 import { getEntryScore } from "../../shared/entry-score.js";
+import { dailyCloseSeries } from "../../shared/price-history.js";
 
 export const RULES_VERSION = "technical-v1";
 
@@ -22,6 +23,7 @@ export class AnalysisService {
       Object.fromEntries(["total", "外資", "投信", "自營商"].map((name) => [name,
         getStockInstitutionEstimate(snapshot, name, window, dates)]))]));
     return { data: { symbol, latest: snapshot.latest, signal: snapshot.signal, trend: snapshot.trend,
+      priceHistory: dailyCloseSeries(source.stock.history, source.stock.tradingDates, asOf),
       entryScore,
       institutionalSummary: snapshot.institutionalSummary, money },
     meta: { asOf, sourceAsOf: source.asOf, rulesVersion: RULES_VERSION,

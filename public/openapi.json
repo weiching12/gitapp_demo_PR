@@ -1363,11 +1363,24 @@
               "symbol",
               "latest",
               "signal",
+              "priceHistory",
               "institutionalSummary"
             ],
             "properties": {
               "symbol": {
                 "type": "string"
+              },
+              "priceHistory": {
+                "type": "array",
+                "maxItems": 30,
+                "items": {
+                  "type": "object",
+                  "required": ["date", "close"],
+                  "properties": {
+                    "date": { "type": "string", "format": "date" },
+                    "close": { "type": ["number", "null"] }
+                  }
+                }
               },
               "latest": {
                 "anyOf": [
