@@ -1,12 +1,11 @@
 import { PresenceRepository } from "./repositories/presence-repository.js";
 import { PresenceService, InvalidPresenceIdentifier } from "./services/presence-service.js";
-export { PRESENCE_TTL_MS } from "./services/presence-service.js";
 const reply = (body, status = 200) => Response.json(body, {
   status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
 });
 
-// A single SQLite-backed object serializes heartbeats from every Worker region.
-// Only a random browser identifier and its expiry are stored, never IP addresses.
+// A single SQLite-backed object deduplicates browsers across Worker regions.
+// Only a random browser identifier and its Taipei-day expiry are stored.
 export class OnlinePresence {
   constructor(ctx) {
     this.sql = ctx.storage.sql;
@@ -50,7 +49,7 @@ export async function presenceResponse(request, env) {
   const origin = request.headers.get("Origin");
   if ((origin && origin !== url.origin) || request.headers.get("Sec-Fetch-Site") === "cross-site")
     return reply({ error: "Same-origin requests required" }, 403);
-  if (!env.ONLINE_PRESENCE) return reply({ error: "Online count unavailable" }, 503);
+  if (!env.ONLINE_PRESENCE) return reply({ error: "Daily visitor count unavailable" }, 503);
   try { return await env.ONLINE_PRESENCE.getByName("stock-insight-online").fetch(request); }
-  catch { return reply({ error: "Online count unavailable" }, 503); }
+  catch { return reply({ error: "Daily visitor count unavailable" }, 503); }
 }

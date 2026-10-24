@@ -37,7 +37,7 @@ test("ETF search and favorites work while every industry ranking and detail excl
   });
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/v1/presence") return route.fulfill({ json: { online: 1 } });
+    if (path === "/api/v1/presence") return route.fulfill({ json: { today: 1 } });
     const current = currentData();
     if (path === "/api/v1/market") return route.fulfill({ json: versioned(current.manifest) });
     if (path === "/api/v1/market/summary") return route.fulfill({ json: summaries[Number(includeEtfs)] });

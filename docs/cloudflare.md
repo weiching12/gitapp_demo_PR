@@ -39,11 +39,11 @@ npm.cmd run dev:cloudflare
 
 開啟 `http://localhost:8787`。`/api/market` 回傳來源、公司名錄、交易日、涵蓋率及分組網址；`/api/market/版本/編號` 回傳不可變歷史分組；`/api/stocks/2330` 提供單檔展開格式便於檢查。公開 API 僅讀快取，不觸發 TWSE 請求。正式模式讀取失敗會顯示錯誤，不退回模擬資料。
 
-## 在線人數與欄位載入狀態
+## 今日造訪人數與欄位載入狀態
 
-`ONLINE_PRESENCE` 綁定 `OnlinePresence` SQLite Durable Object，`presence-v1` migration 由 Wrangler 部署時建立。`GET /api/presence` 僅查詢；同源 `POST /api/presence` 接收隨機瀏覽器 UUID 心跳。資料以 90 秒到期時間計數，過期紀錄在下次查詢／心跳清除；同一瀏覽器多分頁共用 localStorage UUID，每 30 秒更新，背景分頁暫停。瀏覽器禁止儲存時以單頁隨機 UUID 降級，因此這是活躍瀏覽器的估計，並非登入會員或精確自然人數。僅存 UUID 與到期時間，不保存 IP，也不占用行情 D1／KV。
+`ONLINE_PRESENCE` 沿用 `OnlinePresence` SQLite Durable Object 與既有 `visitors` 資料表。`GET /api/presence` 唯讀查詢；同源 `POST /api/presence` 在頁面載入時記錄隨機瀏覽器 UUID。到期時間固定為下一個台灣時間午夜；同一瀏覽器當日多分頁或重新整理只計一次，隔日首次造訪再計入新一天。前端在使用者操作觸發版本檢查時一併以 GET 更新顯示，一般檢查最多每 60 秒一次，手動按「檢查更新」則立即讀取；不再每分鐘發送心跳或定時更新。瀏覽器禁止儲存時以單頁隨機 UUID 降級，因此這是當日造訪瀏覽器的估計，並非精確自然人數。僅存 UUID 與到期時間，不保存 IP，也不占用行情 D1／KV。部署當日無法追溯部署前已離線的訪客，隔日起為完整日統計。
 
-端點不快取、不允許跨站寫入；無法取得時顯示錯誤，不以 0 或舊數字冒充即時值。`tests/presence.test.js` 驗證重複心跳、90 秒到期、重建物件保留資料、異常輸入與跨站阻擋；瀏覽器測試驗證真實本機 Durable Object、手機顯示、定時更新及欄位載入／失敗狀態。
+端點不快取、不允許跨站寫入；無法取得時顯示錯誤，不以 0 或舊數字冒充統計結果。`tests/presence.test.js` 驗證當日去重、台灣時間跨日重置、重建物件保留資料、異常輸入與跨站阻擋；瀏覽器測試驗證每日造訪計數與失敗狀態。
 
 ## 每日股票排程
 

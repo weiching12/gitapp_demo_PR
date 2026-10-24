@@ -41,16 +41,17 @@ The T86 transaction and optimistic concurrency guard stay in `t86-store.js`.
 ## Presence
 
 `presence.js` preserves the Durable Object name/schema and handles HTTP, same-origin
-policy, body byte limits and response mapping. `PresenceService` owns UUID/TTL and
-refresh policy; `PresenceRepository` owns synchronous SQLite statements. There is
-no asynchronous boundary between cleanup/upsert/count.
+policy, body byte limits and response mapping. `PresenceService` owns UUID
+validation and Taipei-day boundaries; `PresenceRepository` owns synchronous SQLite
+deduplication and count statements. There is no asynchronous boundary between cleanup,
+recording a visit and counting.
 
 ## Verification
 
 - Unit/contract tests preserve v1 and legacy status/body/header behavior.
 - Sector regression tests compare prior behavior across dates/windows/sorts.
 - TWSE fixture hashes include parsers, coverage, all 128 shards and the manifest.
-- `npm run test:presence-runtime` uses isolated workerd/SQLite for heartbeat/expiry.
+- `npm run test:presence-runtime` uses isolated workerd/SQLite for daily visits and expiry.
 - `npm run test:refactor-browser` (after `npm run build:cloudflare`) serves local
   fixed fixtures and verifies desktop/phone sectors, details, favorites and navigation.
 - Set `CHROMIUM_PATH` when using an installed browser instead of Playwright's bundle.

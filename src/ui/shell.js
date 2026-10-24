@@ -18,7 +18,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
       <div class="sidebar-bottom"><button class="nav-item" data-dialog="settings" aria-label="設定">${icon("settings")}<span>設定</span></button><div class="workspace-status"><span class="status-dot"></span>${isDemo ? "前端示範版" : "每日收盤資料"} <span>${appVersion}</span></div></div>
     </aside>
     <div class="workspace">
-      <header class="topbar"><div class="breadcrumb">研究工作台 ${icon("chevron")} <span id="breadcrumb-current">市場觀察清單</span></div><div class="topbar-actions"><span id="online-count" class="online-count" role="status" title="最近 90 秒內活躍的瀏覽器，同一瀏覽器多分頁計一次">${loadingIcon("正在取得在線人數")}<span>在線人數</span></span><span class="demo-badge"><span></span>${esc(dataset.info.label)}</span></div></header>
+      <header class="topbar"><div class="breadcrumb">研究工作台 ${icon("chevron")} <span id="breadcrumb-current">市場觀察清單</span></div><div class="topbar-actions"><span id="online-count" class="online-count" role="status" title="台灣時間當日累積造訪的瀏覽器數；同一瀏覽器多分頁只計一次">${loadingIcon("正在取得今日造訪人數")}<span>今日造訪人數</span></span><span class="demo-badge"><span></span>${esc(dataset.info.label)}</span></div></header>
       <main id="main" tabindex="-1">
         <section class="page-heading"><div><div class="eyebrow" id="page-eyebrow">TAIWAN STOCK EXPLORER</div><h1 id="page-title">市場觀察清單<span class="heading-dot">.</span></h1><p id="page-description">比較全部標的的價量、技術指標與法人籌碼。</p></div><div class="date-control"><label for="trade-date">${icon("calendar")}<span class="date-label-text">資料交易日</span></label><select id="trade-date">${dataset.dates
           .slice(-30)

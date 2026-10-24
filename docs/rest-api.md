@@ -30,7 +30,7 @@ with versioned API routes added only when those capabilities exist.
 | GET / HEAD | `/api/v1/stocks/{symbol}` | Stock metadata and available history, existing snapshot format |
 | GET / HEAD | `/api/v1/stocks/{symbol}/history` | `{data: [...], meta: {symbol, asOf, updatedAt, tradingDates}}` |
 | GET / HEAD | `/api/v1/stocks/{symbol}/analysis` | Shared indicator rules, latest bar, signal and institutional summary |
-| GET / POST | `/api/v1/presence` | Online count / browser heartbeat; same-origin protection retained |
+| GET / POST | `/api/v1/presence` | Taipei-day cumulative browser count / record one browser visit; same-origin protection retained |
 
 The stocks collection supports `offset` (default 0), `limit` (default 100, 1–200),
 `type=stock|etf`, exact `sector`, and case-insensitive `q` matching code/name.

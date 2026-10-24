@@ -816,14 +816,14 @@ h1 {
   table-layout: fixed;
   border-collapse: collapse;
   width: 100%;
-  min-width: 1390px;
+  min-width: 1490px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .favorite-column { width: var(--table-favorite-width); }
-.stock-column { width: 15%; }
-.entry-column { width: 88px; }
+.stock-column { width: 170px; }
+.entry-column { width: 90px; }
 .entry-cell { text-align: right; }
 .entry-score-button { display: inline-flex; align-items: center; justify-content: flex-end;
   max-width: 100%; text-align: right; color: var(--ink); }
@@ -881,9 +881,9 @@ h1 {
 .entry-more .entry-guide-item li { margin: 3px 0; font-size: 13px; }
 .entry-more .entry-guide-item code { margin-top: 8px; font: inherit; font-size: 13px; line-height: 1.6; }
 .entry-disclaimer { margin-top: 22px; }
-.price-column { width: 11%; }
-.price-volume-column { width: 155px; }
-.trend-column { width: 140px; }
+.price-column { width: 135px; }
+.price-volume-column { width: 150px; }
+.trend-column { width: 135px; }
 .trend-cell { text-align: right; }
 .trend-label, .trend-reason { display: block; }
 .trend-reason { margin-top: 4px; color: var(--muted); font-size: 12px; }
@@ -894,10 +894,11 @@ h1 {
 .price-volume-label.signal-badge.up { color: var(--up); background: #fbefec; }
 .price-volume-label.signal-badge.down { color: var(--down); background: #eaf4ef; }
 .price-volume-ratio { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
-.change-column { width: 9.5%; }
-.kd-column { width: 7.5%; }
-.signal-column { width: 25%; }
-.position-column { width: 8.5%; }
+.change-column { width: 105px; }
+.kd-column { width: 90px; }
+.signal-column { width: 220px; }
+.position-column { width: 130px; }
+.net-column { width: 180px; }
 .table-scroll thead {
   background: #fff;
 }
@@ -1105,6 +1106,8 @@ h1 {
 .signal-source {
   color: #1d4ed8;
 }
+[data-theme="dark"] .signal-note { color: var(--ink); background: #142238; }
+[data-theme="dark"] .signal-note .text-button { color: var(--accent); }
 .signal-rules {
   margin: 0 0 18px;
 }

@@ -42,11 +42,13 @@ test("frontend API clients use v1 resources and preserve structured failures", a
   const calls = [];
   const fetcher = async (path, options) => {
     calls.push([path, options]);
-    return Response.json(path === MARKET_API_PATH ? { generation: "g" } : { online: 3 });
+    return Response.json(path === MARKET_API_PATH ? { generation: "g" } : { today: 3, asOf: "2026-10-22" });
   };
   assert.equal((await new MarketApiClient(fetcher).market()).data.generation, "g");
-  assert.equal((await new PresenceApiClient(fetcher).heartbeat("00000000-0000-4000-8000-000000000000")).online, 3);
-  assert.deepEqual(calls.map(([path]) => path), ["/api/v1/market", "/api/v1/presence"]);
+  assert.equal((await new PresenceApiClient(fetcher).recordVisit("00000000-0000-4000-8000-000000000000")).today, 3);
+  assert.equal((await new PresenceApiClient(fetcher).count()).today, 3);
+  assert.deepEqual(calls.map(([path]) => path), ["/api/v1/market", "/api/v1/presence", "/api/v1/presence"]);
+  assert.equal(calls[2][1].method, undefined);
 
   await assert.rejects(new HttpClient(async () => Response.json({ error: { code: "NO_DATA", message: "missing" } },
     { status: 503 })).json("/api/v1/market"), (error) =>

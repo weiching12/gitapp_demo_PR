@@ -138,7 +138,7 @@ const tableState = { visibleLimit: TABLE_BATCH_SIZE, viewKey: "", observer: unde
 const tableBatches = createTableBatchController({ state: tableState, batchSize: TABLE_BATCH_SIZE, render: () => renderTable() });
 let toastTimer;
 let isDemo;
-let stopPresence, stopUpdateCountdown, usingCachedData = false;
+let presence, stopUpdateCountdown, usingCachedData = false;
 let checkPwaUpdate = async () => false;
 let touchInteraction = false;
 const pendingSymbols = new Set();
@@ -175,8 +175,8 @@ function dismissAppSplash() {
 function shell() {
   document.querySelector("#app").innerHTML = shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc });
   requestAnimationFrame(dismissAppSplash);
-  stopPresence?.();
-  stopPresence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
+  presence?.stop();
+  presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
 }
 
 function refreshData() {
@@ -308,11 +308,15 @@ function renderConnectionState(online = navigator.onLine) {
 }
 
 function enablePwa() {
-  checkPwaUpdate = startPwa({
+  const checkUpdate = startPwa({
     onConnection: (online) => renderConnectionState(online),
     getDataVersion: () => dataset?.info?.generation,
     onDataUpdate: () => window.location.reload(),
   });
+  checkPwaUpdate = (force = false) => {
+    void presence?.refresh?.(force);
+    return checkUpdate(force);
+  };
   const reminder = document.querySelector(".date-notification-button");
   const notificationStatus = document.querySelector("#settings-notifications > div > span");
   notificationStatus.setAttribute("role", "status");

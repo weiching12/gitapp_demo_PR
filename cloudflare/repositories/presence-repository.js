@@ -1,6 +1,5 @@
-// All statements run synchronously in one Durable Object request. Do not insert
-// an async boundary between expiry cleanup, heartbeat upsert and count. Keeping
-// the statements synchronous prevents another request from interleaving them.
+// Reuse the existing visitors table; expiry is the next Taipei midnight.
+// A repeated visit from the same browser has no write until the next day.
 export class PresenceRepository {
   constructor(sql) {
     this.sql = sql;
@@ -8,10 +7,14 @@ export class PresenceRepository {
     this.sql.exec("CREATE INDEX IF NOT EXISTS visitors_expiry ON visitors(expires)");
   }
 
-  refreshAndCount({ id, now, expiresAt, refreshBefore }) {
+  recordVisit({ id, now, expiresAt }) {
     this.sql.exec("DELETE FROM visitors WHERE expires <= ?", now);
-    if (id) this.sql.exec(`INSERT INTO visitors VALUES (?,?) ON CONFLICT(id) DO UPDATE SET expires=excluded.expires
-      WHERE visitors.expires <= ?`, id, expiresAt, refreshBefore);
-    return this.sql.exec("SELECT count(*) AS count FROM visitors").one().count;
+    this.sql.exec(`INSERT INTO visitors(id, expires) VALUES (?, ?)
+      ON CONFLICT(id) DO UPDATE SET expires=excluded.expires WHERE visitors.expires != excluded.expires`, id, expiresAt);
+    return this.sql.exec("SELECT count(*) AS count FROM visitors WHERE expires = ?", expiresAt).one().count;
+  }
+
+  countVisits(expiresAt) {
+    return this.sql.exec("SELECT count(*) AS count FROM visitors WHERE expires = ?", expiresAt).one().count;
   }
 }

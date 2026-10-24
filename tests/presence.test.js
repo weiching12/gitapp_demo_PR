@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { OnlinePresence, presenceResponse, PRESENCE_TTL_MS } from "../cloudflare/presence.js";
-import { PresenceService, InvalidPresenceIdentifier } from "../cloudflare/services/presence-service.js";
+import { OnlinePresence, presenceResponse } from "../cloudflare/presence.js";
+import { PresenceService, InvalidPresenceIdentifier, taipeiVisitDay } from "../cloudflare/services/presence-service.js";
 
 function fixture() {
   const db = new DatabaseSync(":memory:");
@@ -12,7 +12,7 @@ function fixture() {
     return statement.run(...values);
   } } } };
   const presence = new OnlinePresence(ctx);
-  let now = 1_000_000;
+  let now = Date.UTC(2026, 9, 22, 15, 50);
   presence.now = () => now;
   const send = (id) => presence.fetch(new Request("https://stock.test/api/presence", {
     method: "POST", body: JSON.stringify({ id }),
@@ -20,31 +20,30 @@ function fixture() {
   return { db, ctx, presence, send, advance: (ms) => { now += ms; } };
 }
 
-test("online count deduplicates browser tabs and expires visitors after 90 seconds", async () => {
+test("daily count deduplicates browser tabs and resets at Taipei midnight", async () => {
   const f = fixture(), first = crypto.randomUUID(), second = crypto.randomUUID();
   try {
-    assert.equal((await f.send(first)).online, 1);
-    assert.equal((await f.send(first)).online, 1);
-    assert.equal((await f.send(second)).online, 2);
-    f.advance(30_000);
-    assert.equal((await f.send(first)).online, 2);
-    f.advance(PRESENCE_TTL_MS - 30_000);
-    assert.equal((await f.send(first)).online, 1);
-    f.advance(PRESENCE_TTL_MS);
+    assert.deepEqual(await f.send(first), { today: 1, asOf: "2026-10-22" });
+    assert.equal((await f.send(first)).today, 1);
+    assert.equal((await f.send(second)).today, 2);
+    f.advance(9 * 60_000);
+    assert.equal((await f.send(first)).today, 2);
+    f.advance(60_000);
     const response = await f.presence.fetch(new Request("https://stock.test/api/presence"));
-    assert.equal((await response.json()).online, 0);
+    assert.deepEqual(await response.json(), { today: 0, asOf: "2026-10-23" });
+    assert.deepEqual(await f.send(first), { today: 1, asOf: "2026-10-23" });
     assert.equal(response.headers.get("cache-control"), "no-store");
-    assert.equal(f.db.prepare("SELECT count(*) n FROM visitors").get().n, 0);
+    assert.equal(f.db.prepare("SELECT count(*) n FROM visitors").get().n, 1);
   } finally { f.db.close(); }
 });
 
-test("a new Durable Object instance retains active visitors and rejects malformed payloads", async () => {
+test("a new Durable Object instance retains today's visitors and rejects malformed payloads", async () => {
   const f = fixture();
   try {
     await f.send(crypto.randomUUID());
     const restarted = new OnlinePresence(f.ctx);
     restarted.now = f.presence.now;
-    assert.equal((await (await restarted.fetch(new Request("https://stock.test/api/presence"))).json()).online, 1);
+    assert.equal((await (await restarted.fetch(new Request("https://stock.test/api/presence"))).json()).today, 1);
     for (const body of ["{", JSON.stringify({ id: "not-a-uuid" }), "x".repeat(129)]) {
       const response = await restarted.fetch(new Request("https://stock.test/api/presence", { method: "POST", body }));
       assert.ok([400, 413].includes(response.status));
@@ -58,7 +57,7 @@ test("presence endpoint rejects cross-site writes and fails independently of sto
   let calls = 0;
   const env = { ONLINE_PRESENCE: { getByName(name) {
     assert.equal(name, "stock-insight-online");
-    return { fetch: async () => { calls++; return Response.json({ online: 1 }); } };
+    return { fetch: async () => { calls++; return Response.json({ today: 1, asOf: "2026-10-22" }); } };
   } } };
   assert.equal((await presenceResponse(request({ Origin: "https://other.test" }), env)).status, 403);
   assert.equal((await presenceResponse(request({}, "DELETE"), env)).status, 405);
@@ -68,40 +67,44 @@ test("presence endpoint rejects cross-site writes and fails independently of sto
   assert.equal((await presenceResponse(request(), {})).status, 503);
 });
 
-test("presence policy validates identifiers before storage and provides expiry rules without HTTP", () => {
+test("daily visitor policy validates identifiers and uses Taipei midnight", () => {
   const calls = [];
-  const service = new PresenceService({ refreshAndCount(input) { calls.push(input); return 7; } }, { now: () => 100 });
+  const now = Date.UTC(2026, 9, 22, 15, 50);
+  const service = new PresenceService({ recordVisit(input) { calls.push(input); return 7; },
+    countVisits(expiresAt) { calls.push(expiresAt); return 7; } }, { now: () => now });
   for (const id of [undefined, null, 123, "", "6ba7b810-9dad-11d1-80b4-00c04fd430c8", "00000000-0000-4000-7000-000000000000"]) {
     assert.throws(() => service.heartbeat(id), InvalidPresenceIdentifier);
   }
   assert.equal(calls.length, 0);
   const id = "00000000-0000-4000-8000-000000000000";
-  assert.deepEqual(service.heartbeat(id), { online: 7, windowSeconds: 90 });
-  assert.deepEqual(calls[0], { id, now: 100, expiresAt: 90_100, refreshBefore: 80_100 });
-  assert.deepEqual(service.count(), { online: 7, windowSeconds: 90 });
-  assert.equal(calls[1].id, undefined);
+  assert.deepEqual(service.heartbeat(id), { today: 7, asOf: "2026-10-22" });
+  assert.deepEqual(calls[0], { id, now, expiresAt: Date.UTC(2026, 9, 22, 16) });
+  assert.deepEqual(service.count(), { today: 7, asOf: "2026-10-22" });
+  assert.equal(calls[1], Date.UTC(2026, 9, 22, 16));
+  assert.deepEqual(taipeiVisitDay(Date.UTC(2026, 9, 22, 16)),
+    { asOf: "2026-10-23", expiresAt: Date.UTC(2026, 9, 23, 16) });
 });
 
-test("heartbeats only write a new expiry when the ten-second refresh boundary is reached", async () => {
+test("repeated visits on the same day do not update the browser row", async () => {
   const f = fixture(), id = crypto.randomUUID();
   const expires = () => f.db.prepare("SELECT expires FROM visitors WHERE id = ?").get(id).expires;
   const writes = () => f.db.prepare("SELECT total_changes() AS count").get().count;
   try {
     await f.send(id);
-    assert.equal(expires(), 1_000_000 + PRESENCE_TTL_MS);
+    assert.equal(expires(), Date.UTC(2026, 9, 22, 16));
     const initialWrites = writes();
-    f.advance(9_999);
+    f.advance(9 * 60_000);
     await f.send(id);
-    assert.equal(expires(), 1_000_000 + PRESENCE_TTL_MS);
+    assert.equal(expires(), Date.UTC(2026, 9, 22, 16));
     assert.equal(writes(), initialWrites);
-    f.advance(1);
+    f.advance(60_000);
     await f.send(id);
-    assert.equal(expires(), 1_010_000 + PRESENCE_TTL_MS);
-    assert.equal(writes(), initialWrites + 1);
+    assert.equal(expires(), Date.UTC(2026, 9, 23, 16));
+    assert.equal(writes(), initialWrites + 2);
   } finally { f.db.close(); }
 });
 
-test("streamed heartbeats enforce a byte limit without relying on Content-Length", async () => {
+test("streamed visit records enforce a byte limit without relying on Content-Length", async () => {
   const f = fixture(), id = crypto.randomUUID();
   const payload = JSON.stringify({ id });
   const streamed = (chunks) => new Request("https://stock.test/api/presence", {
@@ -114,7 +117,7 @@ test("streamed heartbeats enforce a byte limit without relying on Content-Length
   try {
     const allowed = await f.presence.fetch(streamed([payload, " ".repeat(128 - payload.length)]));
     assert.equal(allowed.status, 200);
-    assert.deepEqual(await allowed.json(), { online: 1, windowSeconds: 90 });
+    assert.deepEqual(await allowed.json(), { today: 1, asOf: "2026-10-22" });
     const excess = await f.presence.fetch(streamed([payload, " ".repeat(129 - payload.length)]));
     assert.equal(excess.status, 413);
     assert.deepEqual(await excess.json(), { error: "Invalid heartbeat" });
@@ -152,6 +155,6 @@ test("presence HTTP responses preserve validation, origin and storage failure be
       ONLINE_PRESENCE: { getByName() { return { fetch() { throw new Error("storage offline"); } }; } },
     });
     assert.equal(unavailable.status, 503);
-    assert.deepEqual(await unavailable.json(), { error: "Online count unavailable" });
+    assert.deepEqual(await unavailable.json(), { error: "Daily visitor count unavailable" });
   } finally { f.db.close(); }
 });

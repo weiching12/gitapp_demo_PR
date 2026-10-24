@@ -22,7 +22,7 @@ test("market shell waits for one backend summary and never requests history shar
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     paths.push(path);
-    if (path === "/api/v1/presence") return route.fulfill({ json: { online: 1 } });
+    if (path === "/api/v1/presence") return route.fulfill({ json: { today: 1 } });
     if (path === "/api/v1/market") return route.fulfill({ json: versionedManifest });
     if (path === "/api/v1/market/summary") {
       await waiting.promise;
@@ -47,7 +47,7 @@ test("failed summary keeps the shell usable and retry loads the complete result"
   let fail = true;
   await page.route("**/api/**", (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/api/v1/presence") return route.fulfill({ json: { online: 1 } });
+    if (path === "/api/v1/presence") return route.fulfill({ json: { today: 1 } });
     if (path === "/api/v1/market") return route.fulfill({ json: versionedManifest });
     if (path === "/api/v1/market/summary") return route.fulfill(fail ? { status: 503, body: "unavailable" } : { json: summary });
     return route.fulfill({ status: 404 });
@@ -75,7 +75,7 @@ test("switching dates fetches that date once and reuses the result", async ({ pa
   const historicalResponse = defer();
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url()), path = url.pathname;
-    if (path === "/api/v1/presence") return route.fulfill({ json: { online: 1 } });
+    if (path === "/api/v1/presence") return route.fulfill({ json: { today: 1 } });
     if (path === "/api/v1/market") return route.fulfill({ json: { ...datedManifest, chunks: datedManifest.chunks.map((_, index) =>
       `/api/v1/market/snapshots/${datedManifest.generation}/shards/${index}`) } });
     if (path === "/api/v1/market/summary") {
