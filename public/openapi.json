@@ -1,0 +1,1546 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Stock Research API",
+    "version": "1.0.0",
+    "description": "Published Taiwan market snapshots. Prices are unadjusted. Legacy /api endpoints remain supported."
+  },
+  "servers": [
+    {
+      "url": "https://stock-insight-tw.stock-insight-tw.workers.dev"
+    },
+    {
+      "url": "http://localhost:8787"
+    }
+  ],
+  "paths": {
+    "/api/v1/favorites/summary": {
+      "get": {
+        "operationId": "getFavoriteSummary",
+        "description": "Institutional windows for selected stocks and one trading date.",
+        "parameters": [
+          { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "asOf", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": { "200": { "description": "Selected stock summaries", "content": { "application/json": {
+          "schema": { "type": "object", "required": ["data", "meta"], "properties": {
+            "data": { "type": "array", "items": { "type": "object" } },
+            "meta": { "type": "object", "required": ["asOf", "generation"] }
+          } }
+        } } } }
+      },
+      "head": { "responses": { "200": { "description": "Same status and headers without a body" } } }
+    },
+    "/api/v1/market/summary": {
+      "get": {
+        "operationId": "getMarketSummary",
+        "description": "Backend-calculated market values for one trading date. No raw history is returned.",
+        "parameters": [
+          { "name": "asOf", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "period", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 60 } },
+          { "name": "kSmooth", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20 } },
+          { "name": "dSmooth", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calculated market summary",
+            "content": { "application/json": { "schema": {
+              "type": "object", "required": ["data", "meta"],
+              "properties": {
+                "data": { "type": "object", "required": ["stocks", "sentiment", "sectors"] },
+                "meta": { "type": "object", "required": ["asOf", "generation", "rulesVersion"] }
+              }
+            } } }
+          }
+        }
+      },
+      "head": { "responses": { "200": { "description": "Same status and headers without a body" } } }
+    },
+    "/api/v1/sectors/{name}": {
+      "get": {
+        "operationId": "getSectorDetail",
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "asOf", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Industry detail for the requested trading date",
+            "content": { "application/json": { "schema": {
+              "type": "object", "required": ["data", "meta"],
+              "properties": {
+                "data": { "type": "object", "required": ["name", "members", "periods"] },
+                "meta": { "type": "object", "required": ["asOf", "generation"] }
+              }
+            } } }
+          }
+        }
+      },
+      "head": { "responses": { "200": { "description": "Same status and headers without a body" } } }
+    },
+    "/api/v1/market": {
+      "get": {
+        "operationId": "getMarket",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Manifest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "getMarketHead",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Same status/headers as GET, no body"
+          },
+          "400": {
+            "description": "Invalid query"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "405": {
+            "description": "Unsupported method"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/market/snapshots/{generation}/shards/{index}": {
+      "get": {
+        "operationId": "getShard",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,64}$"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 127
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Shard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "getShardHead",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,64}$"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 127
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Same status/headers as GET, no body"
+          },
+          "400": {
+            "description": "Invalid query"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "405": {
+            "description": "Unsupported method"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/stocks": {
+      "get": {
+        "operationId": "listStocks",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 100
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stock",
+                "etf"
+              ]
+            }
+          },
+          {
+            "name": "sector",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockCollection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "listStocksHead",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 100
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stock",
+                "etf"
+              ]
+            }
+          },
+          {
+            "name": "sector",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Same status/headers as GET, no body"
+          },
+          "400": {
+            "description": "Invalid query"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "405": {
+            "description": "Unsupported method"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/stocks/{symbol}": {
+      "get": {
+        "operationId": "getStock",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[0-9]{4,6}|[0-9]{5}[A-Z])$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "getStockHead",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[0-9]{4,6}|[0-9]{5}[A-Z])$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Same status/headers as GET, no body"
+          },
+          "400": {
+            "description": "Invalid query"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "405": {
+            "description": "Unsupported method"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/stocks/{symbol}/history": {
+      "get": {
+        "operationId": "getHistory",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[0-9]{4,6}|[0-9]{5}[A-Z])$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/History"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "getHistoryHead",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[0-9]{4,6}|[0-9]{5}[A-Z])$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Same status/headers as GET, no body"
+          },
+          "400": {
+            "description": "Invalid query"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "405": {
+            "description": "Unsupported method"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/stocks/{symbol}/analysis": {
+      "get": {
+        "operationId": "getAnalysis",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[0-9]{4,6}|[0-9]{5}[A-Z])$"
+            }
+          },
+          {
+            "name": "asOf",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60,
+              "default": 9
+            }
+          },
+          {
+            "name": "kSmooth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 3
+            }
+          },
+          {
+            "name": "dSmooth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 3
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Analysis"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Data unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "getAnalysisHead",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[0-9]{4,6}|[0-9]{5}[A-Z])$"
+            }
+          },
+          {
+            "name": "asOf",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60,
+              "default": 9
+            }
+          },
+          {
+            "name": "kSmooth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 3
+            }
+          },
+          {
+            "name": "dSmooth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 3
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Same status/headers as GET, no body"
+          },
+          "400": {
+            "description": "Invalid query"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "405": {
+            "description": "Unsupported method"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/presence": {
+      "get": {
+        "operationId": "getPresence",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Presence"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cross-origin request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Presence unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "heartbeat",
+        "description": "Same-origin only. The id is a random browser UUID, not an account or IP.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Presence"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid UUID/JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cross-origin request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds 128 bytes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Presence unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/push/config": {
+      "get": {
+        "operationId": "getPushConfig",
+        "responses": {
+          "200": {
+            "description": "Web Push availability and public VAPID key",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/push/subscriptions": {
+      "post": {
+        "operationId": "subscribePush",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription saved",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid subscription"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unsubscribePush",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "endpoint"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription removed",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid endpoint"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Security": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "name",
+          "sector",
+          "market",
+          "listedOn"
+        ],
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "pattern": "^(?:[0-9]{4,6}|[0-9]{5}[A-Z])$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sector": {
+            "type": "string"
+          },
+          "market": {
+            "type": "string"
+          },
+          "listedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "assetType": {
+            "type": "string",
+            "enum": [
+              "stock",
+              "etf"
+            ]
+          }
+        }
+      },
+      "Institution": {
+        "type": "object",
+        "required": [
+          "name",
+          "buy",
+          "sell"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "buy": {
+            "type": "number"
+          },
+          "sell": {
+            "type": "number"
+          }
+        }
+      },
+      "Bar": {
+        "type": "object",
+        "required": [
+          "date",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume",
+          "institutions"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "open": {
+            "type": "number"
+          },
+          "high": {
+            "type": "number"
+          },
+          "low": {
+            "type": "number"
+          },
+          "close": {
+            "type": "number"
+          },
+          "volume": {
+            "type": "number"
+          },
+          "institutions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Institution"
+            }
+          }
+        }
+      },
+      "Manifest": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "source",
+          "generation",
+          "asOf",
+          "updatedAt",
+          "dates",
+          "stocks",
+          "chunks"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "const": 2
+          },
+          "source": {
+            "const": "twse"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "stocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Security"
+            }
+          },
+          "chunks": {
+            "type": "array",
+            "minItems": 128,
+            "maxItems": 128,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "StockSnapshot": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "source",
+          "asOf",
+          "updatedAt",
+          "stock"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 2
+          },
+          "source": {
+            "const": "twse"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "stock": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Security"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "history",
+                  "tradingDates"
+                ],
+                "properties": {
+                  "history": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Bar"
+                    }
+                  },
+                  "tradingDates": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "date"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "StockCollection": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Security"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "asOf",
+              "updatedAt",
+              "total",
+              "offset",
+              "limit"
+            ],
+            "properties": {
+              "asOf": {
+                "type": "string",
+                "format": "date"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200
+              }
+            }
+          }
+        }
+      },
+      "History": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bar"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "symbol",
+              "asOf",
+              "updatedAt",
+              "tradingDates"
+            ],
+            "properties": {
+              "symbol": {
+                "type": "string"
+              },
+              "asOf": {
+                "type": "string",
+                "format": "date"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "tradingDates": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Analysis": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "symbol",
+              "latest",
+              "signal",
+              "priceHistory",
+              "institutionalSummary"
+            ],
+            "properties": {
+              "symbol": {
+                "type": "string"
+              },
+              "priceHistory": {
+                "type": "array",
+                "maxItems": 30,
+                "items": {
+                  "type": "object",
+                  "required": ["date", "close"],
+                  "properties": {
+                    "date": { "type": "string", "format": "date" },
+                    "close": { "type": ["number", "null"] }
+                  }
+                }
+              },
+              "latest": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Bar"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "signal": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "tone",
+                  "label",
+                  "reason"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "tone": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              "institutionalSummary": {
+                "type": "object"
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "asOf",
+              "sourceAsOf",
+              "rulesVersion",
+              "priceBasis",
+              "settings"
+            ],
+            "properties": {
+              "asOf": {
+                "type": "string",
+                "format": "date"
+              },
+              "sourceAsOf": {
+                "type": "string",
+                "format": "date"
+              },
+              "rulesVersion": {
+                "const": "technical-v1"
+              },
+              "priceBasis": {
+                "const": "unadjusted"
+              },
+              "settings": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "Shard": {
+        "type": "object",
+        "required": [
+          "generation",
+          "index",
+          "stocks"
+        ],
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 127
+          },
+          "stocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "symbol",
+                "history"
+              ],
+              "properties": {
+                "symbol": {
+                  "type": "string"
+                },
+                "history": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "minItems": 12,
+                    "maxItems": 12
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Presence": {
+        "type": "object",
+        "required": [
+          "online",
+          "windowSeconds"
+        ],
+        "properties": {
+          "online": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "windowSeconds": {
+            "const": 90
+          }
+        }
+      },
+      "PushConfig": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "publicKey"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "publicKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "PushSubscriptionState": {
+        "type": "object",
+        "required": [
+          "subscribed"
+        ],
+        "properties": {
+          "subscribed": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

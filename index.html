@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#14243b" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="株研" />
+    <meta
+      name="description"
+      content="株研台股研究室：用股價、KD 指標、季線與三大法人買賣量，建立自己的市場觀察。"
+    />
+    <title>株研 Stock Insight｜台股研究室</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script>
+      try {
+        if (matchMedia("(display-mode: standalone)").matches || navigator.standalone === true)
+          document.documentElement.classList.add("is-standalone");
+        if (sessionStorage.getItem("stock-insight-splash-seen"))
+          document.documentElement.classList.add("app-splash-seen");
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="app-splash" class="app-splash" aria-hidden="true">
+      <div class="app-splash-brand">
+        <svg class="app-splash-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="12"></rect><path d="M10 28V19m10 9V10m10 18V15"></path></svg>
+        <div class="app-splash-name">株研<span>STOCK INSIGHT</span></div>
+        <div class="app-splash-line"></div>
+      </div>
+    </div>
+    <a class="skip-link" href="#main">跳至主要內容</a>
+    <div id="app"><main class="initial-load" aria-busy="true"><p role="status">正在載入股票資料…</p></main></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

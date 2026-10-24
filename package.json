@@ -1,0 +1,34 @@
+{
+  "name": "stock-insight-tw",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build --configLoader runner",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --experimental-sqlite --test tests/*.test.js",
+    "test:t86-runtime": "node tests/t86-runtime.mjs",
+    "test:e2e": "playwright test",
+    "test:pwa": "npm run build && playwright test --config playwright.pwa.config.js",
+    "test:cloudflare": "playwright test --config playwright.cloudflare.config.js",
+    "build:cloudflare": "vite build --mode cloudflare --configLoader runner",
+    "dev:cloudflare": "npm run build:cloudflare && wrangler dev --port 8787",
+    "deploy": "npm run build:cloudflare && wrangler deploy",
+    "deploy:ui": "node scripts/deploy-ui.js",
+    "seed": "node scripts/seed-market.js",
+    "verify:market": "node scripts/verify-market.js",
+    "t86:admin": "node scripts/t86-admin.js",
+    "test:sync-runtime": "node tests/sync-coordinator-runtime.mjs",
+    "test:presence-runtime": "node tests/presence-runtime.mjs",
+    "test:refactor-browser": "node tests/refactor-browser-runtime.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "vite": "^7.3.1",
+    "wrangler": "^4.151.1"
+  },
+  "dependencies": {
+    "@block65/webcrypto-web-push": "^2.0.0"
+  }
+}

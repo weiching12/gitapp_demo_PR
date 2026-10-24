@@ -1,0 +1,335 @@
+/*
+ * Shared type scale: 12 / 14 / 16 / 20 / 24 / 32px at the default browser size.
+ * Keep size, weight and line-height here; styles.css owns layout and appearance.
+ * Phone layouts use a tighter heading scale while keeping body copy readable.
+ */
+:root {
+  font-family:
+    system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC",
+    "Noto Sans TC", sans-serif;
+  font-size: 100%;
+  --text-meta: 0.75rem;
+  --text-secondary: 0.875rem;
+  --text-body: 1rem;
+  --text-title: 1.25rem;
+  --text-section: 1.5rem;
+  --text-page: 2rem;
+  --leading-heading: 1.35;
+  --leading-control: 1.5;
+  --leading-reading: 1.65;
+  font-weight: 400;
+  line-height: var(--leading-reading);
+}
+.online-count, .field-load-error, .sector-loading-fields { font-size: var(--text-meta); line-height: var(--leading-control); }
+
+/* Titles: page -> section/dialog -> stock/subsection. */
+h1 {
+  font-size: var(--text-page);
+}
+h2 {
+  font-size: var(--text-section);
+}
+h3,
+h4 {
+  font-size: var(--text-title);
+}
+h1,
+h2,
+h3,
+h4,
+strong,
+b {
+  font-weight: 600;
+}
+h1,
+h2,
+h3,
+h4 {
+  line-height: var(--leading-heading);
+}
+.brand {
+  font-size: var(--text-section);
+  font-weight: 600;
+  line-height: var(--leading-heading);
+}
+.footer-brand {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+/* Body and controls: data, stock names, form fields and actions. */
+button,
+input,
+select,
+tbody td,
+tbody th,
+.k-cell,
+.watch-institution-heading,
+.overview-metric dd,
+.form-field label {
+  font-size: var(--text-body);
+}
+button,
+input,
+select {
+  line-height: var(--leading-control);
+}
+button,
+.price-cell,
+.overview-metric dd {
+  font-weight: 500;
+}
+tbody th,
+tbody td {
+  font-weight: 400;
+}
+.stock-name strong,
+.sector-stock-name > strong {
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: var(--leading-heading);
+}
+.nav-item.active,
+.institution-window [aria-pressed="true"],
+.overview-total dd {
+  font-weight: 600;
+}
+
+/* Secondary copy: descriptions and labels have one shared reading size. */
+.page-heading p,
+.metric-label,
+.metric-description,
+.watch-symbol,
+.overview-stock-code,
+.overview-metric dt,
+.institution-overview-head,
+.sector-sort-control,
+.date-control label,
+.signal-note,
+.signal-note button,
+.signal-badge,
+.position-tag,
+.indicator-tag,
+.change-chip,
+.watch-flow-heading > span,
+.watch-flow-total > div:first-child > span,
+.watch-flow-amounts,
+.watch-flow-legend,
+.watch-history-note,
+.watch-cumulative > span,
+.watch-flow-bar-row > span:last-child,
+.institution-dialog-footer,
+.dialog-intro,
+.source-banner,
+.source-details,
+.helper-text,
+.guide-item p,
+.guide-item code,
+.form-field > div span,
+.watchlist-empty p,
+.empty-state p,
+.toast {
+  font-size: var(--text-secondary);
+  line-height: var(--leading-reading);
+}
+.metric-description,
+.helper-text {
+  color: var(--muted);
+}
+.guide-item h3,
+.watch-flow-heading h3 {
+  font-size: var(--text-title);
+}
+.signal-badge,
+.position-tag,
+.indicator-tag,
+.change-chip {
+  line-height: var(--leading-control);
+  font-weight: 500;
+}
+thead th,
+thead th button,
+.sector-ranking-head,
+.overview-tabs [role="tab"],
+.institution-window button,
+.sector-period button,
+.sector-sort-tabs button,
+.filter-tabs button,
+.outline-button,
+.text-button,
+.overview-detail-button,
+.primary-button {
+  font-size: var(--text-secondary);
+  line-height: var(--leading-control);
+  font-weight: 500;
+}
+
+/* Metadata only: dates, units, badges and navigation context. */
+.eyebrow,
+.brand-en,
+.nav-caption,
+.nav-caption span,
+.sidebar-note > span,
+.workspace-status,
+.count-pill,
+.breadcrumb,
+.demo-badge,
+.metric-label > span,
+.metric-value small,
+.watch-symbol > span,
+.stock-name > span,
+.stock-volume,
+.institution-volume-share,
+.signal-reason,
+.institution-leader,
+.institution-overview-note,
+.sector-note,
+.sector-inline,
+.kd-detail,
+.deviation,
+.watch-streak,
+#institution-meta,
+.table-footer,
+.page-footer,
+.page-footer button,
+.footer-brand span,
+.search-box kbd,
+.guide-item > span {
+  font-size: var(--text-meta);
+  line-height: var(--leading-control);
+  font-weight: 400;
+}
+.eyebrow,
+.watch-streak {
+  font-weight: 500;
+}
+.eyebrow {
+  letter-spacing: 0.1em;
+}
+.watch-card-heading h3,
+.institution-overview-row h4,
+.sector-card h3 {
+  font-size: var(--text-title);
+}
+.metric-value,
+.watch-flow-total strong,
+.sector-total strong {
+  font-size: var(--text-section);
+  font-weight: 600;
+  line-height: var(--leading-heading);
+  letter-spacing: -0.02em;
+}
+.watch-signal .signal-reason {
+  line-height: var(--leading-reading);
+}
+.sidebar-note p {
+  font-size: var(--text-body);
+}
+.sector-breadth,
+.institution-volume-ratio,
+.sector-detail-heading .sector-chart-note {
+  font-size: var(--text-meta);
+  font-weight: 400;
+  line-height: var(--leading-control);
+}
+.load-status { font-size: var(--text-secondary); }
+@media (max-width: 700px) {
+  :root {
+    --text-page: 0.9375rem;
+    --text-section: 0.875rem;
+    --text-title: 0.9375rem;
+    --text-body: 0.875rem;
+    --text-secondary: 0.75rem;
+  }
+  .table-scroll .signal-cell .signal-reason { font-size: 11px; }
+  body { font-size: var(--text-body); }
+  .sector-identity h3 {
+    font-size: var(--text-body);
+  }
+  .sector-identity p {
+    font-size: var(--text-secondary);
+  }
+  .overview-total dd {
+    font-size: var(--text-body);
+    line-height: var(--leading-heading);
+  }
+  .guide-item h3,
+  .watch-flow-heading h3,
+  .sector-detail-heading h3,
+  .sector-summary-period h4 {
+    font-size: var(--text-secondary);
+  }
+  .change-chip,
+  .deviation,
+  .sector-stock-change,
+  .quarter-card .metric-number {
+    font-size: var(--text-title);
+  }
+  .sector-change {
+    font-size: var(--text-secondary);
+  }
+  .sector-summary-values .institution-money {
+    font-size: var(--text-body);
+  }
+  .sector-toolbar .sector-sort-control > span,
+  .sector-toolbar .sector-period-control > span {
+    font-size: var(--text-secondary);
+  }
+  .overview-tabs [role="tab"],
+  .institution-window button {
+    font-size: var(--text-secondary);
+  }
+  .filter-tabs button,
+  #sector-filter,
+  .search-box input {
+    font-size: var(--text-secondary);
+  }
+  .filter-tabs button.active,
+  .overview-tabs [aria-selected="true"] {
+    font-weight: 700;
+  }
+  .sector-sort-tabs button,
+  .sector-period button {
+    font-size: var(--text-secondary);
+  }
+  #trade-date {
+    font-size: var(--text-secondary);
+  }
+}
+.institution-money {
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: var(--leading-heading);
+}
+.institution-lots {
+  font-size: var(--text-meta);
+  font-weight: 400;
+  line-height: var(--leading-control);
+}
+
+/* The former About page now lives inside one dialog; keep its article hierarchy coherent. */
+#info-dialog #dialog-heading { font-size: 24px; }
+#info-dialog .source-about .about-hero h2 { font-size: 20px; }
+#info-dialog :is(.about-goals-heading, .source-data > h3) { font-size: 18px; }
+#info-dialog .about-goal h3 { font-size: 16px; }
+#info-dialog :is(.source-about p, .source-data .dialog-intro, .source-details) { font-size: 14px; }
+#info-dialog :is(.source-about .about-scope, .about-goal .about-progress, .about-status) { font-size: 12px; }
+
+@media (max-width: 700px) {
+  #info-dialog #dialog-heading,
+  #info-dialog .source-about .about-hero h2 { font-size: 15px; }
+  #info-dialog :is(.about-goals-heading, .source-data > h3, .about-goal h3) { font-size: 14px; }
+  #info-dialog :is(.source-about p, .source-data .dialog-intro, .source-details,
+    .source-about .about-scope, .about-goal .about-progress, .about-status) { font-size: 12px; }
+}
+
+@media (max-width: 1100px) {
+  /* Compact navigation keeps labels inside the narrow header. */
+  .sidebar .brand > span:last-child {
+    font-size: var(--text-title);
+  }
+  .sidebar nav .nav-item > span {
+    font-size: var(--text-meta);
+    line-height: var(--leading-control);
+  }
+}
