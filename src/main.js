@@ -528,6 +528,24 @@ function marketScope() {
   return `${dataset.stocks.length - etfs} 家上市公司（含存託憑證）及 ${etfs} 檔新臺幣交易 ETF；不含上櫃與外幣交易櫃檯。法人買株僅統計產業個股，不含 ETF；ETF 歷史自加入日起逐日累積。`;
 }
 
+function animateEntryScore(dialog) {
+  const value = dialog.querySelector(".entry-summary-head strong[data-score-target]");
+  if (!value || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const target = Number(value.dataset.scoreTarget);
+  if (!Number.isFinite(target)) return;
+  const duration = 750;
+  let startedAt;
+  value.textContent = "0.00 / 100";
+  const frame = (now) => {
+    if (!value.isConnected || !dialog.open) return;
+    startedAt ??= now;
+    const progress = Math.min((now - startedAt) / duration, 1);
+    value.textContent = `${(target * (1 - (1 - progress) ** 3)).toFixed(2)} / 100`;
+    if (progress < 1) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
 function openDialog(type, focusClose = true) {
   const content = document.querySelector("#dialog-content");
   document.querySelector("#settings-notifications").hidden = type !== "settings";
@@ -559,6 +577,7 @@ function openDialog(type, focusClose = true) {
   }
   const dialog = document.querySelector("#info-dialog");
   dialog.showModal();
+  if (type.startsWith("entry:")) animateEntryScore(dialog);
   const close = dialog.querySelector("#close-dialog");
   if (focusClose) close.focus({ preventScroll: true });
   else if (dialog.contains(document.activeElement)) document.activeElement.blur();
@@ -577,9 +596,11 @@ async function openEntryScoreDialog(symbol, focusClose = true) {
     if (data.meta?.asOf !== date || detail?.modelVersion !== summary?.modelVersion ||
         detail?.totalScore !== summary?.totalScore) throw new Error("清單與個股評分版本不一致");
     entryDetailCache.set(key, detail);
-    if (dialog.open && dialog.dataset.entrySymbol === symbol && state.date === date)
+    if (dialog.open && dialog.dataset.entrySymbol === symbol && state.date === date) {
       document.querySelector("#dialog-content").innerHTML = entryScoreDialogMarkup(
         { ...snapshots.find((stock) => stock.symbol === symbol), entryScore: detail }, esc, number, percent);
+      animateEntryScore(dialog);
+    }
   } catch (error) {
     if (dialog.open && dialog.dataset.entrySymbol === symbol && state.date === date)
       document.querySelector("#dialog-content").innerHTML = `<h2 id="dialog-heading">個股進場評估</h2><p role="alert">${esc(error.message || "評分明細載入失敗")}</p>`;

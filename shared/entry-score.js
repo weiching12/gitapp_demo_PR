@@ -1,10 +1,9 @@
 import { getInstitutionNet, getInstitutionalNet, getPriceVolumeSignal } from "./indicators.js";
 
-export const ENTRY_MODEL_VERSION = "entry-score-v1.1";
+export const ENTRY_MODEL_VERSION = "entry-score-v1.2";
 export const ENTRY_STRATEGY = "swing-trend";
 export const ENTRY_WEIGHTS = Object.freeze({ trend: 25, momentum: 15, priceVolume: 15,
   institutional: 20, entryRisk: 25 });
-export const CORE_SCORE_CAP = 60;
 export const CORE_THRESHOLDS = Object.freeze({ heavySellChange: -0.5, heavySellRvol: 2,
   maxMa20Deviation: 10 });
 const CORE_KEYS = Object.keys(ENTRY_WEIGHTS);
@@ -62,20 +61,20 @@ export function evaluateCoreConditions({ today, previous, dayBefore, completeHis
   };
 }
 
-export function capEntryScore(baseScore, coreConditions) {
-  if (!Number.isFinite(baseScore) || CORE_KEYS.some((key) => !["PASS", "FAIL"].includes(coreConditions?.[key]?.status)))
-    return { finalScore: null, scoreCapped: false };
-  const passed = CORE_KEYS.every((key) => coreConditions[key]?.status === "PASS");
-  return { finalScore: passed ? baseScore : Math.min(baseScore, CORE_SCORE_CAP),
-    scoreCapped: !passed && baseScore > CORE_SCORE_CAP };
+export function getQualifiedEntryScore(baseScore, coreConditions, contributions) {
+  if (!Number.isFinite(baseScore) || CORE_KEYS.some((key) => !["PASS", "FAIL"].includes(coreConditions?.[key]?.status) ||
+      !Number.isFinite(contributions?.[key]) || contributions[key] < 0))
+    return { finalScore: null, qualifiedScore: null };
+  const qualifiedScore = CORE_KEYS.reduce((sum, key) => sum +
+    (coreConditions[key].status === "PASS" ? contributions[key] : 0), 0);
+  return { finalScore: qualifiedScore, qualifiedScore };
 }
 
 /** Keep whole-market responses small; stock analysis returns the full result. */
 export function entryScoreSummary(result) {
   return { modelVersion: result.modelVersion, strategy: result.strategy, asOf: result.asOf,
-    baseScore: result.baseScore, finalScore: result.finalScore,
+    baseScore: result.baseScore, qualifiedScore: result.qualifiedScore, finalScore: result.finalScore,
     totalScore: result.totalScore, displayScore: result.displayScore,
-    scoreCapped: result.scoreCapped, scoreCap: result.scoreCap,
     coreConditionsPassed: result.coreConditionsPassed, passedCount: result.passedCount,
     totalConditions: result.totalConditions, coreConditions: result.coreConditions,
     status: result.status,
@@ -111,12 +110,12 @@ export function getAtr14(history) {
 const statusFor = (score) => score >= 85 ? "條件高度一致" : score >= 70 ? "進場條件接近完整" :
   score >= 50 ? "部分條件成立" : score >= 30 ? "條件偏弱" : "與目前策略不符";
 
-/** Pure, calendar-aware V1.1 research score; future history is ignored. */
+/** Pure, calendar-aware research score; future history is ignored. */
 export function getEntryScore(stock, tradingDates, asOf, options = {}) {
   const base = { modelVersion: ENTRY_MODEL_VERSION, strategy: ENTRY_STRATEGY, asOf,
     priceBasis: options.priceBasis ?? stock.priceBasis ?? "unadjusted", weights: ENTRY_WEIGHTS,
-    baseScore: null, finalScore: null, totalScore: null, displayScore: null,
-    scoreCapped: false, scoreCap: CORE_SCORE_CAP, coreConditionsPassed: false,
+    baseScore: null, qualifiedScore: null, finalScore: null, totalScore: null, displayScore: null,
+    coreConditionsPassed: false,
     passedCount: 0, totalConditions: CORE_KEYS.length, coreConditions: {}, status: "資料不足，無法評分",
     conclusion: "資料不足，無法評分", mainReason: "必要行情與法人資料尚未齊備", categories: {}, supportingEvidence: [], conflictingEvidence: [],
     pendingConditions: [], missingData: [] };
@@ -194,17 +193,19 @@ export function getEntryScore(stock, tradingDates, asOf, options = {}) {
   const values = { trend, momentum, priceVolume, institutional: institution, entryRisk };
   base.categories = Object.fromEntries(Object.entries(values).map(([key, score]) => [key,
     { label: NAMES[key], score: round2(score), weight: ENTRY_WEIGHTS[key],
-      contribution: round2(score * ENTRY_WEIGHTS[key] / 100) }]));
+      contribution: round2(score * ENTRY_WEIGHTS[key] / 100),
+      creditedContribution: base.coreConditions[key].status === "PASS" ? round2(score * ENTRY_WEIGHTS[key] / 100) : 0 }]));
   const total = Object.entries(values).reduce((sum, [key, value]) => sum + value * ENTRY_WEIGHTS[key] / 100, 0);
   base.baseScore = round2(total);
-  const capped = capEntryScore(total, base.coreConditions);
-  base.finalScore = round2(capped.finalScore);
+  const contributions = Object.fromEntries(Object.entries(values).map(([key, value]) =>
+    [key, value * ENTRY_WEIGHTS[key] / 100]));
+  const qualified = getQualifiedEntryScore(total, base.coreConditions, contributions);
+  base.qualifiedScore = round2(qualified.qualifiedScore);
+  base.finalScore = round2(qualified.finalScore);
   base.totalScore = base.finalScore;
   base.displayScore = Math.round(base.finalScore);
-  base.scoreCapped = capped.scoreCapped;
-  base.status = statusFor(base.displayScore);
-  base.conclusion = base.coreConditionsPassed ? base.status : base.scoreCapped
-    ? "核心條件未完整，最終分數上限為 60 分" : "核心條件未完整，保留低於上限的基礎分數";
+  base.status = base.coreConditionsPassed ? statusFor(base.displayScore) : "核心條件不通過";
+  base.conclusion = base.coreConditionsPassed ? base.status : "未通過條件的加權分數不計入最終分數";
   base.mainReason = CORE_KEYS.find((key) => base.coreConditions[key].status === "FAIL")
     ? base.coreConditions[CORE_KEYS.find((key) => base.coreConditions[key].status === "FAIL")].reason
     : "五項核心條件皆已通過";

@@ -825,46 +825,61 @@ h1 {
 .stock-column { width: 15%; }
 .entry-column { width: 88px; }
 .entry-cell { text-align: right; }
-.entry-score-button { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 3px;
+.entry-score-button { display: inline-flex; align-items: center; justify-content: flex-end;
   max-width: 100%; text-align: right; color: var(--ink); }
 .entry-score-button strong { font-size: 14px; white-space: nowrap; }
-.entry-score-button small { color: var(--muted); font-size: 11px; white-space: normal; line-height: 1.25; }
-.entry-score-button .entry-price-caution { color: #a16207; }
-[data-theme="dark"] .entry-score-button .entry-price-caution { color: #facc15; }
 .entry-score-button:hover strong, .entry-score-button:focus-visible strong { color: var(--accent); }
 .entry-dialog { color: var(--ink); overflow-wrap: anywhere; }
+.entry-dialog-sector { margin: 0 0 4px; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; }
 .entry-dialog h2 { margin: 6px 0 4px; font-size: 20px; line-height: 1.4; }
 .entry-dialog-meta { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .entry-summary { padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--accent-soft); }
 .entry-summary-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; }
 .entry-summary-head strong { font-size: 30px; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .entry-summary-head span { font-weight: 600; }
-.entry-summary-reason { margin: 10px 0 14px; line-height: 1.5; }
-.entry-summary-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; padding-top: 14px; border-top: 1px solid var(--border); }
+.entry-summary-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; padding-top: 14px; border-top: 1px solid var(--border); }
 .entry-summary-facts div, .entry-condition-data span { min-width: 0; }
 .entry-summary-facts dt, .entry-condition-data dt { color: var(--muted); font-size: 12px; }
 .entry-summary-facts dd, .entry-condition-data dd { margin: 3px 0 0; font-variant-numeric: tabular-nums; }
 .entry-categories, .entry-evidence { margin-top: 22px; }
 .entry-categories h3, .entry-evidence h3 { margin: 0 0 12px; font-size: 16px; }
-.entry-condition-list { display: grid; gap: 9px; }
-.entry-condition { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; }
-.entry-condition-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.entry-condition-status { flex: none; padding: 2px 8px; border-radius: 5px; font-size: 12px; }
-.entry-condition-status.pass { color: var(--down); background: #eaf4ef; }
-.entry-condition-status.fail { color: var(--up); background: #fbefec; }
-.entry-condition-status.missing { color: var(--muted); background: var(--accent-soft); }
-.entry-condition p { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
-.entry-condition details { margin-top: 8px; }
-.entry-condition summary, .entry-more summary { cursor: pointer; color: var(--accent); font-size: 13px; }
-.entry-condition-data { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0 0; }
+.entry-core-panel { padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.entry-condition-list { display: grid; }
+.entry-condition + .entry-condition { border-top: 1px solid var(--border); }
+.entry-condition summary { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; cursor: pointer; list-style: none; }
+.entry-condition summary::-webkit-details-marker { display: none; }
+.entry-condition summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.entry-condition-icon { flex: none; display: grid; place-items: center; width: 21px; height: 21px; border: 1.5px solid currentColor; border-radius: 50%; }
+.entry-condition-icon svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.entry-condition.pass .entry-condition-icon { color: #27b390; }
+.entry-condition.fail .entry-condition-icon { color: #ec6b61; }
+.entry-condition.missing .entry-condition-icon { color: var(--muted); }
+.entry-condition-copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.entry-condition-copy strong { font-size: 14px; }
+.entry-condition-copy small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.entry-condition-status { flex: none; color: var(--muted); font-size: 12px; }
+.entry-condition.pass .entry-condition-status { color: #08725b; }
+.entry-condition.fail .entry-condition-status { color: #ae382f; }
+.entry-condition-detail { padding: 0 0 12px 32px; }
+.entry-condition-detail p { margin: 0; color: var(--muted); font-size: 12px; }
+.entry-condition-data { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.entry-more summary { cursor: pointer; color: var(--accent); font-size: 13px; }
 .entry-category { margin: 13px 0; }
 .entry-category > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 3px 10px; font-size: 13px; }
 .entry-category > div span { color: var(--muted); }
+.entry-category > small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.entry-category.excluded > small { color: var(--up); }
 .entry-categories progress { display: block; width: 100%; height: 7px; margin-top: 7px; accent-color: var(--accent); }
+.entry-category.excluded progress { opacity: 0.45; }
 .entry-categories > p, .entry-evidence p { line-height: 1.6; }
 .entry-evidence ul { margin: 8px 0 16px; padding-left: 20px; line-height: 1.65; }
 .entry-more > details { padding: 12px 0; border-top: 1px solid var(--border); }
-.entry-more h4 { margin: 15px 0 5px; }
+.entry-more .entry-guide-item { gap: 12px; padding: 16px 0 8px; }
+.entry-more .entry-guide-item > div { min-width: 0; flex: 1; }
+.entry-more .entry-guide-item h4 { margin: 0 0 8px; color: var(--ink); font-size: 15px; }
+.entry-more .entry-guide-item p { margin: 4px 0 8px; color: var(--muted); font-size: 13px; }
+.entry-more .entry-guide-item li { margin: 3px 0; font-size: 13px; }
+.entry-more .entry-guide-item code { margin-top: 8px; font: inherit; font-size: 13px; line-height: 1.6; }
 .entry-disclaimer { margin-top: 22px; }
 .price-column { width: 11%; }
 .price-volume-column { width: 155px; }

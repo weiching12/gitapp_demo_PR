@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analyzeHistory, getSnapshot } from "../shared/indicators.js";
-import { ENTRY_WEIGHTS, capEntryScore, evaluateCoreConditions, getAtr14, getEntryScore } from "../shared/entry-score.js";
+import { ENTRY_WEIGHTS, getQualifiedEntryScore, evaluateCoreConditions, getAtr14, getEntryScore } from "../shared/entry-score.js";
 import { MarketSummaryService } from "../cloudflare/services/market-summary-service.js";
 import { AnalysisService } from "../cloudflare/services/analysis-service.js";
 import { SHARD_COUNT, shardOf } from "../shared/market-codec.js";
@@ -28,7 +28,7 @@ test("official weights, complete model, fixed categories and score bounds", () =
   const { score } = fixture();
   const result = score();
   assert.equal(Object.values(ENTRY_WEIGHTS).reduce((sum, value) => sum + value, 0), 100);
-  assert.equal(result.modelVersion, "entry-score-v1.1");
+  assert.equal(result.modelVersion, "entry-score-v1.2");
   assert.equal(result.strategy, "swing-trend");
   assert.ok(result.totalScore >= 0 && result.totalScore <= 100);
   assert.equal(result.baseScore, Math.round(Object.entries(result.categories).reduce((sum, [key, item]) =>
@@ -42,17 +42,26 @@ test("official weights, complete model, fixed categories and score bounds", () =
   assert.equal(Object.keys(result.categories).length, 5);
 });
 
-test("V1.1 cap preserves base score and treats unknown as no score", () => {
+test("failed core conditions forfeit only their weighted points, with no 60 point cap", () => {
   const pass = Object.fromEntries(Object.keys(ENTRY_WEIGHTS).map((key) => [key, { status: "PASS" }]));
   const fail = (keys) => Object.fromEntries(Object.keys(pass).map((key) =>
     [key, { status: keys.includes(key) ? "FAIL" : "PASS" }]));
-  assert.deepEqual(capEntryScore(95, pass), { finalScore: 95, scoreCapped: false });
-  assert.deepEqual(capEntryScore(95, fail(["trend"])), { finalScore: 60, scoreCapped: true });
-  assert.deepEqual(capEntryScore(88, fail(["trend", "momentum"])), { finalScore: 60, scoreCapped: true });
-  assert.deepEqual(capEntryScore(75, fail(["institutional"])), { finalScore: 60, scoreCapped: true });
-  assert.deepEqual(capEntryScore(42, fail(["trend"])), { finalScore: 42, scoreCapped: false });
-  assert.deepEqual(capEntryScore(68, pass), { finalScore: 68, scoreCapped: false });
-  assert.equal(capEntryScore(95, { ...pass, trend: { status: "UNKNOWN" } }).finalScore, null);
+  const points = { trend: 25, momentum: 15, priceVolume: 15, institutional: 20, entryRisk: 20 };
+  assert.deepEqual(getQualifiedEntryScore(95, pass, points), { finalScore: 95, qualifiedScore: 95 });
+  for (const key of Object.keys(points)) {
+    const result = getQualifiedEntryScore(95, fail([key]), points);
+    assert.equal(result.qualifiedScore, 95 - points[key], `${key} must lose its own contribution`);
+    assert.equal(result.finalScore, 95 - points[key]);
+  }
+  assert.deepEqual(getQualifiedEntryScore(95, fail(["trend"]), points), { finalScore: 70, qualifiedScore: 70 });
+  assert.deepEqual(getQualifiedEntryScore(64.57, fail(["momentum"]),
+    { trend: 25, momentum: 3, priceVolume: 2.25, institutional: 12.32, entryRisk: 22 }),
+  { finalScore: 61.57, qualifiedScore: 61.57 });
+  assert.deepEqual(getQualifiedEntryScore(70.5, fail(["trend"]),
+    { trend: 18, momentum: 7.5, priceVolume: 6, institutional: 17, entryRisk: 22 }),
+  { finalScore: 52.5, qualifiedScore: 52.5 });
+  assert.equal(getQualifiedEntryScore(95, { ...pass, trend: { status: "UNKNOWN" } }, points).finalScore, null);
+  assert.equal(getQualifiedEntryScore(95, pass, { ...points, trend: null }).finalScore, null);
 });
 
 test("five independent core gates report actual values and boundaries", () => {
@@ -122,6 +131,10 @@ test("KD crossing alone cannot pass core trend conditions", () => {
   const result = getEntryScore(snapshot, dates, dates.at(-1));
   assert.equal(result.categories.momentum.score, 100);
   assert.equal(result.coreConditionsPassed, false);
+  assert.equal(result.categories.trend.creditedContribution, 0);
+  assert.equal(result.status, "核心條件不通過");
+  assert.equal(result.qualifiedScore, Math.round((result.baseScore - result.categories.trend.contribution) * 100) / 100);
+  assert.equal(result.finalScore, result.qualifiedScore);
   assert.ok(result.pendingConditions.some((item) => item.includes("MA20")));
 });
 
@@ -211,6 +224,7 @@ test("market Summary API and stock Analysis API return the same score on selecte
     const fromDetail = (await analysis.stock(stock.symbol, { asOf, settings })).data.entryScore;
     assert.equal(fromList.finalScore, fromDetail.finalScore);
     assert.equal(fromList.baseScore, fromDetail.baseScore);
+    assert.equal(fromList.qualifiedScore, fromDetail.qualifiedScore);
     assert.equal(fromList.totalScore, fromDetail.totalScore);
     assert.equal(fromList.modelVersion, fromDetail.modelVersion);
     assert.equal(fromList.coreConditionsPassed, fromDetail.coreConditionsPassed);

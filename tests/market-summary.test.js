@@ -38,7 +38,7 @@ test("market summary matches existing indicators and omits market history", asyn
     assert.deepEqual(row.signal, original.signal);
     assert.deepEqual(row.priceVolume, original.priceVolume);
     assert.deepEqual(row.trend, original.trend);
-    assert.equal(row.entryScore.modelVersion, "entry-score-v1.1");
+    assert.equal(row.entryScore.modelVersion, "entry-score-v1.2");
     assert.equal(row.entryScore.totalScore, null);
     assert.ok(row.entryScore.missingData.length > 0);
     assert.ok(!("categories" in row.entryScore));
