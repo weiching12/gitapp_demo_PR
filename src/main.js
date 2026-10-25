@@ -185,7 +185,7 @@ async function loadResearchReview(symbol) {
     if (row) row.review = review;
     renderResearch();
     const dialog = document.querySelector("#info-dialog");
-    if (dialog?.open && dialog.dataset.entrySymbol === symbol) {
+    if (dialog?.open && dialog.dataset.entrySymbol === symbol && dialog.dataset.showResearch === "true") {
       const existing = dialog.querySelector(".research-detail");
       if (existing) existing.outerHTML = researchDetailMarkup({ symbol, row: researchRows.get(symbol),
         store: researchStore, esc });
@@ -712,9 +712,10 @@ function animateEntryScore(dialog) {
   requestAnimationFrame(frame);
 }
 
-function openDialog(type, focusClose = true) {
+function openDialog(type, focusClose = true, showResearch = false) {
   const infoDialog = document.querySelector("#info-dialog");
   infoDialog.dataset.entrySymbol = type.startsWith("entry:") ? type.slice(6) : "";
+  infoDialog.dataset.showResearch = String(type.startsWith("entry:") && showResearch);
   infoDialog.dataset.request = String(Number(infoDialog.dataset.request ?? 0) + 1);
   const content = document.querySelector("#dialog-content");
   document.querySelector("#settings-notifications").hidden = type !== "settings";
@@ -728,7 +729,7 @@ function openDialog(type, focusClose = true) {
     const stock = snapshots.find((item) => item.symbol === symbol);
     const detail = stockDetailCache.get(`${summaryKey(state.date)}:${symbol}`);
     content.innerHTML = stock ? entryScoreDialogMarkup(detail ? { ...stock, ...detail } : stock, esc, number, percent,
-      state.favorites.includes(symbol), icon, researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc })) :
+      state.favorites.includes(symbol), icon, showResearch ? researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc }) : "") :
       `<h2 id="dialog-heading">個股進場評估</h2><p>找不到這檔股票。</p>`;
   } else if (type === "sentiment") {
     content.innerHTML = sentimentDialogMarkup(currentSentiment);
@@ -766,11 +767,11 @@ function closeEntryDrawer() {
   if (dialog?.open) dialog.close();
 }
 
-async function openEntryScoreDialog(symbol, focusClose = true) {
+async function openEntryScoreDialog(symbol, focusClose = true, showResearch = false) {
   const date = state.date, key = `${summaryKey(date)}:${symbol}`;
   const dialog = document.querySelector("#info-dialog");
-  openDialog(`entry:${symbol}`, focusClose);
-  if (state.favorites.includes(symbol)) void loadResearchReview(symbol)
+  openDialog(`entry:${symbol}`, focusClose, showResearch);
+  if (showResearch && state.favorites.includes(symbol)) void loadResearchReview(symbol)
     .catch((error) => console.warn("Research price review unavailable", error));
   const request = dialog.dataset.request;
   const isCurrent = () => dialog.open && dialog.dataset.request === request &&
@@ -788,12 +789,12 @@ async function openEntryScoreDialog(symbol, focusClose = true) {
       document.querySelector("#dialog-content").innerHTML = entryScoreDialogMarkup(
         { ...snapshots.find((stock) => stock.symbol === symbol), ...entryDetail }, esc, number, percent,
         state.favorites.includes(symbol), icon,
-        researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc }));
+        showResearch ? researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc }) : "");
       animateEntryScore(dialog);
     }
   } catch (error) {
     if (isCurrent())
-      document.querySelector("#dialog-content").innerHTML = `<h2 id="dialog-heading">個股進場評估</h2><p role="alert">${esc(error.message || "評分明細載入失敗")}</p>${researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc })}`;
+      document.querySelector("#dialog-content").innerHTML = `<h2 id="dialog-heading">個股進場評估</h2><p role="alert">${esc(error.message || "評分明細載入失敗")}</p>${showResearch ? researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc }) : ""}`;
   }
 }
 
@@ -1011,7 +1012,8 @@ function bindEvents() {
     if (button.id === "reload-data") { window.location.reload(); return; }
     if (button.id === "retry-favorites") { void ensureFavoriteSummaries(); return; }
     if (button.dataset.dialog) openDialog(button.dataset.dialog, !touchInteraction);
-    if (button.dataset.entryScore) void openEntryScoreDialog(button.dataset.entryScore, !touchInteraction);
+    if (button.dataset.entryScore) void openEntryScoreDialog(button.dataset.entryScore, !touchInteraction,
+      state.page === "favorites" && Boolean(button.closest("#research-list")));
     if (button.dataset.overview) {
       state.overview = button.dataset.overview;
       renderOverviewVisibility();

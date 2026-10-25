@@ -29,6 +29,20 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(page.locator("#dialog-heading")).toContainText("株研評分");
 });
 
+test("a saved stock shows research history only when opened from research tracking", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "株研追蹤" }).first().click();
+  const symbol = await page.locator(".research-card").first().getAttribute("data-research-symbol");
+  await page.getByRole("button", { name: "市場觀察清單" }).first().click();
+  await page.locator(`#stock-rows tr[data-symbol="${symbol}"]`).click();
+  await expect(page.locator("#info-dialog")).toBeVisible();
+  await expect(page.locator(".research-detail")).toHaveCount(0);
+  await page.locator("#close-dialog").click();
+  await page.getByRole("button", { name: "株研追蹤" }).first().click();
+  await page.locator(`.research-card[data-research-symbol="${symbol}"] .research-card-main`).click();
+  await expect(page.locator(".research-detail")).toContainText("研究追蹤");
+});
+
 test("pointer clicks do not leave a focus ring but keyboard focus remains visible", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "株研追蹤" }).first().click();
