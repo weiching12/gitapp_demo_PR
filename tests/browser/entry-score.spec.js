@@ -52,6 +52,15 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(chart.locator(".entry-chart-legend")).toContainText("月線 MA20");
   await expect(chart.locator(".entry-chart-k, .entry-chart-d")).toHaveCount(0);
   await expect(chart.locator(".entry-chart-scale")).toContainText("高");
+  const closePrices = chartPoints.map((point) => point.close).filter((close) => Number.isFinite(close) && close > 0);
+  await expect(chart.locator(".entry-chart-scale")).toContainText(`最高 ${Math.max(...closePrices).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  await expect(chart.locator(".entry-chart-scale")).toContainText(`最低 ${Math.min(...closePrices).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  const chartLayout = await chart.evaluate((element) => {
+    const labels = [...element.querySelectorAll(".entry-chart-scale span")];
+    return { border: getComputedStyle(element).borderTopWidth, labelGap: labels[1].getBoundingClientRect().top - labels[0].getBoundingClientRect().bottom };
+  });
+  expect(chartLayout.border).toBe("0px");
+  expect(chartLayout.labelGap).toBeLessThan(10);
   for (const [series, selector] of [["close", ".entry-chart-close"], ["ma20", ".entry-chart-ma20"],
     ["ma60", ".entry-chart-ma"], ["volume", ".entry-chart-bars"]]) {
     const legend = chart.locator(`[data-chart-series="${series}"]`);
