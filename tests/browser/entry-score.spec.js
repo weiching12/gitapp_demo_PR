@@ -60,10 +60,16 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
     const region = element.querySelector(".entry-chart-price-region");
     const scale = element.querySelector(".entry-chart-scale");
     const plot = element.querySelector(".entry-chart-plot");
-    return { border: getComputedStyle(element).borderTopWidth, labelGap: labels[1].getBoundingClientRect().top - labels[0].getBoundingClientRect().bottom, scaleWidth: scale.getBoundingClientRect().width, plotRatio: plot.getBoundingClientRect().width / region.getBoundingClientRect().width };
+    const circles = [...plot.querySelectorAll(".entry-chart-points circle")];
+    const prices = JSON.parse(plot.dataset.points).map((point) => point.close);
+    const lowIndex = prices.indexOf(Math.min(...prices.filter((price) => Number.isFinite(price) && price > 0)));
+    const circle = circles.find((point) => Number(point.dataset.index) === lowIndex);
+    const lowCenter = labels[1].getBoundingClientRect().top + labels[1].getBoundingClientRect().height / 2;
+    const lowPointY = plot.getBoundingClientRect().top + Number(circle.getAttribute("cy")) / 210 * plot.getBoundingClientRect().height;
+    return { border: getComputedStyle(element).borderTopWidth, lowOffset: Math.abs(lowCenter - lowPointY), scaleWidth: scale.getBoundingClientRect().width, plotRatio: plot.getBoundingClientRect().width / region.getBoundingClientRect().width };
   });
   expect(chartLayout.border).toBe("0px");
-  expect(chartLayout.labelGap).toBeLessThan(10);
+  expect(chartLayout.lowOffset).toBeLessThan(12);
   expect(chartLayout.scaleWidth).toBeLessThanOrEqual(44);
   expect(chartLayout.plotRatio).toBeGreaterThan(0.84);
   for (const [series, selector] of [["close", ".entry-chart-close"], ["ma20", ".entry-chart-ma20"],

@@ -15,7 +15,8 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(card.locator(".research-delta")).toHaveAttribute("title", /2026-10-15 .* 分 → 2026-10-16 .* 分；本機示範資料歷史重算/);
   await expect(card.locator(".research-card-more")).toHaveCount(0);
   await expect(card.locator(".research-card-review")).toHaveCount(0);
-  await expect(card.locator(".research-stock")).toContainText("評分交易日");
+  await expect(card.locator(".research-stock")).not.toContainText("評分交易日");
+  await expect(card.locator(".research-stock")).toContainText("模擬重算");
   await card.locator(".research-card-main").click();
   await expect(page.locator(".research-edit")).toHaveCount(0);
   await expect(page.locator(".research-detail")).toContainText("追蹤價格表現");
@@ -64,7 +65,7 @@ test("research tracking always compares the latest available trading day", async
   await page.getByRole("button", { name: "株研追蹤" }).first().click();
   await expect(page.locator(".date-control")).toBeHidden();
   await expect(page.locator("#research-date")).toContainText("2026-10-16");
-  await expect(page.locator(".research-card").first()).toContainText("2026-10-16");
+  await expect(page.locator(".research-card").first()).not.toContainText("評分交易日");
 });
 
 test("reloading the phone keeps the selected main page", async ({ page }) => {

@@ -30,6 +30,12 @@ function priceChartMarkup(stock, esc, number, series) {
   const floor = low - padding, ceiling = high + padding;
   const x = (index) => 8 + index * 584 / Math.max(1, series.length - 1);
   const y = (close) => 140 - (close - floor) / (ceiling - floor) * 124;
+  let highLabelY = y(closingHigh), lowLabelY = y(closingLow);
+  if (lowLabelY - highLabelY < 30) {
+    const middle = (highLabelY + lowLabelY) / 2;
+    highLabelY = middle - 15;
+    lowLabelY = middle + 15;
+  }
   let path = "", ma20Path = "", ma60Path = "";
   let continuous = false, ma20Continuous = false, ma60Continuous = false;
   const maxVolume = Math.max(0, ...series.map(({ volume }) => Number.isFinite(volume) ? volume : 0));
@@ -57,7 +63,7 @@ function priceChartMarkup(stock, esc, number, series) {
       ["close", "收盤價"], ["ma20", "月線 MA20"], ["ma60", "季線 MA60"],
       ["volume", "成交量"],
     ].map(([key, label]) => `<button type="button" data-chart-series="${key}" aria-pressed="true" aria-label="${label}">${label}</button>`).join("")}</div>
-    <div class="entry-chart-price-region"><div class="entry-chart-scale" aria-label="近 30 個交易日收盤價最高與最低"><span>高<br>${number(closingHigh, 2)}</span><span>低<br>${number(closingLow, 2)}</span></div>
+    <div class="entry-chart-price-region"><div class="entry-chart-scale" aria-label="近 30 個交易日收盤價最高與最低"><span style="top:${(highLabelY / 210 * 100).toFixed(2)}%">高<br>${number(closingHigh, 2)}</span><span style="top:${(lowLabelY / 210 * 100).toFixed(2)}%">低<br>${number(closingLow, 2)}</span></div>
     <div class="entry-chart-plot" role="slider" tabindex="0" aria-label="${esc(stock.symbol)}近 ${series.length} 個交易日收盤價；點選或左右滑動圖表查看，鍵盤可用方向鍵" aria-orientation="horizontal" aria-valuemin="1" aria-valuemax="${series.length}" aria-valuenow="${series.length}" aria-valuetext="${esc(readout)}" data-index="${series.length - 1}" data-points="${esc(JSON.stringify(series))}"><svg viewBox="0 0 600 210" preserveAspectRatio="none" aria-hidden="true">
       <line x1="8" y1="16" x2="592" y2="16"/><line x1="8" y1="78" x2="592" y2="78"/><line x1="8" y1="140" x2="592" y2="140"/><line x1="8" y1="197" x2="592" y2="197"/>
       <path class="entry-chart-close" d="${path.trim()}"/><path class="entry-chart-ma20" d="${ma20Path.trim()}"/><path class="entry-chart-ma" d="${ma60Path.trim()}"/><g class="entry-chart-bars">${bars}</g><g class="entry-chart-points">${dots}</g><line class="entry-chart-cursor" x1="${x(series.length - 1).toFixed(1)}" x2="${x(series.length - 1).toFixed(1)}" y1="16" y2="197"/></svg></div></div>
