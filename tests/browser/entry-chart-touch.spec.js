@@ -59,3 +59,17 @@ test("dragging the phone chart does not scroll the detail panel", async ({ page 
   await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   expect(await dialog.evaluate((element) => element.scrollTop)).toBe(startScroll);
 });
+
+test("touching a market row does not leave a blue focus outline", async ({ page }) => {
+  await page.goto("/");
+  const row = page.locator("#stock-rows tr[data-symbol]").first();
+  await row.tap();
+  await expect(page.locator("#info-dialog")).toBeVisible();
+  await page.locator("#close-dialog").tap();
+  await expect(page.locator("#info-dialog")).toBeHidden();
+  await row.focus();
+  expect(await row.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
+  await page.keyboard.press("Tab");
+  await row.focus();
+  expect(await row.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("solid");
+});
