@@ -73,3 +73,19 @@ test("touching a market row does not leave a blue focus outline", async ({ page 
   await row.focus();
   expect(await row.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("solid");
 });
+
+test("mouse clicking a market row does not leave a blue focus outline", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+  await page.goto("/");
+  const row = page.locator("#stock-rows tr[data-symbol]").first();
+  await row.click();
+  await expect(page.locator("#info-dialog")).toBeVisible();
+  await page.locator("#close-dialog").click();
+  await row.focus();
+  expect(await row.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
+  await page.keyboard.press("Tab");
+  await row.focus();
+  expect(await row.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("solid");
+  await context.close();
+});

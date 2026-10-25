@@ -1056,7 +1056,7 @@ h1 {
 }
 .table-scroll tbody tr[data-symbol] { cursor: pointer; }
 .table-scroll tbody tr[data-symbol]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-html[data-input-mode="touch"] .table-scroll tbody tr[data-symbol]:focus-visible { outline: none; }
+html:is([data-input-mode="touch"], [data-input-mode="pointer"]) .table-scroll tbody tr[data-symbol]:focus-visible { outline: none; }
 .table-scroll tbody th {
   text-align: left;
   padding-left: 0;
