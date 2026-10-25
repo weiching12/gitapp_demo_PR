@@ -825,8 +825,8 @@ h1 {
   max-width: 100%; text-align: right; color: var(--ink); }
 .entry-score-button strong { font-size: 14px; white-space: nowrap; }
 .entry-dialog { color: var(--ink); overflow-wrap: anywhere; }
-#info-dialog:has(.entry-dialog) { position: relative; padding-top: 18px; }
-#info-dialog:has(.entry-dialog) .dialog-top { position: sticky; top: 0; z-index: 2; height: 0; margin: 0; }
+#info-dialog:has(.entry-dialog) { position: fixed; inset: 0; margin: auto; padding-top: 18px; }
+#info-dialog:has(.entry-dialog) .dialog-top { height: 0; margin: 0; }
 #info-dialog:has(.entry-dialog) .dialog-top .eyebrow { display: none; }
 #info-dialog:has(.entry-dialog) #close-dialog { position: absolute; top: 11px; right: 13px; z-index: 1; }
 .entry-dialog-sector { margin: 0 0 4px; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; }
