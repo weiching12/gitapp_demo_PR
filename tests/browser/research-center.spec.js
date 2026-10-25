@@ -65,6 +65,17 @@ test("research tracking always compares the latest available trading day", async
   await expect(page.locator(".research-card").first()).toContainText("2026-10-16");
 });
 
+test("reloading the phone keeps the selected main page", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "株研追蹤" }).first().click();
+  await page.reload();
+  await expect(page.locator("#page-title")).toContainText("株研追蹤");
+  await page.getByRole("button", { name: "法人買株" }).first().click();
+  await page.reload();
+  await expect(page.locator("#page-title")).toContainText("法人買株");
+});
+
 test("desktop market date label and selector stay on one line", async ({ page }) => {
   await page.setViewportSize({ width: 830, height: 956 });
   await page.goto("/");

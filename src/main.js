@@ -12,6 +12,7 @@ import { sourceAbout } from "./about.js";
 import { isEtf } from "./market-codec.js";
 import { createState } from "./ui/state.js";
 import { loadPreferences, persistPreferences, preferenceStorage } from "./ui/preferences.js";
+import { restorePage, rememberPage } from "./ui/page-session.js";
 import { shellMarkup } from "./ui/shell.js";
 import { renderPageView } from "./ui/navigation.js";
 import { renderSectorOverviewView, renderSectorDialogView } from "./ui/sectors.js";
@@ -495,7 +496,10 @@ function enablePwa() {
   stopUpdateCountdown = startUpdateCountdown(document.querySelector("#update-countdown"));
 }
 
-function renderPage() { renderPageView({ state, dataset, renderLoadState, updateOverviewTabs, updateSegmentedControls }); }
+function renderPage() {
+  renderPageView({ state, dataset, renderLoadState, updateOverviewTabs, updateSegmentedControls });
+  rememberPage(state.page);
+}
 
 function renderWatchlist() {
   const waiting = apiMode ? new Set(state.favorites.filter((symbol) =>
@@ -1234,6 +1238,7 @@ function bindEvents() {
 
 async function init() {
   readPreferences();
+  restorePage(state);
   applyTheme();
   const prepare = () => {
     state.date = dataset.info.asOf;
