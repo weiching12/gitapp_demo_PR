@@ -435,6 +435,27 @@ function enablePwa() {
   stopUpdateCountdown = startUpdateCountdown(document.querySelector("#update-countdown"));
 }
 
+let refreshingApp = false;
+async function refreshWithVersionCheck() {
+  if (refreshingApp) return;
+  refreshingApp = true;
+  try {
+    const updated = await checkPwaUpdate(true);
+    if (!updated) { window.location.reload(); return; }
+    // A new service worker reloads the page on controllerchange. Allow its
+    // activation to finish before falling back to a normal reload.
+    if (!("serviceWorker" in navigator)) { window.location.reload(); return; }
+    const activated = await Promise.race([
+      new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", () => resolve(true), { once: true })),
+      new Promise((resolve) => setTimeout(() => resolve(false), 5000)),
+    ]);
+    if (!activated) window.location.reload();
+  } catch (error) {
+    console.warn("Version check before refresh failed", error);
+    window.location.reload();
+  }
+}
+
 function renderPage() {
   renderPageView({ state, dataset, renderLoadState, updateSegmentedControls });
   rememberPage(state.page);
@@ -756,6 +777,10 @@ function bindEvents() {
   bindInputMode((touch) => { touchInteraction = touch; });
   matchMedia("(min-width: 900px)").addEventListener("change", closeEntryDrawer);
   bindPullToRefresh(document.querySelector("#pull-refresh"));
+  window.addEventListener("stockapps:refresh", (event) => {
+    event.preventDefault();
+    void refreshWithVersionCheck();
+  });
   bindKeyboardNavigation({ getPage: () => state.page, onSectorDetails: openSectorDialog });
   document.addEventListener("click", (event) => {
     const home = event.target.closest("[data-home]");
@@ -812,7 +837,7 @@ function bindEvents() {
         .finally(() => { button.disabled = false; button.textContent = "檢查更新"; });
       return;
     }
-    if (button.id === "reload-data") { window.location.reload(); return; }
+    if (button.id === "reload-data") { void refreshWithVersionCheck(); return; }
       if (button.dataset.dialog) openDialog(button.dataset.dialog, !touchInteraction);
     if (button.dataset.entryScore) void openEntryScoreDialog(button.dataset.entryScore, !touchInteraction,
       state.page === "favorites" && Boolean(button.closest("#research-list")));

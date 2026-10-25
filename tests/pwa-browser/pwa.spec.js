@@ -75,6 +75,32 @@ test("page buttons check on interaction and settings can check immediately", asy
   await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(2);
 });
 
+test("refresh checks the app version before reloading and keeps the current page", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  const canObserveRegistration = await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.ready;
+    try {
+      registration.update = async () => {
+        localStorage.setItem("pwa-refresh-update-checked", "yes");
+      };
+      return true;
+    } catch { return false; }
+  });
+  test.skip(!canObserveRegistration, "Browser does not allow observing ServiceWorkerRegistration.update");
+  await page.getByRole("button", { name: "株研追蹤" }).click();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pwa-refresh-update-checked"))).toBe("yes");
+  await page.evaluate(() => localStorage.removeItem("pwa-refresh-update-checked"));
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.evaluate(() => window.dispatchEvent(new CustomEvent("stockapps:refresh", { cancelable: true }))),
+  ]);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pwa-refresh-update-checked"))).toBe("yes");
+  await expect(page.locator("#page-title")).toContainText("株研追蹤");
+});
+
 test("settings shows the release version beside update on phone and desktop", async ({ page }) => {
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 844 });

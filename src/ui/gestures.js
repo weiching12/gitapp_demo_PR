@@ -38,7 +38,7 @@ export function bindPullToRefresh(pullRefresh) {
     if (gesture.distance < 68) { reset(); return; }
     pullRefresh.classList.remove("is-pulling", "is-ready");
     pullRefresh.classList.add("is-refreshing");
-    pullRefresh.lastChild.textContent = "正在更新資料";
+    pullRefresh.lastChild.textContent = "正在檢查版本並更新資料";
     gesture = null;
     const refreshEvent = new CustomEvent("stockapps:refresh", { cancelable: true });
     if (window.dispatchEvent(refreshEvent)) window.location.reload();
