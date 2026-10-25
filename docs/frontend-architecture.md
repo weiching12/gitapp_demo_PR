@@ -14,13 +14,11 @@ clients; view modules never call `fetch` directly.
 - `ui/shell.js`: shared shell markup and accessible navigation.
 - `ui/navigation.js`: page visibility, headings, active navigation and date controls.
 - `ui/market.js`: sorting/filtering, row reuse and batched market table rendering.
-- `ui/watchlist.js`: favorite price cards and their render cache.
 - `ui/sectors.js`: sector ranking and constituent dialog rendering; ETFs stay excluded.
-- `ui/carousel.js`: responsive card position, swipe synchronization and pagination dots.
-- `ui/controls.js`: segmented-control and overview-tab geometry and resize handling.
+- `ui/controls.js`: segmented-control geometry and resize handling.
 - `ui/dialogs.js`: common dialog opening, backdrop dismissal and mobile drag dismissal.
 - `ui/gestures.js`: input-mode tracking, pull-to-refresh and drag gesture primitives.
-- `ui/keyboard.js`: carousel, overview, sector-card and search keyboard navigation.
+- `ui/keyboard.js`: sector-card and search keyboard navigation.
 - `ui/responsive-layout.js`: responsive search and sector-filter DOM order.
 - `ui/table-batches.js`: viewport-driven progressive table rendering.
 - `about.js`: purpose, current capabilities and future goals.

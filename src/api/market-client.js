@@ -11,10 +11,6 @@ export class MarketApiClient {
     const params = new URLSearchParams({ ...settings, ...(date ? { asOf: date } : {}) });
     return this.http.json(`/api/v1/market/summary?${params}`, options);
   }
-  favorites(symbols, date, settings, options) {
-    const params = new URLSearchParams({ ...settings, asOf: date, symbols: symbols.join(",") });
-    return this.http.json(`/api/v1/favorites/summary?${params}`, options);
-  }
   research(symbols, date, settings, options) {
     const params = new URLSearchParams({ ...settings, asOf: date, symbols: symbols.join(",") });
     return this.http.json(`/api/v1/favorites/research?${params}`, options);

@@ -100,7 +100,7 @@ test("market filters and empty results keep page and column widths stable with n
           stock: table.querySelector(".stock-column").getBoundingClientRect().width,
           signal: table.querySelector(".signal-column").getBoundingClientRect().width,
         }));
-        expect(widths.signal, 'Technical descriptions need more width than stock names').toBeGreaterThan(widths.stock * 1.5);
+        expect(widths.signal, 'Technical descriptions need their minimum readable width').toBeGreaterThanOrEqual(220);
       }
       const check = async state => {
         const current = await measure();

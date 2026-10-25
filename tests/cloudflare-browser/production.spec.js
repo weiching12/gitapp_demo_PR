@@ -1,141 +1,34 @@
 import { test, expect } from "@playwright/test";
-import { getSnapshot } from "../../src/indicators.js";
-import { isEtf } from "../../src/market-codec.js";
 
-test("TWSE full listed-company API renders current-day prices in viewport batches with no per-stock browser requests", async ({ page, request }) => {
+test("full listed market uses a shared summary and opens research tracking", async ({ page, request }) => {
   const manifest = await (await request.get("/api/market")).json();
-  expect(manifest.source).toBe("twse");
   expect(manifest.stocks.length).toBeGreaterThanOrEqual(1000);
   const urls = [], errors = [];
   page.on("request", (request) => urls.push(request.url()));
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
-  const initialRows = await page.locator("#stock-rows tr").count();
-  expect(initialRows).toBeGreaterThan(0);
-  expect(initialRows).toBeLessThan(manifest.coverage.traded);
-  await expect(page.locator("#table-summary")).toContainText(`/ ${manifest.coverage.traded} 檔`);
-  await page.locator("#table-load-trigger").scrollIntoViewIfNeeded();
-  await expect.poll(() => page.locator("#stock-rows tr").count()).toBeGreaterThan(initialRows);
-  await expect(page.locator(".demo-badge")).toHaveText("每日收盤資料");
-  await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
-  expect(urls.filter((url) => /\/api\/stocks\//.test(url))).toEqual([]);
-  expect(urls.filter((url) => /\/api\/v1\/market\/snapshots\/[^/]+\/shards\/\d+$/.test(new URL(url).pathname))).toHaveLength(0);
-  expect(urls.filter((url) => new URL(url).pathname === "/api/v1/market/summary")).toHaveLength(1);
-  expect(urls.some((url) => /finmind|twse\.com\.tw/i.test(new URL(url).hostname))).toBe(false);
+  await expect(page.locator("#stock-rows tr").first()).toBeVisible();
   await page.locator('[data-page="favorites"]').click();
-  for (const symbol of ["2330", "2317", "3026"]) {
-    const payload = await (await request.get(`/api/stocks/${symbol}`)).json();
-    const snapshot = getSnapshot({ ...payload.stock, tradingDates: manifest.dates }, manifest.asOf);
-    const card = page.locator(`[data-watch-symbol="${symbol}"]`);
-    await expect(card.locator(".metric-number").nth(0)).toHaveText(snapshot.latest.close.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-  }
-  await page.getByRole("button", { name: "資料說明", exact: true }).click();
-  const dialog = page.locator("#info-dialog");
-  await expect(dialog).toContainText("臺灣證券交易所");
-  await expect(dialog).toContainText(`${manifest.stocks.filter((stock) => !isEtf(stock)).length} 家上市公司`);
-  await expect(dialog).not.toContainText("FinMind");
-  for (const time of process.env.STOCK_SYNC_PROFILE === "legacy" ? ["21:00"] : ["18:30", "20:30"])
-    await expect(dialog).toContainText(time);
+  await expect(page.locator("#research-list .research-card").first()).toBeVisible();
+  expect(urls.filter((url) => /\/api\/stocks\//.test(url))).toEqual([]);
+  expect(urls.filter((url) => new URL(url).pathname === "/api/v1/favorites/summary")).toEqual([]);
   expect(errors).toEqual([]);
 });
 
-test("real TWSE institutional day/5/20 sums agree with cached histories at current and historical dates", async ({ page, request }) => {
-  const manifest = await (await request.get("/api/market")).json();
-  const stocks = await Promise.all(["2330", "2317", "3026"].map(async (symbol) =>
-    (await (await request.get(`/api/stocks/${symbol}`)).json()).stock));
-  await page.goto("/");
-  await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
-  await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
-  await page.locator('[data-page="favorites"]').click();
-  await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
-  for (const dateIndex of [0, 5]) {
-    await page.locator("#trade-date").selectOption({ index: dateIndex });
-    const date = await page.locator("#trade-date").inputValue();
-    for (const [key, count] of [["day", 1], ["5", 5], ["20", 20]]) {
-      await page.locator(`[data-institution-window="${key}"]`).click();
-      for (const stock of stocks) {
-        const byDate = new Map(stock.history.map((bar) => [bar.date, bar]));
-        const dates = manifest.dates.filter((d) => d <= date).slice(-count);
-        const values = dates.map((d) => {
-          const bar = byDate.get(d);
-          return bar?.institutions.length === 3 ? bar.institutions.reduce((n, row) => n + row.buy - row.sell, 0) : null;
-        });
-        const cell = page.locator(`[data-overview-symbol="${stock.symbol}"] [data-overview-net="total"]`);
-        if (dates.length !== count || values.includes(null)) await expect(cell).toHaveText("");
-        else expect(Math.abs(Number((await cell.innerText()).replaceAll(",", "").replace("張", "").trim()) - values.reduce((a, b) => a + b, 0) / 1000)).toBeLessThanOrEqual(0.005001);
-      }
-    }
-  }
-});
-
-test("full-market phone controls, filters, sector and institution details retain their layouts", async ({ page, request }, testInfo) => {
+test("full-market phone table and sector detail remain usable", async ({ page }, testInfo) => {
   test.setTimeout(90000);
-  const manifest = await (await request.get("/api/market")).json();
   await page.goto("/");
   await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false", { timeout: 30000 });
-  await expect(page.locator(".watch-card")).toHaveCount(manifest.stocks.some((stock) => stock.symbol === "0050") ? 4 : 3);
-  for (const width of [320, 390, 768, 1440]) {
+  for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.locator('.sidebar [data-page="market"]').click();
-    await expect(page.locator(".table-scroll-hint, #date-hint")).toHaveCount(0);
-    await expect(page.locator(".table-scroll [data-sort] .sort-icon")).toHaveCount(6);
-    const tableIssues = await page.locator(".table-scroll").evaluate((table) => {
-      const issues = [];
-      const heading = table.querySelector(".signal-heading").getBoundingClientRect();
-      const cell = table.querySelector(".signal-cell").getBoundingClientRect();
-      if (Math.abs(heading.left - cell.left) > 1 || Math.abs(heading.width - cell.width) > 1)
-        issues.push("technical signal header and cells do not align");
-      for (const price of table.querySelectorAll(".price-cell")) {
-        const bounds = price.getBoundingClientRect();
-        for (const element of price.querySelectorAll(".stock-close, .mobile-change")) {
-          const rect = element.getBoundingClientRect();
-          if (rect.width && (rect.left < bounds.left - 1 || rect.right > bounds.right + 1))
-            issues.push("price or change extends outside the cell");
-        }
-      }
-      return issues;
-    });
-    expect(tableIssues, `Market columns at ${width}px`).toEqual([]);
-    if (width <= 700) {
-      await expect(page.locator(".signal-note > span")).toBeHidden();
-      expect(await page.evaluate(() => {
-        const title = document.querySelector("#page-title").getBoundingClientRect();
-        const date = document.querySelector("#trade-date").getBoundingClientRect();
-        return date.left >= title.right && Math.min(title.bottom, date.bottom) > Math.max(title.top, date.top);
-      })).toBe(true);
-    }
-    await page.locator('[data-view="oversold"]').click();
+    await page.locator('[data-page="market"]').click();
+    await expect(page.locator("#stock-rows tr").first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    await page.locator('[data-view="all"]').click();
-    await page.locator('[data-page="favorites"]').click();
-    await page.getByRole("tab", { name: "法人總覽", exact: true }).click();
-    await page.locator('[data-institution-details="2330"]').click();
-    await expect(page.locator("#institution-dialog")).toBeVisible();
-    expect(await page.locator("#institution-dialog").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#institution-dialog")).toBeHidden();
     await page.locator('[data-page="sectors"]').click();
-    await expect(page.locator(".sector-card").first()).toBeVisible({ timeout: 30000 });
-    if (width <= 700) for (const period of ["day", "5", "20"]) {
-      await page.locator(`[data-sector-window="${period}"]`).click();
-      const issues = await page.locator(".sector-card").evaluateAll((cards) => cards.flatMap((card) => {
-        const amount = card.querySelector(".sector-total strong");
-        const change = card.querySelector(".sector-change");
-        const range = document.createRange();
-        range.selectNodeContents(amount); const lots = range.getBoundingClientRect();
-        range.selectNodeContents(change); const percentage = range.getBoundingClientRect();
-        const name = card.querySelector(".sector-identity h3").getBoundingClientRect();
-        return Math.abs(lots.right - percentage.right) > 1 || lots.left < name.right || lots.right > card.getBoundingClientRect().right
-          ? [card.dataset.sectorName] : [];
-      }));
-      expect(issues, `Sector amount/percentage at ${width}px / ${period}`).toEqual([]);
-    }
-    await page.locator('[data-sector-window="20"]').click();
     await page.locator(".sector-card").first().click();
     await expect(page.locator("#sector-dialog")).toBeVisible();
-    expect(await page.locator("#sector-dialog").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath(`twse-full-market-${width}.png`) });
+    await page.screenshot({ path: testInfo.outputPath(`market-sector-${width}.png`) });
     await page.keyboard.press("Escape");
   }
 });

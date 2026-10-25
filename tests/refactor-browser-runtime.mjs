@@ -33,10 +33,14 @@ const server = createServer(async (request, response) => {
     if (path.startsWith("/api/")) apiRequests.push(path);
     const sector = path.match(/^\/api\/v1\/sectors\/(.+)$/);
     if (path === "/api/v1/market" || path === "/api/v1/market/summary" ||
-        path === "/api/v1/favorites/summary" || path === "/api/v1/presence" || sector) {
+        path === "/api/v1/favorites/summary" || path === "/api/v1/favorites/research" || path === "/api/v1/presence" || sector) {
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify(path === "/api/v1/market" ? versionedManifest : path === "/api/v1/presence"
         ? { online: 1, windowSeconds: 90 } : path === "/api/v1/market/summary" ? summary
+          : path === "/api/v1/favorites/research"
+            ? { data: (url.searchParams.get("symbols") || "").split(",").map((symbol) => ({ symbol,
+              latest: null, previous: null, comparison: null, events: [], history: [], timeline: [] })),
+              meta: { asOf: date, previousDate: null, revisions: [], source: "saved", coverage: 0 } }
           : path === "/api/v1/favorites/summary"
             ? await summaryService.favorites(new URL(request.url, "http://localhost").searchParams.get("symbols").split(","),
               date, { period: 9, kSmooth: 3, dSmooth: 3 })
@@ -85,7 +89,8 @@ try {
       await page.setViewportSize({ width, height: 900 });
     }
     assert.equal(apiRequests.filter((path) => path.includes("/shards/")).length, 0);
-    assert.equal(apiRequests.filter((path) => path === "/api/v1/market/summary").length, width === 1440 ? 1 : 2);
+    assert.equal(apiRequests.filter((path) => path === "/api/v1/market/summary").length, width === 1440 ? 1 : 2,
+      JSON.stringify({ apiRequests, errors, serverErrors }));
     assert.equal(apiRequests.filter((path) => path === "/api/v1/favorites/summary").length, previousFavoriteRequests);
     await page.locator('.sidebar [data-page="sectors"]').click();
     for (const window of ["day", "5", "20"]) {
@@ -111,8 +116,8 @@ try {
     await star.click();
     await expect(star).toHaveAttribute("aria-pressed", selected === "true" ? "false" : "true");
     await page.locator('.sidebar [data-page="favorites"]').click();
-    await expect(page.locator("#watchlist-grid .watch-card").first()).toBeVisible();
-    assert.equal(apiRequests.filter((path) => path === "/api/v1/favorites/summary").length, previousFavoriteRequests + 1);
+    await expect(page.locator("#research-list .research-card").first()).toBeVisible();
+    assert.equal(apiRequests.filter((path) => path === "/api/v1/favorites/summary").length, previousFavoriteRequests);
     await page.locator('.sidebar [data-dialog="source"]').click();
     await expect(page.locator(".source-about")).toContainText("從數據到洞察");
     await page.keyboard.press("Escape");
@@ -127,16 +132,18 @@ try {
     await offlinePage.goto(`http://127.0.0.1:${server.address().port}/`);
     await expect(offlinePage.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false");
     await offlinePage.locator('.sidebar [data-page="favorites"]').click();
-    await expect(offlinePage.locator("#watchlist-grid .watch-card:not(.pending-card)").first()).toBeVisible();
+    await expect(offlinePage.locator("#research-list .research-card").first()).toBeVisible();
     await offlinePage.evaluate(() => navigator.serviceWorker.ready);
     await offlinePage.reload();
     await expect.poll(() => offlinePage.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
     await offlineContext.setOffline(true);
     await offlinePage.reload();
+    await expect(offlinePage.locator("#research-list .research-card").first()).toBeVisible();
+    await offlinePage.locator('.sidebar [data-page="market"]').click();
     await expect(offlinePage.locator('#stock-rows [data-symbol="2330"]')).toBeVisible();
     await offlinePage.locator('.sidebar [data-page="favorites"]').click();
-    await expect(offlinePage.locator("#watchlist-grid .watch-card:not(.pending-card)").first()).toBeVisible();
-    console.log("PASS browser 390px: fetched market and favorite summaries remain available offline");
+    await expect(offlinePage.locator("#research-list .research-card").first()).toBeVisible();
+    console.log("PASS browser 390px: fetched market summary and research tracking remain available offline");
   } finally { await offlineContext.close(); }
 } finally {
   server.closeAllConnections();

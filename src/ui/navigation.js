@@ -4,7 +4,7 @@ const pageCopy = {
   sectors: ["INSTITUTIONAL RANKING", "法人買株", "依產業排名觀察法人資金方向；點選產業查看個股價格與買賣超張數。"],
 };
 
-export function renderPageView({ state, dataset, renderLoadState, updateOverviewTabs, updateSegmentedControls }) {
+export function renderPageView({ state, dataset, renderLoadState, updateSegmentedControls }) {
   const [eyebrow, title, description] = pageCopy[state.page];
   document.querySelector("#page-eyebrow").textContent = eyebrow;
   document.querySelector("#page-title").innerHTML = `${title}<span class="heading-dot">.</span>`;
@@ -30,7 +30,6 @@ export function renderPageView({ state, dataset, renderLoadState, updateOverview
     else button.removeAttribute("aria-current");
   });
   renderLoadState();
-  updateOverviewTabs();
   updateSegmentedControls();
 }
 

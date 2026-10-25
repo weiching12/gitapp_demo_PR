@@ -84,21 +84,6 @@ test("late entry detail cannot replace a subsequently opened settings dialog", a
   } finally { waiting.resolve(); }
 });
 
-test("failed favorite summaries offer a working retry", async ({ page }) => {
-  let fail = true;
-  await setup(page, async (route, url) => {
-    if (!fail || url.pathname !== "/api/v1/favorites/summary") return false;
-    await route.fulfill({ status: 503 }); return true;
-  });
-  await page.locator('.sidebar [data-page="favorites"]').click();
-  await expect(page.locator("#retry-favorites")).toBeVisible();
-  fail = false;
-  await page.locator("#retry-favorites").click();
-  await expect(page.locator("#favorite-load-status")).toBeHidden();
-  await expect(page.locator(".watch-card.pending-card")).toHaveCount(0);
-  await expect(page.locator(".watch-card")).toHaveCount(2);
-});
-
 test("industry page and detail retain the latest session after historical market browsing", async ({ page }) => {
   const requested = [];
   await setup(page, async (_route, url) => {

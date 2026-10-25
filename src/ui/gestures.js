@@ -15,7 +15,7 @@ export function bindPullToRefresh(pullRefresh) {
   };
   document.addEventListener("touchstart", (event) => {
     const touch = event.touches[0];
-    const blocked = event.touches.length !== 1 || window.scrollY > 0 || document.querySelector("dialog[open]") || event.target.closest("button, a, input, select, .table-scroll, .watchlist-grid, .institution-overview-rows");
+    const blocked = event.touches.length !== 1 || window.scrollY > 0 || document.querySelector("dialog[open]") || event.target.closest("button, a, input, select, .table-scroll");
     if (blocked || !touch || !matchMedia("(max-width: 700px)").matches) return;
     gesture = { x: touch.clientX, y: touch.clientY, distance: 0 };
   }, { passive: true });
