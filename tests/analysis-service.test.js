@@ -28,6 +28,8 @@ test("server analysis matches browser snapshots and never includes future bars",
   assert.equal(result.data.priceHistory.at(-1).volume, history[40].volume);
   assert.equal(result.data.priceHistory.at(-1).ma20, expected.latest.ma20);
   assert.equal(result.data.priceHistory.at(-1).ma60, null);
+  assert.equal(result.data.priceHistory.at(-1).k, expected.latest.k);
+  assert.equal(result.data.priceHistory.at(-1).d, expected.latest.d);
   assert.equal(result.data.latest.ma60, null);
   history[69].close = 999999;
   assert.deepEqual(await stockAnalysis(market, "2330", options), result);
@@ -40,11 +42,15 @@ test("daily chart adds volume and existing MA20/MA60 only for complete market se
   const { dailyCloseSeries } = await import("../shared/price-history.js");
   const history = dates.map((date, index) => ({ date, close: 100 + index, volume: 1000 + index,
     ma20: index >= 19 ? 100 + index - 9.5 : null,
-    ma60: index >= 59 ? 100 + index - 29.5 : null, changePercent: index ? 1 : null }));
+    ma60: index >= 59 ? 100 + index - 29.5 : null,
+    k: index >= 8 ? 45 + index / 10 : null, d: index >= 8 ? 40 + index / 10 : null,
+    changePercent: index ? 1 : null }));
   const series = dailyCloseSeries(history, dates, dates[64]);
   assert.equal(series.at(-1).volume, 1064);
   assert.equal(series.at(-1).ma20, history[64].ma20);
   assert.equal(series.at(-1).ma60, history[64].ma60);
+  assert.equal(series.at(-1).k, history[64].k);
+  assert.equal(series.at(-1).d, history[64].d);
   assert.equal(series.at(-1).changePercent, 1);
   history.splice(62, 1);
   const missing = dailyCloseSeries(history, dates, dates[64]);
@@ -52,6 +58,8 @@ test("daily chart adds volume and existing MA20/MA60 only for complete market se
   assert.equal(missing.at(-1).ma20, null);
   assert.equal(missing.at(-1).changePercent, 1);
   assert.equal(missing.find((point) => point.date === dates[62]).volume, null);
+  assert.equal(missing.find((point) => point.date === dates[62]).k, null);
+  assert.equal(missing.find((point) => point.date === dates[62]).d, null);
   assert.ok(missing.every((point) => point.date <= dates[64]));
 });
 
@@ -62,7 +70,8 @@ test("daily close series preserves missing market days and excludes later prices
   const series = dailyCloseSeries(history, dates, dates[30]);
   assert.equal(series.length, 30);
   assert.deepEqual(series.find((point) => point.date === dates[10]),
-    { date: dates[10], close: null, volume: null, ma20: null, ma60: null, changePercent: null });
+    { date: dates[10], close: null, volume: null, ma20: null, ma60: null,
+      k: null, d: null, changePercent: null });
   assert.equal(series.at(-1).date, dates[30]);
   assert.ok(series.every((point) => point.date <= dates[30]));
 });

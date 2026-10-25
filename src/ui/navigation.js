@@ -1,6 +1,6 @@
 const pageCopy = {
   market: ["MARKET WATCHLIST", "市場觀察清單", "比較全部標的的價量、技術指標與法人籌碼。"],
-  favorites: ["MY WATCHLIST", "自選總覽", "集中查看已收藏股票的價量與法人動向。"],
+  favorites: ["MY RESEARCH WATCHLIST", "株研追蹤", "查看關注股票的最新株研評分、前一交易日分數變化與必要條件異動。可排序、篩選，點選股票查看紀錄。"],
   sectors: ["INSTITUTIONAL RANKING", "法人買株", "依產業排名觀察法人資金方向；點選產業查看個股價格與買賣超張數。"],
 };
 
@@ -11,12 +11,15 @@ export function renderPageView({ state, dataset, renderLoadState, updateOverview
   document.querySelector("#page-description").textContent = description;
   document.querySelector("#breadcrumb-current").textContent = title;
   const sectors = state.page === "sectors";
+  const favorites = state.page === "favorites";
   const dateSelect = document.querySelector("#trade-date");
-  dateSelect.hidden = sectors;
-  dateSelect.disabled = sectors || !dataset.dates.length;
-  document.querySelector(".date-control label").hidden = sectors;
-  document.querySelector(".date-control").hidden = sectors;
-  document.querySelector(".page-heading").classList.toggle("without-date", sectors);
+  dateSelect.hidden = sectors || favorites;
+  dateSelect.disabled = sectors || favorites || !dataset.dates.length;
+  document.querySelector(".date-control label").hidden = sectors || favorites;
+  document.querySelector(".date-control").hidden = sectors || favorites;
+  document.querySelector(".page-heading").classList.toggle("without-date", sectors || favorites);
+  document.querySelector(".page-heading").classList.toggle("favorites-heading", favorites);
+  document.querySelector("#research-date").hidden = !favorites;
   document.querySelectorAll("[data-page-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.pagePanel !== state.page;
   });

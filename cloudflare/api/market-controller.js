@@ -18,6 +18,10 @@ export async function marketController(route, url, services) {
       const options = analysisOptions(url.searchParams);
       return summary.favorites((url.searchParams.get("symbols") || "").split(","), options.asOf, options.settings);
     }
+    case "favoriteResearch": {
+      const options = analysisOptions(url.searchParams);
+      return summary.research((url.searchParams.get("symbols") || "").split(","), options.asOf, options.settings);
+    }
     case "sectorDetail": {
       const options = analysisOptions(url.searchParams);
       return summary.sector(decodeURIComponent(route.params.name), options.asOf, options.settings);
@@ -26,6 +30,7 @@ export async function marketController(route, url, services) {
     case "analysis": return analysis.stock(route.params.symbol, analysisOptions(url.searchParams));
     case "stock": return market.stock(route.params.symbol);
     case "history": return history.stock(route.params.symbol);
+    case "review": return history.review(route.params.symbol);
     default: throw new Error("Unregistered market controller");
   }
 }

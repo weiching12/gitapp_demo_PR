@@ -24,7 +24,12 @@ import { bindKeyboardNavigation } from "./ui/keyboard.js";
 import { createTableBatchController } from "./ui/table-batches.js";
 import { calculateMarketSentiment } from "../shared/sentiment.js";
 import { getEntryScore } from "../shared/entry-score.js";
+import { compareResearchSnapshots, researchSnapshot } from "../shared/research-tracking.js";
+import { activeResearchPeriod, addResearchPeriod, loadResearchStore, persistResearchStore, recordFirstValidSnapshot, recordFirstValidPriceBaseline, removeResearchPeriod } from "./ui/research-store.js";
+import { renderResearchCenter, researchDetailMarkup, selectResearchScorePoint } from "./ui/research.js";
+import { researchPriceChart, researchReviewSummary, selectResearchPricePoint } from "./ui/research-review.js";
 import { dailyCloseSeries } from "../shared/price-history.js";
+import { priceBaseline } from "../shared/research-review.js";
 import { entryScoreDialogMarkup, selectEntryChartPoint, restoreEntryChartTitle } from "./ui/entry-score.js";
 import { renderSentiment, sentimentDialogMarkup } from "./ui/sentiment.js";
 import {
@@ -121,6 +126,11 @@ const marketClient = new MarketApiClient();
 const summaryCache = new Map(), sectorDetailCache = new Map(), stockDetailCache = new Map();
 const favoriteCache = new Map(), favoriteRequests = new Map();
 let favoriteLoadFailed = false;
+let researchStore, researchRows = new Map(), researchRequest = 0;
+const researchReviewCache = new Map(), researchReviewRequests = new Map();
+let researchMeta = null;
+let researchSort = "score", researchFilter = "all";
+let researchLoadKey = "";
 let selectedSummary, latestSummary, summaryRequest = 0;
 const latestCache = new Map(), historicalCache = new Map();
 const tableRowCache = new WeakMap();
@@ -138,6 +148,150 @@ const pendingSymbols = new Set();
 
 function readPreferences() { loadPreferences(state, preferenceStorage()); }
 function savePreferences() { persistPreferences(state, toast, preferenceStorage()); }
+function saveResearch() { return persistResearchStore(preferenceStorage(), researchStore); }
+
+async function loadResearchReview(symbol) {
+  const key = `${dataset.info.generation ?? "demo"}:${symbol}`;
+  if (researchReviewCache.has(key)) return researchReviewCache.get(key);
+  if (researchReviewRequests.has(key)) return researchReviewRequests.get(key);
+  const task = (async () => {
+    let review;
+    if (apiMode) {
+      const response = await marketClient.review(symbol);
+      if (response.data.meta?.asOf !== dataset.info.asOf || response.data.data?.symbol !== symbol)
+        throw new Error("價格回顧資料版本與清單不一致");
+      review = response.data.data;
+      review.source = response.data.meta.source;
+      review.retrievedAt = response.data.meta.retrievedAt;
+    } else {
+      const stock = dataset.stocks.find((item) => item.symbol === symbol);
+      const dates = dataset.dates.slice(-120);
+      const bars = new Map(stock?.history.map((bar) => [bar.date, bar]) ?? []);
+      review = { symbol, dates, bars: dates.map((date) => ({ date, close: bars.get(date)?.close ?? null })),
+        priceBasis: "unadjusted", corporateActions: { coveredDates: dates.slice(1), events: [], revisionId: "demo-no-actions" },
+        source: "demo", retrievedAt: new Date().toISOString() };
+    }
+    researchReviewCache.set(key, review);
+    const period = activeResearchPeriod(researchStore, symbol);
+    if (period && !period.baseline) {
+      const latest = review.bars.findLast((bar) => bar.date === dataset.info.asOf);
+      recordFirstValidPriceBaseline(researchStore, symbol, priceBaseline(latest,
+        { asOf: dataset.info.asOf, capturedAt: review.retrievedAt, source: review.source,
+          priceBasis: review.priceBasis, revisionId: review.corporateActions?.revisionId }));
+      saveResearch();
+    }
+    const row = researchRows.get(symbol);
+    if (row) row.review = review;
+    renderResearch();
+    const dialog = document.querySelector("#info-dialog");
+    if (dialog?.open && dialog.dataset.entrySymbol === symbol) {
+      const existing = dialog.querySelector(".research-detail");
+      if (existing) existing.outerHTML = researchDetailMarkup({ symbol, row: researchRows.get(symbol),
+        store: researchStore, esc });
+    }
+    return review;
+  })().finally(() => researchReviewRequests.delete(key));
+  researchReviewRequests.set(key, task);
+  return task;
+}
+
+function renderResearch() {
+  if (!researchStore || !document.querySelector("#research-list")) return;
+  const opened = new Set([...document.querySelectorAll(".research-card-review[open]")]
+    .map((item) => item.dataset.reviewSymbol));
+  const result = renderResearchCenter({ favorites: state.favorites, stocks: snapshots,
+    rows: researchRows, store: researchStore, date: state.date,
+    sort: researchSort, filter: researchFilter, esc });
+  document.querySelector("#research-date").textContent = `最新可用交易日 ${dataset.info.asOf || "—"}${researchMeta?.revisions?.length > 1 ? " · 當日市場資料有修訂版本" : ""}`;
+  document.querySelector("#research-stats").innerHTML = result.stats;
+  document.querySelector("#research-list").innerHTML = result.cards;
+  for (const symbol of opened) {
+    const card = [...document.querySelectorAll(".research-card-review")]
+      .find((item) => item.dataset.reviewSymbol === symbol);
+    if (card) card.open = true;
+  }
+  document.querySelector("#research-sort").value = researchSort;
+  document.querySelector("#research-filter").value = researchFilter;
+}
+
+async function captureAddedSnapshot(period, symbol) {
+  if (!apiMode) return;
+  try {
+    // Reads an existing shared snapshot; this never invokes stock analysis or an external data API.
+    const response = await marketClient.research([symbol], dataset.info.asOf, state.settings);
+    const saved = response.data.data?.[0]?.latest;
+    if (!saved || period.removedAt || activeResearchPeriod(researchStore, symbol)?.id !== period.id) return;
+    if (saved.capturedAt && saved.capturedAt <= period.startedAt) {
+      period.addedSnapshot = saved;
+      period.addedSnapshotId = saved.id;
+      if (saved.valid) { period.firstValidSnapshot = saved; period.firstValidSnapshotId = saved.id; }
+    } else recordFirstValidSnapshot(researchStore, symbol, saved);
+  } catch (error) {
+    console.warn("Join snapshot unavailable", error);
+  } finally { saveResearch(); renderResearch(); }
+}
+
+async function loadResearch() {
+  if (!researchStore || !state.favorites.length || !state.date) { researchRows = new Map(); researchMeta = null; renderResearch(); return; }
+  const key = `${summaryKey(state.date)}:${state.favorites.join(",")}`;
+  if (researchLoadKey === key) { renderResearch(); return; }
+  researchLoadKey = key;
+  const request = ++researchRequest;
+  const date = state.date;
+  if (!apiMode) {
+    researchMeta = null;
+    const index = dataset.dates.indexOf(date), previousDate = dataset.dates[index - 1] ?? null;
+    researchRows = new Map(state.favorites.map((symbol) => {
+      const current = snapshots.find((stock) => stock.symbol === symbol);
+      const previousStock = previousDate ? dataset.stocks.find((stock) => stock.symbol === symbol) : null;
+      const previous = previousStock ? getSnapshot({ ...previousStock, tradingDates: dataset.dates }, previousDate, state.settings) : null;
+      if (previous) previous.entryScore = getEntryScore(previous, dataset.dates, previousDate);
+      const latest = current ? researchSnapshot(current.entryScore, { symbol, market: current.market,
+        asOf: date, settings: state.settings, capturedAt: new Date().toISOString(), source: "historical-recalculation" }) : null;
+      const prior = previous ? researchSnapshot(previous.entryScore, { symbol, market: previous.market,
+        asOf: previousDate, settings: state.settings, source: "historical-recalculation" }) : null;
+      const comparison = compareResearchSnapshots(latest, prior, previousDate);
+      return [symbol, { latest, previous: prior, comparison, events: comparison.events,
+        history: [prior, latest].filter(Boolean), source: "historical-recalculation",
+        review: researchReviewCache.get(`${dataset.info.generation ?? "demo"}:${symbol}`) }];
+    }));
+    renderResearch(); return;
+  }
+  researchRows = new Map(state.favorites.map((symbol) => [symbol, { loading: true }]));
+  renderResearch();
+  try {
+    const rows = [];
+    let meta;
+    for (let offset = 0; offset < state.favorites.length; offset += 50) {
+      const { data } = await marketClient.research(state.favorites.slice(offset, offset + 50), date, state.settings);
+      if (data.meta?.asOf !== date) throw new Error("研究快照交易日不一致");
+      meta = data.meta;
+      rows.push(...data.data);
+    }
+    if (request !== researchRequest || date !== state.date) return;
+    researchRows = new Map(rows.map((row) => [row.symbol,
+      { ...row, review: researchReviewCache.get(`${dataset.info.generation ?? "demo"}:${row.symbol}`) }]));
+    researchMeta = meta;
+    for (const row of rows) if (row.latest) {
+      const period = activeResearchPeriod(researchStore, row.symbol);
+      if (period && !period.legacy && !period.addedSnapshot?.valid &&
+          row.latest.asOf === dataset.info.asOf && row.latest.capturedAt &&
+          row.latest.capturedAt <= period.startedAt) {
+        period.addedSnapshot = row.latest;
+        period.addedSnapshotId = row.latest.id;
+        if (row.latest.valid) { period.firstValidSnapshot = row.latest; period.firstValidSnapshotId = row.latest.id; }
+      } else recordFirstValidSnapshot(researchStore, row.symbol, row.latest);
+    }
+    saveResearch(); renderResearch();
+  } catch (error) {
+    if (request !== researchRequest) return;
+    researchLoadKey = "";
+    researchRows = new Map(state.favorites.map((symbol) => [symbol, {
+      comparison: { status: "unavailable", events: [], summary: "研究快照暫時無法取得" }, events: [] }]));
+    researchMeta = null;
+    renderResearch(); console.error("Unable to load research snapshots", error);
+  }
+}
 function applyTheme() {
   document.documentElement.dataset.theme = state.theme;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", state.theme === "dark" ? "#0b1220" : "#14243b");
@@ -180,7 +334,7 @@ function refreshData() {
       favoriteRows?.has(stock.symbol) ? { ...stock, ...favoriteRows.get(stock.symbol) } : stock);
     currentSentiment = latestSummary?.data.sentiment ?? null;
     if (currentSentiment) renderSentiment(currentSentiment);
-    renderWatchlist(); renderTable(); renderSectorOverview(); renderPage();
+    renderWatchlist(); renderTable(); renderSectorOverview(); renderPage(); void loadResearch();
     if (document.querySelector("#institution-dialog").open) renderInstitutionDialog();
     return;
   }
@@ -210,6 +364,7 @@ function refreshData() {
   renderTable();
   renderSectorOverview();
   renderPage();
+  void loadResearch();
   if (document.querySelector("#institution-dialog").open) renderInstitutionDialog();
 }
 
@@ -576,7 +731,7 @@ function openDialog(type, focusClose = true) {
     const stock = snapshots.find((item) => item.symbol === symbol);
     const detail = stockDetailCache.get(`${summaryKey(state.date)}:${symbol}`);
     content.innerHTML = stock ? entryScoreDialogMarkup(detail ? { ...stock, ...detail } : stock, esc, number, percent,
-      state.favorites.includes(symbol), icon) :
+      state.favorites.includes(symbol), icon, researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc })) :
       `<h2 id="dialog-heading">個股進場評估</h2><p>找不到這檔股票。</p>`;
   } else if (type === "sentiment") {
     content.innerHTML = sentimentDialogMarkup(currentSentiment);
@@ -594,17 +749,32 @@ function openDialog(type, focusClose = true) {
     content.innerHTML = `<h2 id="dialog-heading">讀懂價格背後的訊號</h2><p class="dialog-intro">指標提供觀察角度。搭配價量與籌碼，建立更完整的判斷。</p><article class="guide-item"><span>01</span><div><h3>季線 MA60</h3><p>最近 60 個交易日收盤價的簡單移動平均，包含選定資料日。股價高於季線時，位置顯示為正值。</p><code>乖離率 = (收盤價 ÷ MA60 − 1) × 100%</code></div></article><article class="guide-item"><span>02</span><div><h3>KD 隨機指標</h3><p>預設以 9 日最高、最低與當日收盤價計算 RSV，再以平滑係數 3 遞推 K、D。K、D 初始值為 50；不足 9 日不顯示。最高與最低相同時 RSV 採 50。</p><code>RSV = (收盤 − 最低) ÷ (最高 − 最低) × 100<br>K = 前日 K × 2/3 + RSV × 1/3<br>D = 前日 D × 2/3 + 當日 K × 1/3</code><p>K &gt; 80 為高檔區，K &lt; 20 為低檔區，不能單獨視為買賣訊號。你可以在指標設定調整參數。</p></div></article><article class="guide-item"><span>03</span><div><h3>三大法人買賣超</h3><p>外資、投信及自營商的買進股數減去賣出股數。正值為買超，負值為賣超。1 張 = 1,000 股；法人買賣量與全市場成交量的統計範圍不同。近 5／20 日累計包含資料日，依實際交易日加總後換算為張；資料不足不補零。外資、投信的連買／連賣日數從資料日回溯，遇反向、持平或缺漏即中止；若回溯到資料起點或缺漏，顯示「至少」。</p></div></article><article class="guide-item"><span>04</span><div><h3>前一交易日</h3><p>目前預設資料日為 ${dataset.info.asOf}。日期選單可回看最近 30 個${isDemo ? "模擬" : "實際"}交易日，所有指標僅使用選定日及之前的資料。</p></div></article><article class="guide-item"><span>05</span><div><h3>KD 技術建議</h3>${technicalSignalGuide()}</div></article><article class="guide-item"><span>06</span><div><h3>今日量價</h3><p>比較選定交易日的成交量與此前 20 個市場交易日的平均成交量；平均量不包含當日。成交量均以股計算，畫面顯示倍數至小數點後兩位。</p><code>RVOL20 = 當日成交量 ÷ 前 20 個交易日平均成交量</code><p>RVOL20 ≥ 1.20 為量增；0.80 ≤ RVOL20 &lt; 1.20 為量平；RVOL20 &lt; 0.80 為量縮。收盤價相對前一有效交易日上漲超過 0.50% 為價漲、下跌超過 0.50% 為價跌，介於 ±0.50%（含邊界）為價格變動有限。依價格與量能的組合顯示量價術語；量增且價格變動有限為「量增價滯」，量平為「量價持平」，量縮為「量縮盤整」。即使 RVOL20 ≥ 2.00，只要價格變動有限仍為「量增價滯」。</p><p>當日或前 20 個市場交易日任一天缺少成交量、歷史不足、前 20 日平均量為 0，或漲跌無法計算時，顯示「資料不足」；不會以更早日期補足缺漏。切換歷史日期時只使用該日及以前的資料。量價狀態僅供觀察，不代表買賣訊號。</p></div></article>`;
   }
   const dialog = document.querySelector("#info-dialog");
-  dialog.showModal();
+  const entryDrawer = type.startsWith("entry:") && matchMedia("(min-width: 900px)").matches;
+  if (dialog.open && dialog.dataset.entryDrawer !== String(entryDrawer)) dialog.close();
+  dialog.dataset.entryDrawer = String(entryDrawer);
+  if (!dialog.open) {
+    if (entryDrawer) dialog.show();
+    else dialog.showModal();
+  }
+  dialog.scrollTop = 0;
+  content.scrollTop = 0;
   if (type.startsWith("entry:")) animateEntryScore(dialog);
   const close = dialog.querySelector("#close-dialog");
   if (focusClose) close.focus({ preventScroll: true });
   else if (dialog.contains(document.activeElement)) document.activeElement.blur();
 }
 
+function closeEntryDrawer() {
+  const dialog = document.querySelector('#info-dialog[data-entry-drawer="true"]');
+  if (dialog?.open) dialog.close();
+}
+
 async function openEntryScoreDialog(symbol, focusClose = true) {
   const date = state.date, key = `${summaryKey(date)}:${symbol}`;
   const dialog = document.querySelector("#info-dialog");
   openDialog(`entry:${symbol}`, focusClose);
+  if (state.favorites.includes(symbol)) void loadResearchReview(symbol)
+    .catch((error) => console.warn("Research price review unavailable", error));
   const request = dialog.dataset.request;
   const isCurrent = () => dialog.open && dialog.dataset.request === request &&
     dialog.dataset.entrySymbol === symbol && key === `${summaryKey(state.date)}:${symbol}`;
@@ -620,12 +790,13 @@ async function openEntryScoreDialog(symbol, focusClose = true) {
     if (isCurrent()) {
       document.querySelector("#dialog-content").innerHTML = entryScoreDialogMarkup(
         { ...snapshots.find((stock) => stock.symbol === symbol), ...entryDetail }, esc, number, percent,
-        state.favorites.includes(symbol), icon);
+        state.favorites.includes(symbol), icon,
+        researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc }));
       animateEntryScore(dialog);
     }
   } catch (error) {
     if (isCurrent())
-      document.querySelector("#dialog-content").innerHTML = `<h2 id="dialog-heading">個股進場評估</h2><p role="alert">${esc(error.message || "評分明細載入失敗")}</p>`;
+      document.querySelector("#dialog-content").innerHTML = `<h2 id="dialog-heading">個股進場評估</h2><p role="alert">${esc(error.message || "評分明細載入失敗")}</p>${researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc })}`;
   }
 }
 
@@ -690,6 +861,24 @@ function bindEvents() {
     return Math.round(Math.max(0, Math.min(1, position)) * (Number(plot.getAttribute("aria-valuemax")) - 1));
   };
   document.addEventListener("pointerdown", (event) => {
+    const scorePlot = event.target.closest(".research-score-plot");
+    if (scorePlot) {
+      scorePlot.focus({ preventScroll: true });
+      scorePlot.setPointerCapture(event.pointerId);
+      const rect = scorePlot.querySelector("svg").getBoundingClientRect();
+      selectResearchScorePoint(scorePlot, Math.round(Math.max(0, Math.min(1,
+        (event.clientX - rect.left) / rect.width)) * (Number(scorePlot.getAttribute("aria-valuemax")) - 1)));
+      return;
+    }
+    const reviewPlot = event.target.closest(".research-chart-plot");
+    if (reviewPlot) {
+      reviewPlot.focus({ preventScroll: true });
+      reviewPlot.setPointerCapture(event.pointerId);
+      const rect = reviewPlot.querySelector("svg").getBoundingClientRect();
+      selectResearchPricePoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
+        (event.clientX - rect.left) / rect.width)) * (Number(reviewPlot.getAttribute("aria-valuemax")) - 1)));
+      return;
+    }
     const plot = event.target.closest(".entry-chart-plot");
     if (!plot) return;
     plot.focus({ preventScroll: true });
@@ -697,6 +886,20 @@ function bindEvents() {
     selectEntryChartPoint(plot, chartIndexAt(plot, event.clientX), number);
   });
   document.addEventListener("pointermove", (event) => {
+    const scorePlot = event.target.closest(".research-score-plot");
+    if (scorePlot?.hasPointerCapture(event.pointerId)) {
+      const rect = scorePlot.querySelector("svg").getBoundingClientRect();
+      selectResearchScorePoint(scorePlot, Math.round(Math.max(0, Math.min(1,
+        (event.clientX - rect.left) / rect.width)) * (Number(scorePlot.getAttribute("aria-valuemax")) - 1)));
+      return;
+    }
+    const reviewPlot = event.target.closest(".research-chart-plot");
+    if (reviewPlot?.hasPointerCapture(event.pointerId)) {
+      const rect = reviewPlot.querySelector("svg").getBoundingClientRect();
+      selectResearchPricePoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
+        (event.clientX - rect.left) / rect.width)) * (Number(reviewPlot.getAttribute("aria-valuemax")) - 1)));
+      return;
+    }
     const plot = event.target.closest(".entry-chart-plot");
     if (plot?.hasPointerCapture(event.pointerId))
       selectEntryChartPoint(plot, chartIndexAt(plot, event.clientX), number);
@@ -711,6 +914,24 @@ function bindEvents() {
     if (plot) restoreEntryChartTitle(plot);
   });
   document.addEventListener("keydown", (event) => {
+    const scorePlot = event.target.closest(".research-score-plot");
+    if (scorePlot && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const current = Number(scorePlot.getAttribute("aria-valuenow")) - 1;
+      const last = Number(scorePlot.getAttribute("aria-valuemax")) - 1;
+      selectResearchScorePoint(scorePlot, event.key === "Home" ? 0 : event.key === "End" ? last :
+        Math.max(0, Math.min(last, current + (event.key === "ArrowLeft" ? -1 : 1))));
+      return;
+    }
+    const reviewPlot = event.target.closest(".research-chart-plot");
+    if (reviewPlot && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const current = Number(reviewPlot.getAttribute("aria-valuenow")) - 1;
+      const last = Number(reviewPlot.getAttribute("aria-valuemax")) - 1;
+      selectResearchPricePoint(reviewPlot, event.key === "Home" ? 0 : event.key === "End" ? last :
+        Math.max(0, Math.min(last, current + (event.key === "ArrowLeft" ? -1 : 1))));
+      return;
+    }
     const plot = event.target.closest(".entry-chart-plot");
     if (!plot || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
@@ -719,6 +940,10 @@ function bindEvents() {
       index + (event.key === "ArrowRight" ? 1 : -1), number);
   });
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && document.querySelector('#info-dialog[data-entry-drawer="true"]')?.open) {
+      document.querySelector("#info-dialog").close();
+      return;
+    }
     const row = event.target.closest("#stock-rows tr[data-symbol]");
     if (event.target !== row || !["Enter", " "].includes(event.key)) return;
     event.preventDefault();
@@ -728,11 +953,13 @@ function bindEvents() {
   controls.bind();
   bindResponsiveSearchOrder();
   bindInputMode((touch) => { touchInteraction = touch; });
+  matchMedia("(min-width: 900px)").addEventListener("change", closeEntryDrawer);
   bindPullToRefresh(document.querySelector("#pull-refresh"));
   bindKeyboardNavigation({ getPage: () => state.page, onSectorDetails: openSectorDialog });
   document.addEventListener("click", (event) => {
     const home = event.target.closest("[data-home]");
     if (home) {
+      closeEntryDrawer();
       void checkPwaUpdate().catch((error) => console.warn("PWA update check failed", error));
       event.preventDefault();
       state.page = "market";
@@ -754,6 +981,22 @@ function bindEvents() {
     }
     const button = event.target.closest("button");
     if (!button) return;
+    if (button.dataset.reviewMode || button.dataset.reviewRange) {
+      const chart = button.closest(".research-price-chart");
+      const symbol = chart?.dataset.reviewSymbol;
+      const period = activeResearchPeriod(researchStore, symbol);
+      if (chart && period) chart.outerHTML = researchPriceChart(period, researchRows.get(symbol), esc,
+        button.dataset.reviewMode ?? chart.dataset.mode,
+        Number(button.dataset.reviewRange ?? chart.dataset.range));
+      return;
+    }
+    if (button.dataset.chartSeries) {
+      const visible = button.getAttribute("aria-pressed") !== "true";
+      button.setAttribute("aria-pressed", String(visible));
+      button.closest(".entry-price-chart, .entry-condition-kd-chart")
+        .classList.toggle(`hide-${button.dataset.chartSeries}`, !visible);
+      return;
+    }
     if (button.id !== "check-update" && button.id !== "reload-data")
       void checkPwaUpdate().catch((error) => console.warn("PWA update check failed", error));
     if (button.id === "check-update") {
@@ -794,7 +1037,12 @@ function bindEvents() {
       renderSectorOverview();
     }
     if (button.dataset.page) {
+      closeEntryDrawer();
       state.page = button.dataset.page;
+      if (state.page === "favorites" && state.date !== dataset.info.asOf) {
+        state.date = dataset.info.asOf;
+        void selectSummary(state.date).catch((error) => toast(error.message));
+      }
       renderPage();
       if (state.page === "favorites") void ensureFavoriteSummaries();
       window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
@@ -814,8 +1062,30 @@ function bindEvents() {
       state.favorites = wasFavorite
         ? state.favorites.filter((item) => item !== symbol)
         : [...state.favorites, symbol];
+      if (wasFavorite) removeResearchPeriod(researchStore, symbol);
+      else {
+        const stock = latestSnapshots.find((item) => item.symbol === symbol);
+        const existing = researchRows.get(symbol)?.latest;
+        const observed = existing?.asOf === dataset.info.asOf ? existing : !apiMode && stock
+          ? researchSnapshot(stock.entryScore, { symbol, market: stock.market,
+            asOf: dataset.info.asOf, capturedAt: new Date().toISOString(),
+            settings: state.settings, source: "join-observation" }) : null;
+        const missing = observed ?? researchSnapshot(null, { symbol, market: stock?.market,
+          asOf: dataset.info.asOf, capturedAt: new Date().toISOString(),
+          settings: state.settings, source: "join-observation" });
+        if (!observed) missing.missingData = ["加入時尚無可取得的完整評分快照"];
+        const joinedPrice = stock?.latest?.date === dataset.info.asOf
+          ? priceBaseline(stock.latest, { asOf: dataset.info.asOf,
+            capturedAt: new Date().toISOString(), source: apiMode ? "verified-summary" : "demo",
+            priceBasis: "unadjusted", revisionId: dataset.info.generation ?? null }) : null;
+        const period = addResearchPeriod(researchStore, { symbol, market: stock?.market,
+          snapshot: missing, baseline: joinedPrice });
+        if (apiMode && !observed) void captureAddedSnapshot(period, symbol);
+      }
+      saveResearch(); researchLoadKey = "";
       savePreferences();
       renderWatchlist();
+      void loadResearch();
       if (state.page === "favorites" && !wasFavorite) void ensureFavoriteSummaries();
       if (state.view === "favorites") renderTable();
       else syncTableFavorite(symbol);
@@ -884,12 +1154,36 @@ function bindEvents() {
     });
   });
   document.addEventListener("change", (event) => {
+    if (event.target.id === "research-sort") { researchSort = event.target.value; renderResearch(); return; }
+    if (event.target.id === "research-filter") { researchFilter = event.target.value; renderResearch(); return; }
     if (event.target.id !== "theme") return;
     state.theme = event.target.value === "dark" ? "dark" : "light";
     applyTheme();
     savePreferences();
   });
+  document.addEventListener("toggle", (event) => {
+    const details = event.target.closest?.(".research-card-review");
+    if (!details?.open) return;
+    const symbol = details.dataset.reviewSymbol;
+    void loadResearchReview(symbol).catch((error) => {
+      const current = [...document.querySelectorAll(".research-card-review")]
+        .find((item) => item.dataset.reviewSymbol === symbol);
+      if (current) current.querySelector(".research-muted").textContent = `歷史回顧暫時無法取得：${error.message}`;
+    });
+  }, true);
   document.addEventListener("submit", (event) => {
+    if (event.target.id === "research-note-form") {
+      event.preventDefault();
+      const period = activeResearchPeriod(researchStore, event.target.dataset.researchSymbol);
+      if (period) {
+        const form = new FormData(event.target);
+        period.reason = String(form.get("reason") ?? "");
+        period.note = String(form.get("note") ?? "").slice(0, 1000);
+        saveResearch();
+        toast("研究紀錄已儲存在目前裝置");
+      }
+      return;
+    }
     if (event.target.id !== "settings-form") return;
     event.preventDefault();
     const form = new FormData(event.target);
@@ -944,6 +1238,10 @@ async function init() {
   const prepare = () => {
     state.date = dataset.info.asOf;
     state.favorites = [...new Set(state.favorites)].filter((symbol) => dataset.stocks.some((stock) => stock.symbol === symbol));
+    researchStore = loadResearchStore(preferenceStorage(), state.favorites);
+    for (const period of researchStore.periods) if (!period.market)
+      period.market = dataset.stocks.find((stock) => stock.symbol === period.symbol)?.market ?? null;
+    saveResearch();
   };
   if (apiMode) {
     loading = true; isDemo = false;

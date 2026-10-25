@@ -9,7 +9,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
       <div class="nav-caption">WORKSPACE <span>研究工作台</span></div>
       <nav aria-label="主要導覽">
         <button class="nav-item active" data-page="market" aria-label="市場觀察清單">${icon("grid")}<span class="nav-label">市場觀察清單</span><span class="nav-label-mobile" aria-hidden="true">市場</span><span class="nav-dot"></span></button>
-        <button class="nav-item" data-page="favorites" aria-label="自選總覽">${icon("star")}<span class="nav-label">自選總覽</span><span class="nav-label-mobile" aria-hidden="true">自選</span><span id="favorite-count" class="count-pill"></span></button>
+        <button class="nav-item" data-page="favorites" aria-label="株研追蹤">${icon("star")}<span class="nav-label">株研追蹤</span><span class="nav-label-mobile" aria-hidden="true">株研追蹤</span><span id="favorite-count" class="count-pill"></span></button>
         <button class="nav-item" data-page="sectors" aria-label="法人買株">${icon("chart")}<span class="nav-label">法人買株</span><span class="nav-label-mobile" aria-hidden="true">法人</span><span class="nav-dot"></span></button>
         <button class="nav-item" data-dialog="methodology" aria-label="指標小百科">${icon("book")}<span>指標說明</span>${icon("chevron", "nav-chevron")}</button>
         <button class="nav-item" data-dialog="source" aria-label="資料說明">${icon("info")}<span>資料說明</span>${icon("chevron", "nav-chevron")}</button>
@@ -20,7 +20,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
     <div class="workspace">
       <header class="topbar"><div class="breadcrumb">研究工作台 ${icon("chevron")} <span id="breadcrumb-current">市場觀察清單</span></div><div class="topbar-actions"><span id="online-count" class="online-count" role="status" title="台灣時間當日累積造訪的瀏覽器數；同一瀏覽器多分頁只計一次">${loadingIcon("正在取得今日造訪人數")}<span>今日造訪人數</span></span><span class="demo-badge"><span></span>${esc(dataset.info.label)}</span></div></header>
       <main id="main" tabindex="-1">
-        <section class="page-heading"><div><div class="eyebrow" id="page-eyebrow">TAIWAN STOCK EXPLORER</div><h1 id="page-title">市場觀察清單<span class="heading-dot">.</span></h1><p id="page-description">比較全部標的的價量、技術指標與法人籌碼。</p></div><div class="date-control"><label for="trade-date">${icon("calendar")}<span class="date-label-text">資料交易日</span></label><select id="trade-date">${dataset.dates
+        <section class="page-heading"><div><div class="eyebrow" id="page-eyebrow">TAIWAN STOCK EXPLORER</div><h1 id="page-title">市場觀察清單<span class="heading-dot">.</span></h1><p id="page-description">比較全部標的的價量、技術指標與法人籌碼。</p></div><p id="research-date" class="research-date" hidden></p><div class="date-control"><label for="trade-date">${icon("calendar")}<span class="date-label-text">資料交易日</span></label><select id="trade-date">${dataset.dates
           .slice(-30)
           .reverse()
           .map(
@@ -33,8 +33,9 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
         <div id="pull-refresh" class="pull-refresh" aria-hidden="true"><span></span>下拉重新整理</div>
         <div id="app-status" class="app-status" role="status" hidden><span></span></div>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
-        <section id="watchlist" data-page-panel="favorites" aria-label="自選股票" hidden>
-          <div class="overview-controls">
+        <section id="watchlist" data-page-panel="favorites" aria-label="株研追蹤" hidden>
+          <section class="research-center" aria-label="自選股評分與研究異動"><div id="research-stats" class="research-stats"></div><div class="research-controls"><label>排序 <select id="research-sort"><option value="score">最終分數</option><option value="change">分數變化</option></select></label><label>篩選 <select id="research-filter"><option value="all">全部追蹤</option><option value="improved">必要條件改善</option><option value="lost">必要條件失效</option><option value="important">重要異動</option></select></label></div><div id="research-list" class="research-list"></div></section>
+          <div id="legacy-watchlist" hidden><div class="overview-controls">
             <div class="overview-tabs">
               <span class="overview-tab-indicator" aria-hidden="true"></span>
               <div class="overview-view-tabs" role="tablist" aria-label="自選總覽視角">
@@ -50,7 +51,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
             <div class="institution-overview-head" aria-hidden="true"><span>股票</span><div class="institution-overview-metric-headings"><span>合計買賣超</span><span>外資</span><span>投信</span><span>自營商</span></div></div>
             <div id="institution-overview-rows" class="institution-overview-rows"></div><div id="institution-carousel-controls" class="carousel-pagination" data-carousel="institutions" role="group" aria-label="法人卡片導覽" hidden></div><p class="institution-overview-note">金額：億；張數為輔。金額按每日收盤價換算，非實際成交金額。連買／連賣天數截至資料日。</p>
           </section>
-          <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>到市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div>
+          <div id="watchlist-empty" class="watchlist-empty" hidden>${icon("star")}<h3>建立你的自選清單</h3><p>到市場觀察清單點選星號，股票就會顯示在這裡。</p><button class="outline-button" data-manage-favorites>前往選擇股票</button></div></div>
         </section>
         <section id="market-sentiment" class="market-sentiment" data-page-panel="market" data-sentiment="unknown" aria-labelledby="sentiment-title">
           <button type="button" data-dialog="sentiment" aria-haspopup="dialog">

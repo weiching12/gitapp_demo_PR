@@ -524,7 +524,7 @@ test("general settings persist the dark theme", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(stockName.locator("strong")).toHaveCSS("color", "rgb(229, 237, 248)");
   await expect(stockName.locator(":scope > span")).toHaveCSS("color", "rgb(154, 171, 194)");
-  await page.getByRole("button", { name: "自選總覽" }).click();
+  await page.getByRole("button", { name: "株研追蹤" }).click();
   await expect(page.locator(".overview-controls")).toHaveCSS("background-color", "rgb(17, 27, 43)");
   await page.locator("#watchlist-institutions-tab").click();
   await expect(page.locator(".overview-total").first()).toHaveCSS("background-color", "rgb(22, 34, 56)");
@@ -1174,7 +1174,7 @@ test("sector data stays on the latest complete date while other pages retain the
   await expect(page.locator("#trade-date")).toBeVisible();
   await expect(page.locator("#trade-date")).toHaveValue("2026-09-08");
   await expect(page.locator("#watchlist h2")).toHaveCount(0);
-  await expect(page.locator("#page-title")).toContainText("自選總覽");
+  await expect(page.locator("#page-title")).toContainText("株研追蹤");
   await expect(page.locator("#manage-favorites, .watchlist-heading")).toHaveCount(0);
 });
 
@@ -1388,7 +1388,7 @@ test("primary navigation keeps market, favorites and sectors as separate pages",
   await expect(page.locator("#watchlist")).toBeHidden();
   await openPage(page, "favorites");
   await expect(cardFor(page, "2454")).toBeVisible();
-  await expect(page.locator("#page-title")).toContainText("自選總覽");
+  await expect(page.locator("#page-title")).toContainText("株研追蹤");
   await openPage(page, "sectors");
   await expect(page.locator("#sector-grid .sector-card")).toHaveCount(5);
   await expect(page.locator("#page-title")).toContainText("法人買株");

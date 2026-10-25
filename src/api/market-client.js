@@ -15,6 +15,10 @@ export class MarketApiClient {
     const params = new URLSearchParams({ ...settings, asOf: date, symbols: symbols.join(",") });
     return this.http.json(`/api/v1/favorites/summary?${params}`, options);
   }
+  research(symbols, date, settings, options) {
+    const params = new URLSearchParams({ ...settings, asOf: date, symbols: symbols.join(",") });
+    return this.http.json(`/api/v1/favorites/research?${params}`, options);
+  }
   sector(name, date, settings, options) {
     const params = new URLSearchParams({ ...settings, asOf: date });
     return this.http.json(`/api/v1/sectors/${encodeURIComponent(name)}?${params}`, options);
@@ -23,4 +27,5 @@ export class MarketApiClient {
     const params = new URLSearchParams({ ...settings, asOf: date });
     return this.http.json(`/api/v1/stocks/${encodeURIComponent(symbol)}/analysis?${params}`, options);
   }
+  review(symbol, options) { return this.http.json(`/api/v1/stocks/${encodeURIComponent(symbol)}/review`, options); }
 }

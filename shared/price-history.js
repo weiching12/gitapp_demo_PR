@@ -16,6 +16,8 @@ export function dailyCloseSeries(history, tradingDates, asOf, days = 30) {
         volume: Number.isFinite(bar?.volume) && bar.volume >= 0 ? bar.volume : null,
         ma20: completeAverage(20) && Number.isFinite(bar?.ma20) ? bar.ma20 : null,
         ma60: completeAverage(60) && Number.isFinite(bar?.ma60) ? bar.ma60 : null,
+        k: close !== null && Number.isFinite(bar?.k) && bar.k >= 0 && bar.k <= 100 ? bar.k : null,
+        d: close !== null && Number.isFinite(bar?.d) && bar.d >= 0 && bar.d <= 100 ? bar.d : null,
         changePercent: close !== null && Number.isFinite(previous?.close) && previous.close > 0 &&
           Number.isFinite(bar?.changePercent) ? bar.changePercent : null };
     });

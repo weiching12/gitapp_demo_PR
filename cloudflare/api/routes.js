@@ -10,6 +10,7 @@ export function resolveApiRoute(path) {
   if (resource === "/market") return route("market");
   if (versioned && resource === "/market/summary") return route("marketSummary");
   if (versioned && resource === "/favorites/summary") return route("favoriteSummary");
+  if (versioned && resource === "/favorites/research") return route("favoriteResearch");
   const sector = versioned && resource.match(/^\/sectors\/([^/]+)$/);
   if (sector) return route("sectorDetail", { name: sector[1] });
   if (versioned && resource === "/stocks") return route("stocks");
@@ -18,8 +19,8 @@ export function resolveApiRoute(path) {
     : /^\/market\/([a-z0-9-]{1,64})\/(\d{1,3})$/);
   if (chunk && Number(chunk[2]) < SHARD_COUNT)
     return route("snapshot", { generation: chunk[1], index: Number(chunk[2]) });
-  const stock = resource.match(/^\/stocks\/([^/]+)(\/(?:history|analysis))?$/);
+  const stock = resource.match(/^\/stocks\/([^/]+)(\/(?:history|analysis|review))?$/);
   if (stock && validSymbol(stock[1]) && (!stock[2] || versioned))
-    return route(stock[2] === "/analysis" ? "analysis" : stock[2] === "/history" ? "history" : "stock", { symbol: stock[1] });
+    return route(stock[2] === "/analysis" ? "analysis" : stock[2] === "/history" ? "history" : stock[2] === "/review" ? "review" : "stock", { symbol: stock[1] });
   return { name: null, params: {}, methods: [], versioned };
 }

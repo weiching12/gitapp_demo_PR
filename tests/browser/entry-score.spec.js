@@ -50,6 +50,17 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(chart.locator(".entry-chart-ma")).toHaveAttribute("d", /[ML]/);
   await expect(chart.locator(".entry-chart-ma20")).toHaveAttribute("d", /[ML]/);
   await expect(chart.locator(".entry-chart-legend")).toContainText("月線 MA20");
+  await expect(chart.locator(".entry-chart-k, .entry-chart-d")).toHaveCount(0);
+  await expect(chart.locator(".entry-chart-scale")).toContainText("高");
+  for (const [series, selector] of [["close", ".entry-chart-close"], ["ma20", ".entry-chart-ma20"],
+    ["ma60", ".entry-chart-ma"], ["volume", ".entry-chart-bars"]]) {
+    const legend = chart.locator(`[data-chart-series="${series}"]`);
+    await legend.click();
+    await expect(legend).toHaveAttribute("aria-pressed", "false");
+    await expect(chart.locator(selector)).toBeHidden();
+    await legend.click();
+    await expect(chart.locator(selector)).toBeVisible();
+  }
   await expect(chart.locator(".entry-chart-range")).toHaveCount(0);
   const closes = JSON.parse(await plot.getAttribute("data-points")).map((point) => point.close)
     .filter((close) => Number.isFinite(close) && close > 0);
@@ -87,6 +98,20 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(page.locator(".entry-condition-data").first()).toBeHidden();
   await page.locator(".entry-condition summary").first().click();
   await expect(page.locator(".entry-condition-data").first()).toBeVisible();
+  await page.locator(".entry-condition summary").nth(1).click();
+  const kdChart = page.locator(".entry-condition-kd-chart");
+  await expect(page.locator(".entry-condition").nth(1).locator(".entry-condition-data")).toHaveCount(0);
+  await expect(kdChart.locator(".entry-condition-kd-values")).toHaveCount(0);
+  await expect(kdChart.locator("svg .entry-kd-point-label")).toHaveCount(4);
+  await expect(kdChart.locator("svg .entry-kd-point-label").first()).toContainText("K ");
+  await expect(kdChart.locator("svg")).toHaveAttribute("aria-label", /判斷使用的 3 個交易日/);
+  await expect(kdChart.locator(".entry-chart-dates span")).toHaveCount(3);
+  await expect(kdChart.locator(".entry-chart-k")).toHaveAttribute("d", /[ML]/);
+  await expect(kdChart.locator(".entry-chart-d")).toHaveAttribute("d", /[ML]/);
+  await kdChart.locator('[data-chart-series="k"]').click();
+  await expect(kdChart.locator(".entry-chart-k")).toBeHidden();
+  await kdChart.locator('[data-chart-series="k"]').click();
+  await expect(kdChart.locator(".entry-chart-k")).toBeVisible();
   await expect(page.locator(".entry-dialog-meta")).not.toContainText("未還原價格");
   await expect(page.locator(".entry-category")).toHaveCount(5);
   await expect(page.locator(".entry-category").first().locator("div span")).toContainText("權重 25% · 基礎貢獻");

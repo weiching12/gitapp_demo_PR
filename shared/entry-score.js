@@ -118,7 +118,7 @@ export function getEntryScore(stock, tradingDates, asOf, options = {}) {
     coreConditionsPassed: false,
     passedCount: 0, totalConditions: CORE_KEYS.length, coreConditions: {}, status: "資料不足，無法評分",
     conclusion: "資料不足，無法評分", mainReason: "必要行情與法人資料尚未齊備", categories: {}, supportingEvidence: [], conflictingEvidence: [],
-    pendingConditions: [], missingData: [] };
+    pendingConditions: [], missingData: [], rawCategories: {}, rawBaseScore: null, rawFinalScore: null };
   const index = tradingDates?.indexOf(asOf) ?? -1;
   if (index < 60) base.missingData.push("需截至評估日連續 61 個市場交易日行情");
   const byDate = new Map((stock.history ?? []).filter((bar) => bar.date <= asOf).map((bar) => [bar.date, bar]));
@@ -191,6 +191,9 @@ export function getEntryScore(stock, tradingDates, asOf, options = {}) {
   const atrScore = atrPercent <= 2 ? 100 : atrPercent <= 4 ? 70 : atrPercent <= 6 ? 30 : 0;
   const entryRisk = maScore * 0.4 + riskScore * 0.4 + atrScore * 0.2;
   const values = { trend, momentum, priceVolume, institutional: institution, entryRisk };
+  base.rawCategories = Object.fromEntries(Object.entries(values).map(([key, score]) => [key,
+    { score, contribution: score * ENTRY_WEIGHTS[key] / 100,
+      creditedContribution: base.coreConditions[key].status === "PASS" ? score * ENTRY_WEIGHTS[key] / 100 : 0 }]));
   base.categories = Object.fromEntries(Object.entries(values).map(([key, score]) => [key,
     { label: NAMES[key], score: round2(score), weight: ENTRY_WEIGHTS[key],
       contribution: round2(score * ENTRY_WEIGHTS[key] / 100),
@@ -200,6 +203,8 @@ export function getEntryScore(stock, tradingDates, asOf, options = {}) {
   const contributions = Object.fromEntries(Object.entries(values).map(([key, value]) =>
     [key, value * ENTRY_WEIGHTS[key] / 100]));
   const qualified = getQualifiedEntryScore(total, base.coreConditions, contributions);
+  base.rawBaseScore = total;
+  base.rawFinalScore = qualified.finalScore;
   base.qualifiedScore = round2(qualified.qualifiedScore);
   base.finalScore = round2(qualified.finalScore);
   base.totalScore = base.finalScore;

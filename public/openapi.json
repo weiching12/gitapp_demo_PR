@@ -31,6 +31,21 @@
       },
       "head": { "responses": { "200": { "description": "Same status and headers without a body" } } }
     },
+    "/api/v1/favorites/research": {
+      "get": {
+        "operationId": "getFavoriteResearch",
+        "description": "Read saved shared entry-score snapshots for up to 50 symbols and the preceding market session. Personal reasons and notes are never stored by this API. History is limited to 30 trading dates; missing dates remain gaps.",
+        "parameters": [
+          { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string", "description": "Comma-separated stock symbols, maximum 50" } },
+          { "name": "asOf", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "period", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 60 } },
+          { "name": "kSmooth", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20 } },
+          { "name": "dSmooth", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20 } }
+        ],
+        "responses": { "200": { "description": "Saved snapshots, exact previous-session comparison, events and sparse history", "content": { "application/json": { "schema": { "type": "object", "required": ["data", "meta"], "properties": { "data": { "type": "array", "items": { "type": "object" } }, "meta": { "type": "object" } } } } } }, "400": { "description": "Invalid symbols or date outside the latest 30 sessions" } }
+      },
+      "head": { "responses": { "200": { "description": "Same status and headers without a body" } } }
+    },
     "/api/v1/market/summary": {
       "get": {
         "operationId": "getMarketSummary",
@@ -553,6 +568,25 @@
           }
         }
       }
+    },
+    "/api/v1/stocks/{symbol}/review": {
+      "get": {
+        "operationId": "getResearchPriceReview",
+        "description": "Read-only, one-stock price history bounded to 120 market sessions; corporate-action coverage is reported separately from price values.",
+        "parameters": [{ "name": "symbol", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^(?:[0-9]{4,6}|[0-9]{5}[A-Z])$" } }],
+        "responses": {
+          "200": { "description": "Price review source", "content": { "application/json": { "schema": { "type": "object", "required": ["data", "meta"], "properties": {
+            "data": { "type": "object", "required": ["symbol", "dates", "bars", "priceBasis", "corporateActions"], "properties": {
+              "symbol": { "type": "string" }, "dates": { "type": "array", "maxItems": 120, "items": { "type": "string" } },
+              "bars": { "type": "array", "maxItems": 120, "items": { "type": "object", "required": ["date", "close"] } },
+              "priceBasis": { "type": "string" }, "corporateActions": { "type": "object", "required": ["coveredDates", "events", "revisionId"] }
+            } },
+            "meta": { "type": "object", "required": ["asOf", "source", "updatedAt", "retrievedAt", "limit"] }
+          } } } } },
+          "404": { "description": "Stock not found" }, "503": { "description": "Source unavailable" }
+        }
+      },
+      "head": { "operationId": "getResearchPriceReviewHead", "responses": { "200": { "description": "Same status and headers as GET, no body" } } }
     },
     "/api/v1/stocks/{symbol}/history": {
       "get": {
@@ -1382,6 +1416,8 @@
                     "volume": { "type": ["number", "null"], "description": "成交量，單位：股" },
                     "ma20": { "type": ["number", "null"], "description": "連續 20 個市場交易日收盤價均線" },
                     "ma60": { "type": ["number", "null"], "description": "連續 60 個市場交易日收盤價均線" },
+                    "k": { "type": ["number", "null"], "description": "沿用既有設定計算的當日 K 值" },
+                    "d": { "type": ["number", "null"], "description": "沿用既有設定計算的當日 D 值" },
                     "changePercent": { "type": ["number", "null"], "description": "相對前一市場交易日收盤價的漲跌百分比" }
                   }
                 }

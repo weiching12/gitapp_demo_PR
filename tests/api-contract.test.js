@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import worker from "../cloudflare/worker.js";
+import { testDatabase } from "./helpers/t86-db.js";
 import { createManifest, marketDay, mergeShard, normalizeCatalog, normalizeFlows, normalizePrices, MANIFEST_KEY, shardKey, shardOf } from "../cloudflare/twse.js";
 
 const spec = JSON.parse(readFileSync(new URL("../public/openapi.json", import.meta.url)));
@@ -42,12 +43,14 @@ test("documented market, stock, history and analysis responses match the publish
   const manifest = createManifest(catalog, [date], "contract", "2026-10-16T12:00:00Z", day.coverage);
   const data = new Map([[MANIFEST_KEY, manifest]]);
   for (let index = 0; index < 128; index++) data.set(shardKey("contract", index), { ...mergeShard(catalog, index, null, [day]), generation: "contract", index });
-  const env = { MARKET_DATA: { get: async (key) => structuredClone(data.get(key) ?? null) } };
+  const db = testDatabase();
+  db.sqlite.exec(readFileSync(new URL("../cloudflare/migrations/0005_research_snapshots.sql", import.meta.url), "utf8"));
+  const env = { MARKET_DATA: { get: async (key) => structuredClone(data.get(key) ?? null) }, T86_DB: db };
   for (const [path, definition] of Object.entries(spec.paths)) {
     if (path.endsWith("presence") || path.includes("/push/")) continue;
     const concrete = path.replace("{symbol}", "2330").replace("{generation}", "contract")
       .replace("{index}", String(shardOf("2330"))).replace("{name}", encodeURIComponent(catalog[0].sector)) +
-      (path === "/api/v1/favorites/summary" ? "?symbols=2330" : "");
+      (path === "/api/v1/favorites/summary" || path === "/api/v1/favorites/research" ? "?symbols=2330" : "");
     const response = await worker.fetch(new Request(`https://example.test${concrete}`), env);
     assert.equal(response.status, 200, concrete);
     check(definition.get.responses[200].content["application/json"].schema, await response.json());
@@ -56,4 +59,5 @@ test("documented market, stock, history and analysis responses match the publish
   }
   const invalid = await worker.fetch(new Request("https://example.test/api/v1/stocks?limit=201"), env);
   assert.equal(invalid.status, 400); check(spec.components.schemas.Error, await invalid.json());
+  db.sqlite.close();
 });

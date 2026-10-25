@@ -66,7 +66,7 @@ test("page buttons check on interaction and settings can check immediately", asy
 
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
   await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(0);
-  await page.getByRole("button", { name: "自選總覽" }).click();
+  await page.getByRole("button", { name: "株研追蹤" }).click();
   await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(1);
   await page.getByRole("button", { name: "法人買株" }).click();
   await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(1);

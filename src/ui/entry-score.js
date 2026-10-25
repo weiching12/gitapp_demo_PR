@@ -15,9 +15,7 @@ const chartChange = (value) => Number.isFinite(value)
 const chartReadout = (point, number) =>
   `${point.date} · ${Number.isFinite(point.close) ? `收盤 ${number(point.close, 2)}` : "無收盤價"}`;
 
-function priceChartMarkup(stock, asOf, esc, number) {
-  const series = stock.priceHistory ?? dailyCloseSeries(stock.history,
-    stock.tradingDates ?? stock.history?.map((bar) => bar.date), asOf);
+function priceChartMarkup(stock, esc, number, series) {
   const heading = '<h3>近 30 個交易日收盤價走勢</h3>';
   if (!series.length) return `<section class="entry-price-chart">${heading}<p>走勢資料載入中…</p></section>`;
   const valid = series.filter(({ close }) => Number.isFinite(close) && close > 0);
@@ -30,7 +28,8 @@ function priceChartMarkup(stock, asOf, esc, number) {
   const floor = low - padding, ceiling = high + padding;
   const x = (index) => 8 + index * 584 / Math.max(1, series.length - 1);
   const y = (close) => 140 - (close - floor) / (ceiling - floor) * 124;
-  let path = "", ma20Path = "", ma60Path = "", continuous = false, ma20Continuous = false, ma60Continuous = false;
+  let path = "", ma20Path = "", ma60Path = "";
+  let continuous = false, ma20Continuous = false, ma60Continuous = false;
   const maxVolume = Math.max(0, ...series.map(({ volume }) => Number.isFinite(volume) ? volume : 0));
   const bars = series.map(({ volume, changePercent }, index) => Number.isFinite(volume) && maxVolume > 0
     ? `<rect class="entry-chart-volume ${Number.isFinite(changePercent) ? changePercent > 0 ? "up" : changePercent < 0 ? "down" : "flat" : "flat"}" x="${(x(index) - 5).toFixed(1)}" y="${(197 - volume / maxVolume * 30).toFixed(1)}" width="10" height="${(volume / maxVolume * 30).toFixed(1)}"/>` : "").join("");
@@ -52,12 +51,45 @@ function priceChartMarkup(stock, asOf, esc, number) {
   const last = series.at(-1);
   const readout = chartReadout(last, number);
   return `<section class="entry-price-chart" data-trend="${trend}"><div class="entry-chart-header">${heading}<div class="entry-chart-readout" aria-label="選定交易日資訊" hidden><div><strong class="entry-chart-selected-date">${esc(last.date.slice(5).replace("-", "/"))}</strong><span class="entry-chart-selected-close">${esc(Number.isFinite(last.close) ? `收盤 ${number(last.close, 2)}` : "無收盤價")}</span><small class="entry-chart-selected-volume">${esc(Number.isFinite(last.volume) ? `量 ${number(last.volume / 1000)} 張` : "成交量不足")}</small></div><strong class="entry-chart-selected-change ${Number.isFinite(last.changePercent) ? last.changePercent > 0 ? "up" : last.changePercent < 0 ? "down" : "" : ""}">${chartChange(last.changePercent)}</strong></div></div>
-    <div class="entry-chart-legend"><span>收盤價</span><span>月線 MA20</span><span>季線 MA60</span><span>成交量</span></div>
-    <div class="entry-chart-scale"><span>高 ${number(high, 2)}</span><span>低 ${number(low, 2)}</span></div>
+    <div class="entry-chart-legend">${[
+      ["close", "收盤價"], ["ma20", "月線 MA20"], ["ma60", "季線 MA60"],
+      ["volume", "成交量"],
+    ].map(([key, label]) => `<button type="button" data-chart-series="${key}" aria-pressed="true" aria-label="${label}">${label}</button>`).join("")}</div>
+    <div class="entry-chart-price-region"><div class="entry-chart-scale"><span>高<br>${number(high, 2)}</span><span>低<br>${number(low, 2)}</span></div>
     <div class="entry-chart-plot" role="slider" tabindex="0" aria-label="${esc(stock.symbol)}近 ${series.length} 個交易日收盤價；點選或左右滑動圖表查看，鍵盤可用方向鍵" aria-orientation="horizontal" aria-valuemin="1" aria-valuemax="${series.length}" aria-valuenow="${series.length}" aria-valuetext="${esc(readout)}" data-index="${series.length - 1}" data-points="${esc(JSON.stringify(series))}"><svg viewBox="0 0 600 210" preserveAspectRatio="none" aria-hidden="true">
       <line x1="8" y1="16" x2="592" y2="16"/><line x1="8" y1="78" x2="592" y2="78"/><line x1="8" y1="140" x2="592" y2="140"/><line x1="8" y1="197" x2="592" y2="197"/>
-      <path class="entry-chart-close" d="${path.trim()}"/><path class="entry-chart-ma20" d="${ma20Path.trim()}"/><path class="entry-chart-ma" d="${ma60Path.trim()}"/><g class="entry-chart-bars">${bars}</g><g class="entry-chart-points">${dots}</g><line class="entry-chart-cursor" x1="${x(series.length - 1).toFixed(1)}" x2="${x(series.length - 1).toFixed(1)}" y1="16" y2="197"/></svg></div>
+      <path class="entry-chart-close" d="${path.trim()}"/><path class="entry-chart-ma20" d="${ma20Path.trim()}"/><path class="entry-chart-ma" d="${ma60Path.trim()}"/><g class="entry-chart-bars">${bars}</g><g class="entry-chart-points">${dots}</g><line class="entry-chart-cursor" x1="${x(series.length - 1).toFixed(1)}" x2="${x(series.length - 1).toFixed(1)}" y1="16" y2="197"/></svg></div></div>
     <div class="entry-chart-dates"><span>${esc(series[0].date)}</span><span>${esc(last.date)}</span></div></section>`;
+}
+
+function kdChartMarkup(series, esc, number, metrics) {
+  const points = series.slice(-3);
+  const x = (index) => 34 + index * 292 / Math.max(1, points.length - 1);
+  const y = (value) => 112 - value / 100 * 78;
+  const line = (key) => {
+    let path = "", continuous = false;
+    points.forEach((point, index) => {
+      if (!Number.isFinite(point[key])) { continuous = false; return; }
+      path += `${continuous ? " L" : " M"}${x(index).toFixed(1)} ${y(point[key]).toFixed(1)}`;
+      continuous = true;
+    });
+    return path.trim();
+  };
+  const kPath = line("k"), dPath = line("d");
+  if (!kPath && !dPath) return "<p>KD 走勢資料不足。</p>";
+  const valueLabel = (label, value, pointIndex, tone, below = false) => {
+    if (!Number.isFinite(value) || pointIndex < 0) return "";
+    const pointX = x(pointIndex), pointY = y(value);
+    return `<g class="entry-kd-point-label ${tone}"><circle cx="${pointX.toFixed(1)}" cy="${pointY.toFixed(1)}" r="3"/><text x="${pointX.toFixed(1)}" y="${(pointY + (below ? 21 : -13)).toFixed(1)}" text-anchor="middle">${esc(label)} ${number(value, 2)}</text></g>`;
+  };
+  const lastIndex = points.length - 1;
+  const labels = [
+    valueLabel("K", metrics?.dayBeforeK, lastIndex - 2, "k"),
+    valueLabel("K", metrics?.previousK, lastIndex - 1, "k"),
+    valueLabel("K", metrics?.k, lastIndex, "k"),
+    valueLabel("D", metrics?.d, lastIndex, "d", true),
+  ].join("");
+  return `<div class="entry-condition-kd-chart"><div class="entry-chart-legend"><button type="button" data-chart-series="k" aria-pressed="true" aria-label="K 線">K 線</button><button type="button" data-chart-series="d" aria-pressed="true" aria-label="D 線">D 線</button></div><div class="entry-condition-kd-plot"><svg viewBox="0 0 360 132" preserveAspectRatio="xMidYMid meet" role="img" aria-label="判斷使用的 ${points.length} 個交易日 K 與 D 走勢；K 值 ${Number.isFinite(metrics?.k) ? number(metrics.k, 2) : "無資料"}、D 值 ${Number.isFinite(metrics?.d) ? number(metrics.d, 2) : "無資料"}、前日 K 值 ${Number.isFinite(metrics?.previousK) ? number(metrics.previousK, 2) : "無資料"}、前二日 K 值 ${Number.isFinite(metrics?.dayBeforeK) ? number(metrics.dayBeforeK, 2) : "無資料"}"><line x1="34" y1="49.6" x2="326" y2="49.6"/><line x1="34" y1="96.4" x2="326" y2="96.4"/><path class="entry-chart-k" d="${kPath}"/><path class="entry-chart-d" d="${dPath}"/>${labels}</svg><div class="entry-chart-kd-scale"><span>80</span><span>20</span></div></div><div class="entry-chart-dates">${points.map((point) => `<span>${esc(point.date.slice(5).replace("-", "/"))}</span>`).join("")}</div></div>`;
 }
 
 export function selectEntryChartPoint(plot, index, number) {
@@ -96,21 +128,23 @@ const CORE_DATA_LABELS = { close: "收盤價", ma20: "月線", ma60: "季線", p
 const coreData = (data, esc, number) => Object.entries(data ?? {}).map(([key, value]) =>
   `<span><dt>${esc(CORE_DATA_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2"))}</dt><dd>${Number.isFinite(value) ? number(value, 2) : esc(value ?? "—")}</dd></span>`).join("");
 
-export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = false, icon = () => "") {
+export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = false, icon = () => "", trackingHtml = "") {
   const score = stock.entryScore;
   const heading = `<p class="entry-dialog-sector">${esc(stock.sector ?? "產業未分類")}</p><div class="entry-dialog-title"><h2 id="dialog-heading">${esc(stock.symbol)} ${esc(stock.name)}｜株研評分</h2><button type="button" class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${esc(stock.symbol)}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></div>`;
-  if (!score) return `${heading}<p>資料不足，無法評分。</p>`;
+  if (!score) return `${heading}<p>資料不足，無法評分。</p>${trackingHtml}`;
   const valid = Number.isFinite(score.finalScore);
   if (!score.categories || !Object.keys(score.categories).length && valid)
     return `${heading}<p role="status">評分明細載入中…</p>`;
   const metrics = score.metrics;
+  const chartSeries = stock.priceHistory ?? dailyCloseSeries(stock.history,
+    stock.tradingDates ?? stock.history?.map((bar) => bar.date), score.asOf);
   return `<div class="entry-dialog">${heading}
     <p class="entry-dialog-meta">波段順勢進場 · ${esc(score.asOf)}</p>
     <section class="entry-summary"><div class="entry-summary-head"><strong${valid ? ` data-score-target="${score.finalScore}"` : ""}>${valid ? `${number(score.finalScore, 2)} / 100` : "—"}</strong><span>${esc(score.status)}</span></div>
       <dl class="entry-summary-facts"><div><dt>核心條件</dt><dd>${score.passedCount ?? 0} / ${score.totalConditions ?? 5} 通過</dd></div>
       <div><dt>收盤／漲跌</dt><dd>${stock.latest ? number(stock.latest.close, 2) : "—"}／${stock.latest ? percent(stock.latest.changePercent) : "—"}</dd></div>
       ${valid ? `<div><dt>基礎分數</dt><dd>${number(score.baseScore, 2)}</dd></div><div><dt>最終分數</dt><dd>${number(score.finalScore, 2)}</dd></div>` : ""}</dl></section>
-    ${priceChartMarkup(stock, score.asOf, esc, number)}
+    ${priceChartMarkup(stock, esc, number, chartSeries)}
     <section class="entry-evidence entry-core-panel"><h3>核心條件檢查</h3><div class="entry-condition-list">${Object.entries(CORE_LABELS).map(([key, label]) => {
       const item = score.coreConditions?.[key];
       const status = item?.status === "PASS" ? "通過" : item?.status === "FAIL" ? "未通過" : "資料不足";
@@ -118,7 +152,7 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
       const data = coreData(item?.data, esc, number);
       const iconPath = tone === "pass" ? "M4.5 10.25 8.5 14.25 15.5 6.5" :
         tone === "fail" ? "M5.5 5.5 14.5 14.5 M14.5 5.5 5.5 14.5" : "M5 10 15 10";
-      return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span></summary><div class="entry-condition-detail">${data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>"}</div></details>`;
+      return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span></summary><div class="entry-condition-detail">${key === "momentum" ? kdChartMarkup(chartSeries, esc, number, item?.data) : data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>"}</div></details>`;
     }).join("")}</div></section>
     ${valid ? `<section class="entry-categories"><h3>五項評分明細</h3>${Object.entries(score.categories).map(([key, item]) =>
       `<div class="entry-category ${score.coreConditions?.[key]?.status === "PASS" ? "" : "excluded"}"><div><strong>${esc(item.label)}</strong><span>權重 ${item.weight}% · 基礎貢獻 ${number(item.creditedContribution ?? (score.coreConditions?.[key]?.status === "PASS" ? item.contribution : 0), 2)}</span></div><small>${number(item.score, 2)} 分${score.coreConditions?.[key]?.status === "PASS" ? "" : " · 條件未通過，計入 0.00"}</small><progress value="${item.score}" max="100" aria-label="${esc(item.label)}"></progress></div>`).join("")}
@@ -133,5 +167,5 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
       ${guideItem("03", "法人籌碼", `<p>近五日法人淨額 ${number(metrics.institutionNet5)} 股，成交量 ${number(metrics.institutionVolume5)} 股</p><code>法人淨額占比 ${percent(metrics.netRatio * 100)} · 買超 ${metrics.institutionBuyDays} 日 · 買超類別 ${metrics.institutionPositiveCategories}／3</code>`)}
       ${guideItem("04", "進場位置與波動", `<p>月線乖離 ${percent(metrics.deviation20)} · 近十日前低點 ${number(metrics.previous10Low, 2)} · 距離 ${percent(metrics.riskDistance)}</p><code>ATR14 ${number(metrics.atr14, 2)}（${percent(metrics.atrPercent)}）</code>`)}</details></section>` :
       `<section class="entry-evidence"><h3>無法評分的原因</h3>${list(score.missingData, esc, "必要資料尚未齊備。")}</section>`}
-    <p class="helper-text entry-disclaimer">此分數僅表示固定研究策略的條件符合程度，不代表上漲機率、預期報酬率或買賣指令。法人完整明細請至法人買賣頁面查看。<br>模型版本：${esc(score.modelVersion)}</p></div>`;
+    ${trackingHtml}<p class="helper-text entry-disclaimer">此分數僅表示固定研究策略的條件符合程度，不代表上漲機率、預期報酬率或買賣指令。法人完整明細請至法人買賣頁面查看。<br>模型版本：${esc(score.modelVersion)}</p></div>`;
 }
