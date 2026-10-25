@@ -125,4 +125,10 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   const chartBounds = await page.locator(".entry-price-chart").evaluate((element) =>
     ({ width: element.clientWidth, scroll: element.scrollWidth }));
   expect(chartBounds.scroll).toBeLessThanOrEqual(chartBounds.width);
+  await page.locator("#info-dialog").evaluate((dialog) => { dialog.scrollTop = 500; });
+  const closeBounds = await page.locator("#close-dialog").boundingBox();
+  expect(closeBounds.y).toBeGreaterThanOrEqual(0);
+  expect(closeBounds.y + closeBounds.height).toBeLessThanOrEqual(844);
+  await page.locator("#close-dialog").click();
+  await expect(page.locator("#info-dialog")).toBeHidden();
 });
