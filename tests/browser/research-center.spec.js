@@ -14,6 +14,8 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(card.locator(".research-delta")).toContainText("較 10/15");
   await expect(card.locator(".research-delta")).toHaveAttribute("title", /2026-10-15 .* 分 → 2026-10-16 .* 分；本機示範資料歷史重算/);
   await expect(card.locator(".research-card-more")).toHaveCount(0);
+  await expect(card.locator(".research-card-review")).toHaveCount(0);
+  await expect(card.locator(".research-stock")).toContainText("評分交易日");
   await card.locator(".research-card-main").click();
   await expect(page.locator(".research-edit")).toHaveCount(0);
   await expect(page.locator(".research-detail")).toContainText("追蹤價格表現");
@@ -92,10 +94,17 @@ test("phone history review opens on demand and chart responds to touch and keybo
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await page.getByRole("button", { name: "株研追蹤" }).first().click();
-  const review = page.locator(".research-card-review").first();
-  await review.locator("summary").click();
-  await expect(review).toContainText("第 5 個交易日");
+  const card = page.locator(".research-card").first();
+  await expect(card.locator(".research-card-review")).toHaveCount(0);
+  const alignment = await card.locator(".research-stock-head").evaluate((node) => {
+    const code = node.querySelector(".research-code").getBoundingClientRect();
+    const name = node.querySelector("strong").getBoundingClientRect();
+    return { codeY: code.y, nameY: name.y, gap: name.left - code.right };
+  });
+  expect(Math.abs(alignment.codeY - alignment.nameY)).toBeLessThan(5);
+  expect(alignment.gap).toBeGreaterThanOrEqual(0);
   await page.locator(".research-card-main").first().click();
+  await expect(page.locator(".research-review-detail")).toContainText("第 5 個交易日");
   const chart = page.locator(".research-chart-plot");
   await expect(chart).toBeVisible();
   await chart.focus();

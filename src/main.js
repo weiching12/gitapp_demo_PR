@@ -28,7 +28,7 @@ import { getEntryScore } from "../shared/entry-score.js";
 import { compareResearchSnapshots, researchSnapshot } from "../shared/research-tracking.js";
 import { activeResearchPeriod, addResearchPeriod, loadResearchStore, persistResearchStore, recordFirstValidSnapshot, recordFirstValidPriceBaseline, removeResearchPeriod } from "./ui/research-store.js";
 import { renderResearchCenter, researchDetailMarkup, selectResearchScorePoint } from "./ui/research.js";
-import { researchPriceChart, researchReviewSummary, selectResearchPricePoint } from "./ui/research-review.js";
+import { researchPriceChart, selectResearchPricePoint } from "./ui/research-review.js";
 import { dailyCloseSeries } from "../shared/price-history.js";
 import { priceBaseline } from "../shared/research-review.js";
 import { entryScoreDialogMarkup, selectEntryChartPoint, restoreEntryChartTitle } from "./ui/entry-score.js";
@@ -198,19 +198,12 @@ async function loadResearchReview(symbol) {
 
 function renderResearch() {
   if (!researchStore || !document.querySelector("#research-list")) return;
-  const opened = new Set([...document.querySelectorAll(".research-card-review[open]")]
-    .map((item) => item.dataset.reviewSymbol));
   const result = renderResearchCenter({ favorites: state.favorites, stocks: snapshots,
-    rows: researchRows, store: researchStore, date: state.date,
+    rows: researchRows, date: state.date,
     sort: researchSort, filter: researchFilter, esc });
   document.querySelector("#research-date").textContent = `最新可用交易日 ${dataset.info.asOf || "—"}${researchMeta?.revisions?.length > 1 ? " · 當日市場資料有修訂版本" : ""}`;
   document.querySelector("#research-stats").innerHTML = result.stats;
   document.querySelector("#research-list").innerHTML = result.cards;
-  for (const symbol of opened) {
-    const card = [...document.querySelectorAll(".research-card-review")]
-      .find((item) => item.dataset.reviewSymbol === symbol);
-    if (card) card.open = true;
-  }
   document.querySelector("#research-sort").value = researchSort;
   document.querySelector("#research-filter").value = researchFilter;
 }
@@ -1165,16 +1158,6 @@ function bindEvents() {
     applyTheme();
     savePreferences();
   });
-  document.addEventListener("toggle", (event) => {
-    const details = event.target.closest?.(".research-card-review");
-    if (!details?.open) return;
-    const symbol = details.dataset.reviewSymbol;
-    void loadResearchReview(symbol).catch((error) => {
-      const current = [...document.querySelectorAll(".research-card-review")]
-        .find((item) => item.dataset.reviewSymbol === symbol);
-      if (current) current.querySelector(".research-muted").textContent = `歷史回顧暫時無法取得：${error.message}`;
-    });
-  }, true);
   document.addEventListener("submit", (event) => {
     if (event.target.id === "research-note-form") {
       event.preventDefault();

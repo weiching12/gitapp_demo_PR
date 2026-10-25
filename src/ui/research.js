@@ -42,9 +42,9 @@ export function selectResearchScorePoint(plot, index) {
     `${point.date} · 基礎 ${fmt(point.baseScore)} · 最終 ${fmt(point.finalScore)}${point.cap?.enabled ? ` · 上限 ${fmt(point.cap.value)}` : ""}${point.source === "historical-recalculation" ? " · 歷史重算" : ""}`;
 }
 
-export function renderResearchCenter({ favorites, stocks, rows, store, date, sort, filter, esc }) {
+export function renderResearchCenter({ favorites, stocks, rows, date, sort, filter, esc }) {
   const bySymbol = new Map(stocks.map((stock) => [stock.symbol, stock]));
-  const values = favorites.map((symbol) => ({ symbol, stock: bySymbol.get(symbol), row: rows.get(symbol), period: activeResearchPeriod(store, symbol) }));
+  const values = favorites.map((symbol) => ({ symbol, stock: bySymbol.get(symbol), row: rows.get(symbol) }));
   const comparable = values.filter(({ row }) => row?.comparison?.status === "comparable");
   const increased = comparable.filter(({ row }) => row.comparison.finalDelta > 0).length;
   const changed = new Set(values.filter(({ row }) => important(row)).map(({ symbol }) => symbol)).size;
@@ -55,7 +55,7 @@ export function renderResearchCenter({ favorites, stocks, rows, store, date, sor
     const bv = sort === "change" ? b.row?.comparison?.status === "comparable" ? b.row.comparison.finalDelta : null : b.row?.latest?.valid ? b.row.latest.finalScore : null;
     return av === null && bv === null ? a.symbol.localeCompare(b.symbol) : av === null ? 1 : bv === null ? -1 : bv - av || a.symbol.localeCompare(b.symbol);
   });
-  const cards = filtered.map(({ symbol, stock, row, period }) => {
+  const cards = filtered.map(({ symbol, stock, row }) => {
     const snap = row?.latest, comparison = row?.comparison;
     const label = stock?.name ?? symbol;
     const condition = snap?.valid ? `${snap.passedCount}/${snap.totalConditions} 必要條件通過` : "必要資料不足";
@@ -65,7 +65,7 @@ export function renderResearchCenter({ favorites, stocks, rows, store, date, sor
     const changeValue = comparison?.status === "comparable" ? delta(comparison.finalDelta) : "—";
     const changeSource = row?.source === "historical-recalculation" ? "本機示範資料歷史重算" : "已保存評分快照";
     const changeDetail = comparison?.status === "comparable" ? `${prior.asOf} ${fmt(prior.finalScore)} 分 → ${snap.asOf} ${fmt(snap.finalScore)} 分；${changeSource}` : comparison?.summary ?? "缺少前期資料";
-    return `<article class="research-card" data-research-symbol="${esc(symbol)}"><button type="button" class="research-card-main" data-entry-score="${esc(symbol)}"><span class="research-stock"><strong>${esc(label)}</strong><small>${esc(symbol)} · ${esc(snap?.asOf ?? date)}${row?.source === "historical-recalculation" ? " · 模擬重算" : ""}</small></span><span class="research-score"><small>最終分數</small><strong>${fmt(snap?.finalScore)}</strong></span><span class="research-delta ${tone(comparison?.finalDelta)}" title="${esc(changeDetail)}" aria-label="${esc(changeDetail)}"><small>${changeDate}</small><strong>${changeValue}</strong></span><span class="research-condition">${esc(condition)}${snap?.cap?.enabled ? ` · 上限 ${fmt(snap.cap.value)}` : ""}</span><span class="research-summary">${esc(summary)}</span></button><details class="research-card-review" data-review-symbol="${esc(symbol)}"><summary>歷史回顧</summary>${researchReviewSummary(period, row, esc)}</details></article>`;
+    return `<article class="research-card" data-research-symbol="${esc(symbol)}"><button type="button" class="research-card-main" data-entry-score="${esc(symbol)}"><span class="research-stock"><span class="research-stock-head"><span class="research-code">${esc(symbol)}</span><strong>${esc(label)}</strong></span><small>評分交易日 ${esc(snap?.asOf ?? date)}${row?.source === "historical-recalculation" ? " · 模擬重算" : ""}</small></span><span class="research-score"><small>最終分數</small><strong>${fmt(snap?.finalScore)}</strong></span><span class="research-delta ${tone(comparison?.finalDelta)}" title="${esc(changeDetail)}" aria-label="${esc(changeDetail)}"><small>${changeDate}</small><strong>${changeValue}</strong></span><span class="research-condition">${esc(condition)}${snap?.cap?.enabled ? ` · 上限 ${fmt(snap.cap.value)}` : ""}</span><span class="research-summary">${esc(summary)}</span></button></article>`;
   }).join("");
   return { stats: `<div><strong>${favorites.length}</strong><span>追蹤股票</span></div><div><strong>${increased}/${comparable.length}</strong><span>最終分數提高／可比較</span></div><div><strong>${changed}/${favorites.length}</strong><span>重要異動股票／追蹤</span></div>`,
     cards: cards || `<p class="research-muted">${favorites.length ? "此篩選目前沒有股票。" : "尚無追蹤股票。"}</p>` };
