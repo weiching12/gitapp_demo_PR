@@ -233,6 +233,9 @@ html[data-input-mode="touch"] a:focus,
 html[data-input-mode="touch"] [role="button"]:focus {
   outline: none;
 }
+html[data-input-mode="pointer"] :is(button, a, [role="button"], [tabindex]):focus-visible {
+  outline: none;
+}
 button .icon {
   flex-shrink: 0;
 }

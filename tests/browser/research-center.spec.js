@@ -29,6 +29,21 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(page.locator("#dialog-heading")).toContainText("株研評分");
 });
 
+test("pointer clicks do not leave a focus ring but keyboard focus remains visible", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "株研追蹤" }).first().click();
+  const card = page.locator(".research-card-main").first();
+  await card.click();
+  await page.locator("#close-dialog").click();
+  await expect(page.locator("#info-dialog")).toBeHidden();
+  await card.focus();
+  await expect(card).toBeFocused();
+  expect(await card.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe("none");
+  await page.keyboard.press("Tab");
+  await card.focus();
+  expect(await card.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe("none");
+});
+
 test.use({ viewport: { width: 390, height: 844 } });
 test("phone research cards fit the viewport and remain operable", async ({ page }) => {
   await page.goto("/");

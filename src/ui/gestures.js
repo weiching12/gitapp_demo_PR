@@ -1,8 +1,8 @@
 export function bindInputMode(onChange) {
-  const update = (touch) => { onChange(touch); document.documentElement.dataset.inputMode = touch ? "touch" : "keyboard"; };
-  document.addEventListener("pointerdown", (event) => update(event.pointerType === "touch"), { capture: true, passive: true });
-  document.addEventListener("touchstart", () => update(true), { capture: true, passive: true });
-  document.addEventListener("keydown", () => update(false), true);
+  const update = (mode) => { onChange(mode === "touch"); document.documentElement.dataset.inputMode = mode; };
+  document.addEventListener("pointerdown", (event) => update(event.pointerType === "touch" ? "touch" : "pointer"), { capture: true, passive: true });
+  document.addEventListener("touchstart", () => update("touch"), { capture: true, passive: true });
+  document.addEventListener("keydown", () => update("keyboard"), true);
 }
 
 export function bindPullToRefresh(pullRefresh) {
