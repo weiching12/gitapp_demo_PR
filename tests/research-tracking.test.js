@@ -92,13 +92,17 @@ test("legacy favorites keep unknown original time; removing and readding starts 
   assert.equal(loadResearchStore(adapter, ["2330"]).periods.length, 2);
 });
 
-test("V3 migration preserves existing optional local reasons without inventing a join baseline", () => {
+test("V3 migration removes retired local research notes without inventing a join baseline", () => {
   const saved = { version: 2, periods: [{ id: "old", symbol: "2330", removedAt: null,
     reason: "觀察趨勢延續", note: "舊備註" }] };
-  const storage = { getItem: () => JSON.stringify(saved) };
+  let stored = JSON.stringify(saved);
+  const storage = { getItem: () => stored, setItem: (_key, value) => { stored = value; } };
   const store = loadResearchStore(storage, ["2330"]);
   assert.equal(store.version, 3);
-  assert.equal(store.periods[0].reason, "觀察趨勢延續");
-  assert.equal(store.periods[0].note, "舊備註");
+  assert.equal("reason" in store.periods[0], false);
+  assert.equal("note" in store.periods[0], false);
   assert.equal(store.periods[0].baseline, null);
+  assert.equal(persistResearchStore(storage, store), true);
+  assert.equal(stored.includes("舊備註"), false);
+  assert.equal(stored.includes("觀察趨勢延續"), false);
 });

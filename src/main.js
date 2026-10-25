@@ -1161,18 +1161,6 @@ function bindEvents() {
     savePreferences();
   });
   document.addEventListener("submit", (event) => {
-    if (event.target.id === "research-note-form") {
-      event.preventDefault();
-      const period = activeResearchPeriod(researchStore, event.target.dataset.researchSymbol);
-      if (period) {
-        const form = new FormData(event.target);
-        period.reason = String(form.get("reason") ?? "");
-        period.note = String(form.get("note") ?? "").slice(0, 1000);
-        saveResearch();
-        toast("研究紀錄已儲存在目前裝置");
-      }
-      return;
-    }
     if (event.target.id !== "settings-form") return;
     event.preventDefault();
     const form = new FormData(event.target);

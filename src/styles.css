@@ -3900,6 +3900,16 @@ dialog.sector-dialog {
 .research-condition { grid-column: 1 / -1; }.research-summary { grid-column: 1 / -1; border-top: 1px solid var(--border); padding-top: .55rem; color: var(--muted); font-size: .82rem; line-height: 1.5; }
 .research-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
 .research-facts>div { min-width: 0; }.research-facts dt { color: var(--muted, #8da5c4); font-size: .78rem; }.research-facts dd { margin: .15rem 0 0; overflow-wrap: anywhere; }
+.research-tracking-facts { gap: 0 1.25rem; margin: .5rem 0 1.15rem; border-top: 1px solid var(--border); }
+.research-tracking-facts>div { padding: .7rem 0; border-bottom: 1px solid var(--border); }
+.research-tracking-facts>div:last-child { grid-column: 1 / -1; }
+.research-tracking-facts dd { line-height: 1.45; }
+@media (max-width: 520px) {
+  .research-tracking-facts { grid-template-columns: minmax(0, 1fr); }
+  .research-tracking-facts>div { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: .5rem; align-items: baseline; }
+  .research-tracking-facts>div:last-child { grid-column: auto; }
+  .research-tracking-facts dd { margin: 0; }
+}
 .research-chart svg { display: block; width: 100%; height: 120px; }.research-chart>div { display: flex; justify-content: space-between; gap: .25rem; font-size: .7rem; color: var(--muted, #8da5c4); }
 .research-events { padding-left: 1.3rem; }.research-events li { margin: .5rem 0; }.research-events time { color: var(--muted, #8da5c4); margin-right: .5rem; }
 .research-breakdown { margin: 1rem 0; border-top: 1px solid var(--border); padding-top: .75rem; }.research-breakdown summary { cursor: pointer; color: var(--accent); margin-bottom: .7rem; }
@@ -3937,9 +3947,6 @@ dialog.sector-dialog {
 .research-score-plot .cursor { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
 .research-score-readout { min-height: 1.4em; margin: .6rem 0; font-size: .8rem; }
 .research-chart-dates { display: flex; justify-content: space-between; color: var(--muted); font-size: .75rem; }
-#research-note-form { display: grid; gap: .6rem; margin: .7rem 0; }
-#research-note-form label { display: grid; gap: .3rem; }
-#research-note-form select, #research-note-form textarea { width: 100%; box-sizing: border-box; }
 @media (max-width: 520px) { .research-review-summary dl>div { display: block; }.research-review-summary dd { text-align: left; overflow-wrap: anywhere; } }
 @media (min-width: 701px) {
   .page-heading:not(.favorites-heading) .date-control { display: flex; align-items: center; gap: .5rem; min-width: 0; max-width: none; }

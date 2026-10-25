@@ -9,6 +9,8 @@ export function loadResearchStore(storage, favorites, now = new Date().toISOStri
     item && typeof item.symbol === "string" && typeof item.id === "string") : [];
   const store = { version: 3, periods };
   for (const period of periods) {
+    delete period.reason;
+    delete period.note;
     period.baseline ??= null;
     period.firstValidPriceBaseline ??= null;
     period.addedSnapshotId ??= period.addedSnapshot?.id ?? null;
@@ -64,6 +66,10 @@ export function recordFirstValidPriceBaseline(store, symbol, baseline) {
 }
 
 export function persistResearchStore(storage, store) {
+  for (const period of store.periods) {
+    delete period.reason;
+    delete period.note;
+  }
   try { storage?.setItem(RESEARCH_STORAGE_KEY, JSON.stringify(store)); return true; }
   catch { return false; }
 }

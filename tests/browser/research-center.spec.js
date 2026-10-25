@@ -21,6 +21,7 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(page.locator(".research-edit")).toHaveCount(0);
   await expect(page.locator(".research-detail")).toContainText("追蹤價格表現");
   await expect(page.locator(".research-detail")).toContainText("加入時與目前研究差異");
+  await expect(page.locator("#research-note-form")).toHaveCount(0);
   await page.reload();
   await page.getByRole("button", { name: "株研追蹤" }).first().click();
   const same = page.locator(".research-card").first();
@@ -86,6 +87,13 @@ test("phone research cards fit the viewport and remain operable", async ({ page 
   await page.locator("#research-filter").selectOption("all");
   await page.locator("#research-list .research-card-main").first().click();
   await expect(page.locator("#info-dialog")).toBeVisible();
+  const facts = await page.locator(".research-tracking-facts").evaluate((node) => {
+    const rows = [...node.children].map((row) => row.getBoundingClientRect());
+    const bounds = node.getBoundingClientRect();
+    return { width: bounds.width, scrollWidth: node.scrollWidth, singleColumn: rows.every((row, index) => index === 0 || row.top > rows[index - 1].top) };
+  });
+  expect(facts.scrollWidth).toBeLessThanOrEqual(facts.width + 1);
+  expect(facts.singleColumn).toBe(true);
 });
 
 test("research tracking always compares the latest available trading day", async ({ page }) => {
