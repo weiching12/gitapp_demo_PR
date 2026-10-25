@@ -14,6 +14,7 @@ test("phone chart shows the touched trading day without a separate slider", asyn
   const first = await chart.locator(".entry-chart-points circle").first().boundingBox();
   await page.touchscreen.tap(first.x + first.width / 2, first.y + first.height / 2);
   await expect(plot).toHaveAttribute("aria-valuenow", "1");
+  expect(await plot.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
   await expect(chart.locator("h3")).toBeVisible();
   await expect(chart.locator(".entry-chart-hint")).toHaveCount(0);
   const last = await chart.locator(".entry-chart-points circle").last().boundingBox();
