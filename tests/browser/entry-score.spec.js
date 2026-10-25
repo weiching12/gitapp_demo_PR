@@ -53,14 +53,19 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(chart.locator(".entry-chart-k, .entry-chart-d")).toHaveCount(0);
   await expect(chart.locator(".entry-chart-scale")).toContainText("高");
   const closePrices = chartPoints.map((point) => point.close).filter((close) => Number.isFinite(close) && close > 0);
-  await expect(chart.locator(".entry-chart-scale")).toContainText(`最高 ${Math.max(...closePrices).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
-  await expect(chart.locator(".entry-chart-scale")).toContainText(`最低 ${Math.min(...closePrices).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  await expect(chart.locator(".entry-chart-scale span").first()).toContainText(Math.max(...closePrices).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  await expect(chart.locator(".entry-chart-scale span").last()).toContainText(Math.min(...closePrices).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   const chartLayout = await chart.evaluate((element) => {
     const labels = [...element.querySelectorAll(".entry-chart-scale span")];
-    return { border: getComputedStyle(element).borderTopWidth, labelGap: labels[1].getBoundingClientRect().top - labels[0].getBoundingClientRect().bottom };
+    const region = element.querySelector(".entry-chart-price-region");
+    const scale = element.querySelector(".entry-chart-scale");
+    const plot = element.querySelector(".entry-chart-plot");
+    return { border: getComputedStyle(element).borderTopWidth, labelGap: labels[1].getBoundingClientRect().top - labels[0].getBoundingClientRect().bottom, scaleWidth: scale.getBoundingClientRect().width, plotRatio: plot.getBoundingClientRect().width / region.getBoundingClientRect().width };
   });
   expect(chartLayout.border).toBe("0px");
   expect(chartLayout.labelGap).toBeLessThan(10);
+  expect(chartLayout.scaleWidth).toBeLessThanOrEqual(44);
+  expect(chartLayout.plotRatio).toBeGreaterThan(0.84);
   for (const [series, selector] of [["close", ".entry-chart-close"], ["ma20", ".entry-chart-ma20"],
     ["ma60", ".entry-chart-ma"], ["volume", ".entry-chart-bars"]]) {
     const legend = chart.locator(`[data-chart-series="${series}"]`);
