@@ -285,21 +285,19 @@ function toast(message) {
 
 function dismissAppSplash() {
   const splash = document.querySelector("#app-splash");
-  if (!splash || document.documentElement.classList.contains("app-splash-seen")) return;
-  const delay = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : Math.max(0, 1800 - performance.now());
+  if (!splash || !document.documentElement.classList.contains("is-standalone") ||
+      document.documentElement.classList.contains("app-splash-seen")) return;
   window.setTimeout(() => {
     splash.classList.add("is-leaving");
     window.setTimeout(() => {
       document.documentElement.classList.add("app-splash-seen");
-      try { sessionStorage.setItem("stock-insight-splash-seen", "1"); } catch {}
       splash.remove();
-    }, delay ? 320 : 0);
-  }, delay);
+    }, 320);
+  }, 1800);
 }
 
 function shell() {
   document.querySelector("#app").innerHTML = shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc });
-  requestAnimationFrame(dismissAppSplash);
   presence?.stop();
   presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
 }
@@ -1035,6 +1033,7 @@ async function init() {
       [...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("");
     loading = false;
     refreshData(); renderConnectionState(); savePreferences();
+    requestAnimationFrame(dismissAppSplash);
     return;
   }
   dataset = await loadDataset();
@@ -1043,6 +1042,7 @@ async function init() {
   refreshData();
   renderConnectionState();
   savePreferences();
+  requestAnimationFrame(dismissAppSplash);
 }
 
 init().catch((error) => {
@@ -1050,8 +1050,10 @@ init().catch((error) => {
   if (document.querySelector("#load-status")) {
     loading = false; loadFailed = true;
     renderLoadState(); renderTable(); renderSectorOverview();
+    requestAnimationFrame(dismissAppSplash);
     return;
   }
   document.querySelector("#app").innerHTML =
     '<main class="load-error"><h1>暫時無法載入資料</h1><p>請重新整理頁面再試一次。</p></main>';
+  requestAnimationFrame(dismissAppSplash);
 });

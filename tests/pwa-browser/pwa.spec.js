@@ -118,13 +118,9 @@ test("settings shows the release version beside update on phone and desktop", as
   }
 });
 
-test("standalone app shows the branded launch animation once per session", async ({ page }) => {
+test("standalone app animates on opening but skips a page refresh", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
-    if (!sessionStorage.getItem("splash-test-ready")) {
-      sessionStorage.removeItem("stock-insight-splash-seen");
-      sessionStorage.setItem("splash-test-ready", "1");
-    }
   });
   await page.goto("/");
   const splash = page.locator("#app-splash");
@@ -133,13 +129,115 @@ test("standalone app shows the branded launch animation once per session", async
   const launchBackground = await page.evaluate(() => ({
     html: getComputedStyle(document.documentElement).backgroundColor,
     body: getComputedStyle(document.body).backgroundColor,
+    app: getComputedStyle(document.querySelector("#app")).visibility,
     bottom: document.elementFromPoint(innerWidth / 2, innerHeight - 1)?.closest("#app-splash")?.id,
   }));
-  expect(launchBackground).toEqual({ html: "rgb(20, 36, 59)", body: "rgb(20, 36, 59)", bottom: "app-splash" });
+  expect(launchBackground).toEqual({ html: "rgb(20, 36, 59)", body: "rgb(20, 36, 59)", app: "hidden", bottom: "app-splash" });
+  await page.evaluate(() => {
+    window.__splashExitSamples = [];
+    const node = document.querySelector("#app-splash");
+    new MutationObserver(() => {
+      if (!node.classList.contains("is-leaving")) return;
+      const sample = () => {
+        if (!node.isConnected) return;
+        window.__splashExitSamples.push({
+          opacity: getComputedStyle(node).opacity,
+          app: getComputedStyle(document.querySelector("#app")).visibility,
+          bottom: document.elementFromPoint(innerWidth / 2, innerHeight - 1)?.closest("#app-splash")?.id,
+        });
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    }).observe(node, { attributes: true, attributeFilter: ["class"] });
+  });
   await page.waitForTimeout(1_000);
   await expect(splash).toBeVisible();
   await expect(splash).toHaveCount(0, { timeout: 3_000 });
+  const exitSamples = await page.evaluate(() => window.__splashExitSamples);
+  expect(exitSamples.length).toBeGreaterThan(2);
+  expect(exitSamples.every((sample) => sample.opacity === "1" && sample.app === "hidden" && sample.bottom === "app-splash")).toBe(true);
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector("#app")).visibility)).toBe("visible");
   await page.reload();
   await expect(page.locator("#app-splash")).toBeHidden();
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(248, 250, 252)");
+  await page.goto("/");
+  await expect(page.locator("#app-splash")).toBeVisible();
+});
+
+test("inline launch cover hides the page even when the stylesheet is unavailable", async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { configurable: true, value: true }));
+  const stylesheetPattern = /\/assets\/index-[^/]+\.css$/;
+  await page.route(stylesheetPattern, (route) => route.abort());
+  await page.goto("/");
+  expect(await page.evaluate(() => ({
+    app: getComputedStyle(document.querySelector("#app")).visibility,
+    splash: getComputedStyle(document.querySelector("#app-splash")).position,
+    bottom: document.elementFromPoint(innerWidth / 2, innerHeight - 1)?.closest("#app-splash")?.id,
+  }))).toEqual({ app: "hidden", splash: "fixed", bottom: "app-splash" });
+  const measure = () => page.evaluate(() => {
+    const splash = document.querySelector("#app-splash");
+    const brand = document.querySelector(".app-splash-brand");
+    const name = document.querySelector(".app-splash-name");
+    return { top: brand.getBoundingClientRect().top, height: brand.getBoundingClientRect().height,
+      nameHeight: name.getBoundingClientRect().height, splashHeight: splash.getBoundingClientRect().height,
+      splashPadding: getComputedStyle(splash).padding, splashBox: getComputedStyle(splash).boxSizing };
+  });
+  const beforeCss = await measure();
+  const stylesheetUrl = await page.locator('link[rel="stylesheet"]').getAttribute("href");
+  await page.unroute(stylesheetPattern);
+  await page.addStyleTag({ url: stylesheetUrl });
+  const afterCss = await measure();
+  expect(Math.abs(afterCss.top - beforeCss.top)).toBeLessThan(1);
+});
+
+test("invalid saved preferences cannot disable the standalone launch cover", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
+    localStorage.setItem("stock-insight-v1", "invalid-json");
+  });
+  await page.goto("/");
+  await expect(page.locator("#app-splash")).toBeVisible();
+  await expect(page.locator("html")).toHaveClass(/is-standalone/);
+});
+
+test("slow app startup still shows the complete launch animation", async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { configurable: true, value: true }));
+  await page.route(/\/assets\/index-[^/]+\.js$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 2_100));
+    await route.continue();
+  });
+  await page.goto("/");
+  await expect(page.locator(".sidebar")).toBeAttached();
+  const splash = page.locator("#app-splash");
+  await expect(splash).toBeVisible();
+  await page.waitForTimeout(1_100);
+  await expect(splash).toBeVisible();
+  await expect(splash).toHaveCount(0, { timeout: 2_000 });
+});
+
+test("dark standalone reload never paints a light bottom before the app loads", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
+    localStorage.setItem("stock-insight-v1", JSON.stringify({ theme: "dark" }));
+  });
+  await page.goto("/");
+  await page.route(/\/assets\/index-[^/]+\.js$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    await route.continue();
+  });
+  await page.reload({ waitUntil: "commit" });
+  await page.locator("body").waitFor();
+  expect(await page.evaluate(() => ({
+    theme: document.documentElement.dataset.theme,
+    html: getComputedStyle(document.documentElement).backgroundColor,
+    body: getComputedStyle(document.body).backgroundColor,
+  }))).toEqual({ theme: "dark", html: "rgb(11, 18, 32)", body: "rgb(11, 18, 32)" });
+  await expect(page.locator("#app-splash")).toBeHidden();
+});
+
+test("reduced motion skips the launch animation", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { configurable: true, value: true }));
+  await page.goto("/");
+  await expect(page.locator("#app-splash")).toBeHidden();
 });
