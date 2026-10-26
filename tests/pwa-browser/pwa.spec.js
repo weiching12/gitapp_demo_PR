@@ -118,10 +118,50 @@ test("settings shows the release version beside update on phone and desktop", as
   }
 });
 
+async function emulateInstalledApp(page, { ios = false, chromeIos = false } = {}) {
+  await page.addInitScript(({ isIos, isChromeIos }) => {
+    if (isIos || isChromeIos) {
+      Object.defineProperty(navigator, "userAgent", {
+        configurable: true,
+        value: isChromeIos
+          ? "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0 Mobile/15E148 Safari/604.1"
+          : "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+      });
+      if (!isChromeIos) Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
+    }
+    const nativeMatchMedia = window.matchMedia.bind(window);
+    window.matchMedia = (query) => {
+      const result = nativeMatchMedia(query);
+      if (query !== "(display-mode: standalone)") return result;
+      return new Proxy(result, { get(target, key) {
+        if (key === "matches") return true;
+        const value = Reflect.get(target, key, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      } });
+    };
+  }, { isIos: ios, isChromeIos: chromeIos });
+}
+
+test("iPhone home screen opens without a second web launch animation", async ({ page }) => {
+  await emulateInstalledApp(page, { ios: true });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveClass(/is-standalone/);
+  await expect(page.locator("html")).toHaveClass(/app-splash-seen/);
+  await expect(page.locator("#app-splash")).toBeHidden();
+  await expect(page.locator("#app")).toBeVisible();
+});
+
+test("iPhone Chrome home screen also skips the second web launch animation", async ({ page }) => {
+  await emulateInstalledApp(page, { chromeIos: true });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveClass(/is-standalone/);
+  await expect(page.locator("html")).toHaveClass(/app-splash-seen/);
+  await expect(page.locator("#app-splash")).toBeHidden();
+  await expect(page.locator("#app")).toBeVisible();
+});
+
 test("standalone app animates on opening but skips a page refresh", async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
-  });
+  await emulateInstalledApp(page);
   await page.goto("/");
   const splash = page.locator("#app-splash");
   await expect(splash).toBeVisible();
@@ -166,7 +206,7 @@ test("standalone app animates on opening but skips a page refresh", async ({ pag
 });
 
 test("inline launch cover hides the page even when the stylesheet is unavailable", async ({ page }) => {
-  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { configurable: true, value: true }));
+  await emulateInstalledApp(page);
   const stylesheetPattern = /\/assets\/index-[^/]+\.css$/;
   await page.route(stylesheetPattern, (route) => route.abort());
   await page.goto("/");
@@ -192,8 +232,8 @@ test("inline launch cover hides the page even when the stylesheet is unavailable
 });
 
 test("invalid saved preferences cannot disable the standalone launch cover", async ({ page }) => {
+  await emulateInstalledApp(page);
   await page.addInitScript(() => {
-    Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
     localStorage.setItem("stock-insight-v1", "invalid-json");
   });
   await page.goto("/");
@@ -202,7 +242,7 @@ test("invalid saved preferences cannot disable the standalone launch cover", asy
 });
 
 test("slow app startup still shows the complete launch animation", async ({ page }) => {
-  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { configurable: true, value: true }));
+  await emulateInstalledApp(page);
   await page.route(/\/assets\/index-[^/]+\.js$/, async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 2_100));
     await route.continue();
@@ -217,8 +257,8 @@ test("slow app startup still shows the complete launch animation", async ({ page
 });
 
 test("dark standalone reload never paints a light bottom before the app loads", async ({ page }) => {
+  await emulateInstalledApp(page);
   await page.addInitScript(() => {
-    Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
     localStorage.setItem("stock-insight-v1", JSON.stringify({ theme: "dark" }));
   });
   await page.goto("/");
@@ -238,7 +278,7 @@ test("dark standalone reload never paints a light bottom before the app loads", 
 
 test("reduced motion skips the launch animation", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { configurable: true, value: true }));
+  await emulateInstalledApp(page);
   await page.goto("/");
   await expect(page.locator("#app-splash")).toBeHidden();
 });
