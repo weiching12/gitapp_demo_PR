@@ -15,8 +15,14 @@
     <script>
       try {
         const standaloneDisplay = matchMedia("(display-mode: standalone)").matches;
-        if (standaloneDisplay || navigator.standalone === true)
+        if (standaloneDisplay || navigator.standalone === true) {
           document.documentElement.classList.add("is-standalone");
+          const setSnapshotCover = (covered) =>
+            document.documentElement.classList.toggle("app-snapshot-cover-visible", covered);
+          document.addEventListener("visibilitychange", () => setSnapshotCover(document.hidden));
+          window.addEventListener("pagehide", () => setSnapshotCover(true));
+          window.addEventListener("pageshow", () => setSnapshotCover(false));
+        }
         if (performance.getEntriesByType("navigation")[0]?.type === "reload" ||
             matchMedia("(prefers-reduced-motion: reduce)").matches)
           document.documentElement.classList.add("app-splash-seen");
@@ -53,6 +59,14 @@
         background: #14243b;
       }
       html.is-standalone:not(.app-splash-seen) #app { visibility: hidden; }
+      .app-snapshot-cover { display: none; }
+      html.is-standalone.app-snapshot-cover-visible .app-snapshot-cover {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: block;
+        background: #14243b;
+      }
       .app-splash { display: none; }
       html.is-standalone:not(.app-splash-seen) .app-splash {
         position: fixed;
@@ -150,6 +164,7 @@
     </style>
   </head>
   <body>
+    <div class="app-snapshot-cover" aria-hidden="true"></div>
     <div id="app-splash" class="app-splash" aria-hidden="true">
       <div class="app-splash-brand">
         <svg class="app-splash-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="12"></rect><path d="M10 28V19m10 9V10m10 18V15"></path></svg>

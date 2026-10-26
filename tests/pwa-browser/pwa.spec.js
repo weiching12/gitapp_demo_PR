@@ -168,6 +168,21 @@ test("iPhone home screen retains the branded launch animation", async ({ page })
   await expect(page.locator("#app")).toBeVisible();
 });
 
+test("standalone app covers the saved view while backgrounded and restores it on return", async ({ page }) => {
+  await emulateInstalledApp(page, { ios: true });
+  await page.goto("/");
+  await expect(page.locator("#app-splash")).toHaveCount(0, { timeout: 3_000 });
+  await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+  await expect(page.locator("html")).toHaveClass(/app-snapshot-cover-visible/);
+  expect(await page.evaluate(() => ({
+    cover: getComputedStyle(document.querySelector(".app-snapshot-cover")).backgroundColor,
+    top: document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.className,
+  }))).toEqual({ cover: "rgb(20, 36, 59)", top: "app-snapshot-cover" });
+  await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
+  await expect(page.locator("html")).not.toHaveClass(/app-snapshot-cover-visible/);
+  await expect(page.locator("#app")).toBeVisible();
+});
+
 test("iPhone Chrome home screen retains the branded launch animation", async ({ page }) => {
   await emulateInstalledApp(page, { chromeIos: true });
   await page.goto("/");
