@@ -21,6 +21,23 @@ test("manifest and install icons are served with the expected metadata", async (
   }
 });
 
+test("iPhone 13 has a native startup image matching the web splash background", async ({ page, request }) => {
+  await emulateInstalledApp(page, { ios: true });
+  await page.goto("/");
+  const image = page.locator('link[rel="apple-touch-startup-image"][media*="device-width: 390px"]');
+  await expect(image).toHaveAttribute("href", "/launch/ios-1170x2532.png");
+  await expect(image).toHaveAttribute("media", /device-height: 844px/);
+  const response = await request.get(await image.getAttribute("href"));
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("image/png");
+  const png = Buffer.from(await response.body());
+  expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1170, 2532]);
+  await expect(page.locator("#app-splash")).toBeVisible();
+  expect(await page.locator("#app-splash").evaluate((node) => getComputedStyle(node).backgroundColor))
+    .toBe("rgb(20, 36, 59)");
+  await expect(page.locator(".app-splash-brand")).toHaveCSS("animation-name", "splash-brand-in");
+});
+
 test("service worker handles market update pushes and notification clicks", async ({ request }) => {
   const response = await request.get("/sw.js");
   expect(response.ok()).toBe(true);
@@ -170,10 +187,9 @@ test("standalone app animates on opening but skips a page refresh", async ({ pag
     html: getComputedStyle(document.documentElement).backgroundColor,
     body: getComputedStyle(document.body).backgroundColor,
     app: getComputedStyle(document.querySelector("#app")).visibility,
-    brand: getComputedStyle(document.querySelector(".app-splash-brand")).opacity,
     bottom: document.elementFromPoint(innerWidth / 2, innerHeight - 1)?.closest("#app-splash")?.id,
   }));
-  expect(launchBackground).toEqual({ html: "rgb(20, 36, 59)", body: "rgb(20, 36, 59)", app: "hidden", brand: "1", bottom: "app-splash" });
+  expect(launchBackground).toEqual({ html: "rgb(20, 36, 59)", body: "rgb(20, 36, 59)", app: "hidden", bottom: "app-splash" });
   await page.evaluate(() => {
     window.__splashExitSamples = [];
     const node = document.querySelector("#app-splash");

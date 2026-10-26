@@ -31,6 +31,14 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-startup-image" href="/launch/ios-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+    <link rel="apple-touch-startup-image" href="/launch/ios-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/launch/ios-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/launch/ios-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/launch/ios-1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/launch/ios-1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/launch/ios-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/launch/ios-1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3)" />
     <style>
       :root {
         font-family: system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
@@ -73,6 +81,7 @@
         display: grid;
         justify-items: center;
         gap: 15px;
+        animation: splash-brand-in 450ms 100ms ease-out backwards;
       }
       .app-splash-mark {
         width: 76px;
@@ -119,6 +128,10 @@
         from { stroke-dashoffset: 18; opacity: .25; }
         to { stroke-dashoffset: 0; opacity: 1; }
       }
+      @keyframes splash-brand-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
       @keyframes splash-line {
         from { opacity: 0; transform: scaleX(0); }
         to { opacity: 1; transform: scaleX(1); }
@@ -129,7 +142,7 @@
       }
       @media (prefers-reduced-motion: reduce) {
         .app-splash, .app-splash::before,
-        .app-splash-mark path, .app-splash-line {
+        .app-splash-brand, .app-splash-mark path, .app-splash-line {
           animation: none !important;
           transition: none !important;
         }
