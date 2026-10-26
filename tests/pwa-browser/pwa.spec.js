@@ -279,12 +279,15 @@ test("slow app startup still shows the complete launch animation", async ({ page
     await route.continue();
   });
   await page.goto("/");
-  await expect(page.locator(".sidebar")).toBeAttached();
   const splash = page.locator("#app-splash");
   await expect(splash).toBeVisible();
+  await expect(page.locator("#app .initial-load")).toBeAttached();
+  await expect(page.locator(".sidebar")).toHaveCount(0);
   await page.waitForTimeout(1_100);
   await expect(splash).toBeVisible();
+  await expect(page.locator(".sidebar")).toHaveCount(0);
   await expect(splash).toHaveCount(0, { timeout: 2_000 });
+  await expect(page.locator(".sidebar")).toBeAttached();
 });
 
 test("dark standalone reload never paints a light bottom before the app loads", async ({ page }) => {
