@@ -130,9 +130,10 @@ test("standalone app animates on opening but skips a page refresh", async ({ pag
     html: getComputedStyle(document.documentElement).backgroundColor,
     body: getComputedStyle(document.body).backgroundColor,
     app: getComputedStyle(document.querySelector("#app")).visibility,
+    brand: getComputedStyle(document.querySelector(".app-splash-brand")).opacity,
     bottom: document.elementFromPoint(innerWidth / 2, innerHeight - 1)?.closest("#app-splash")?.id,
   }));
-  expect(launchBackground).toEqual({ html: "rgb(20, 36, 59)", body: "rgb(20, 36, 59)", app: "hidden", bottom: "app-splash" });
+  expect(launchBackground).toEqual({ html: "rgb(20, 36, 59)", body: "rgb(20, 36, 59)", app: "hidden", brand: "1", bottom: "app-splash" });
   await page.evaluate(() => {
     window.__splashExitSamples = [];
     const node = document.querySelector("#app-splash");

@@ -12,6 +12,21 @@
       content="株研台股研究室：用股價、KD 指標、季線與三大法人買賣量，建立自己的市場觀察。"
     />
     <title>株研 Stock Insight｜台股研究室</title>
+    <script>
+      try {
+        if (matchMedia("(display-mode: standalone)").matches || navigator.standalone === true)
+          document.documentElement.classList.add("is-standalone");
+        if (performance.getEntriesByType("navigation")[0]?.type === "reload" ||
+            matchMedia("(prefers-reduced-motion: reduce)").matches)
+          document.documentElement.classList.add("app-splash-seen");
+      } catch {}
+      try {
+        if (JSON.parse(localStorage.getItem("stock-insight-v1"))?.theme === "dark") {
+          document.documentElement.dataset.theme = "dark";
+          document.querySelector('meta[name="theme-color"]').content = "#0b1220";
+        }
+      } catch {}
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -57,7 +72,6 @@
         display: grid;
         justify-items: center;
         gap: 15px;
-        animation: splash-brand-in 620ms cubic-bezier(.2, .8, .2, 1) both;
       }
       .app-splash-mark {
         width: 76px;
@@ -100,10 +114,6 @@
         transition: opacity 300ms ease;
       }
       .app-splash.is-leaving::before { opacity: 0; transition: opacity 300ms ease; }
-      @keyframes splash-brand-in {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
       @keyframes splash-bars {
         from { stroke-dashoffset: 18; opacity: .25; }
         to { stroke-dashoffset: 0; opacity: 1; }
@@ -117,29 +127,13 @@
         to { opacity: 1; transform: scale(1); }
       }
       @media (prefers-reduced-motion: reduce) {
-        .app-splash, .app-splash::before, .app-splash-brand,
+        .app-splash, .app-splash::before,
         .app-splash-mark path, .app-splash-line {
           animation: none !important;
           transition: none !important;
         }
       }
     </style>
-    <script>
-      try {
-        if (matchMedia("(display-mode: standalone)").matches || navigator.standalone === true)
-          document.documentElement.classList.add("is-standalone");
-        if (performance.getEntriesByType("navigation")[0]?.type === "reload")
-          document.documentElement.classList.add("app-splash-seen");
-        if (matchMedia("(prefers-reduced-motion: reduce)").matches)
-          document.documentElement.classList.add("app-splash-seen");
-      } catch {}
-      try {
-        if (JSON.parse(localStorage.getItem("stock-insight-v1"))?.theme === "dark") {
-          document.documentElement.dataset.theme = "dark";
-          document.querySelector('meta[name="theme-color"]').content = "#0b1220";
-        }
-      } catch {}
-    </script>
   </head>
   <body>
     <div id="app-splash" class="app-splash" aria-hidden="true">
