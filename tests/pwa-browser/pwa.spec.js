@@ -142,21 +142,21 @@ async function emulateInstalledApp(page, { ios = false, chromeIos = false } = {}
   }, { isIos: ios, isChromeIos: chromeIos });
 }
 
-test("iPhone home screen opens without a second web launch animation", async ({ page }) => {
+test("iPhone home screen retains the branded launch animation", async ({ page }) => {
   await emulateInstalledApp(page, { ios: true });
   await page.goto("/");
   await expect(page.locator("html")).toHaveClass(/is-standalone/);
-  await expect(page.locator("html")).toHaveClass(/app-splash-seen/);
-  await expect(page.locator("#app-splash")).toBeHidden();
+  await expect(page.locator("#app-splash")).toBeVisible();
+  await expect(page.locator("#app-splash")).toHaveCount(0, { timeout: 3_000 });
   await expect(page.locator("#app")).toBeVisible();
 });
 
-test("iPhone Chrome home screen also skips the second web launch animation", async ({ page }) => {
+test("iPhone Chrome home screen retains the branded launch animation", async ({ page }) => {
   await emulateInstalledApp(page, { chromeIos: true });
   await page.goto("/");
   await expect(page.locator("html")).toHaveClass(/is-standalone/);
-  await expect(page.locator("html")).toHaveClass(/app-splash-seen/);
-  await expect(page.locator("#app-splash")).toBeHidden();
+  await expect(page.locator("#app-splash")).toBeVisible();
+  await expect(page.locator("#app-splash")).toHaveCount(0, { timeout: 3_000 });
   await expect(page.locator("#app")).toBeVisible();
 });
 

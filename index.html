@@ -15,12 +15,9 @@
     <script>
       try {
         const standaloneDisplay = matchMedia("(display-mode: standalone)").matches;
-        const appleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
-          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-        const iosHomeScreen = appleMobile && (standaloneDisplay || navigator.standalone === true);
         if (standaloneDisplay || navigator.standalone === true)
           document.documentElement.classList.add("is-standalone");
-        if (iosHomeScreen || performance.getEntriesByType("navigation")[0]?.type === "reload" ||
+        if (performance.getEntriesByType("navigation")[0]?.type === "reload" ||
             matchMedia("(prefers-reduced-motion: reduce)").matches)
           document.documentElement.classList.add("app-splash-seen");
       } catch {}
