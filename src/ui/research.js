@@ -7,6 +7,67 @@ const delta = (value) => Number.isFinite(value) ? `${value > 0 ? "+" : ""}${fmt(
 const tone = (value) => value > 0 ? "up" : value < 0 ? "down" : "neutral";
 const dateTime = (value) => value ? new Date(value).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }) : "原始加入時間未知";
 const important = (row) => (row?.comparison?.events ?? []).length > 0;
+const categoryLabels = { trend: "趨勢", momentum: "KD", priceVolume: "量價", institutional: "法人", entryRisk: "進場風險" };
+
+export function researchCardTrend(period, row) {
+  const latest = row?.latest;
+  const result = reviewInitialScore(period, latest);
+  const initial = result.initial;
+  if (!initial) return { status: "missing-initial", label: "收藏後變化", points: (row?.history ?? []).filter((item) => item.asOf <= latest?.asOf),
+    reason: "收藏基準未知，僅顯示近期走勢" };
+  const label = period?.addedSnapshot?.valid ? "自收藏後" : "自首次有效評分起";
+  if (!latest?.valid) return { status: "missing-latest", label, points: [] };
+  if (!["comparable", "same-snapshot"].includes(result.status))
+    return { status: result.status, label, points: [], reason: result.status === "incompatible" ? "設定不同，暫不比較" : "資料不足，暫不比較" };
+  const history = (row.history ?? []).filter((item) => item.asOf > initial.asOf && item.asOf <= latest.asOf);
+  const firstHistoryDate = row.history?.[0]?.asOf;
+  const points = [initial];
+  if (firstHistoryDate > initial.asOf || !history.length && initial.asOf < latest.asOf)
+    points.push({ asOf: "gap", valid: false });
+  points.push(...history);
+  if (!points.some((item) => item.asOf === latest.asOf)) points.push(latest);
+  const conditionChange = Object.entries(categoryLabels).find(([key]) =>
+    initial.conditions?.[key]?.status !== latest.conditions?.[key]?.status &&
+    [initial.conditions?.[key]?.status, latest.conditions?.[key]?.status].every((status) => ["PASS", "FAIL"].includes(status)));
+  let reason;
+  if (result.status === "same-snapshot" || initial.asOf === latest.asOf) reason = "等待後續交易日評分";
+  else if (conditionChange) reason = `${conditionChange[1]}條件${latest.conditions[conditionChange[0]].status === "PASS" ? "改善" : "失效"}`;
+  else if (Boolean(initial.cap?.enabled) !== Boolean(latest.cap?.enabled)) reason = latest.cap?.enabled ? "分數上限啟用" : "分數上限解除";
+  else {
+    const category = Object.entries(categoryLabels).map(([key, name]) => ({ name,
+      change: Number.isFinite(latest.categories?.[key]?.creditedContribution) && Number.isFinite(initial.categories?.[key]?.creditedContribution)
+        ? latest.categories[key].creditedContribution - initial.categories[key].creditedContribution : null }))
+      .filter((item) => Number.isFinite(item.change)).sort((a, b) => Math.abs(b.change) - Math.abs(a.change))[0];
+    reason = category && Math.abs(category.change) >= .005 ? `${category.name}貢獻${category.change > 0 ? "提高" : "下降"}` : "分數持平";
+  }
+  return { status: result.status, label, initial, latest, delta: result.finalDelta, points, reason };
+}
+
+function researchCardSparkline(trend, esc) {
+  if (!trend.points.length) return `<span class="research-spark-empty">${esc(trend.reason ?? trend.label)}</span>`;
+  const values = trend.points.filter((item) => item.valid && Number.isFinite(item.finalScore)).map((item) => item.finalScore);
+  if (!values.length) return `<span class="research-spark-empty">${esc(trend.reason ?? "缺少可用評分")}</span>`;
+  const low = Math.max(0, Math.min(...values) - 2), high = Math.min(100, Math.max(...values) + 2);
+  const range = Math.max(10, high - low), center = (high + low) / 2;
+  const y = (value) => (18 - (value - center) * 28 / range).toFixed(1);
+  const segments = []; let current = [], previous = null;
+  trend.points.forEach((item, index) => {
+    const compatible = previous && ["modelVersion", "strategy", "configId", "priceBasis", "source"]
+      .every((key) => previous[key] === item[key]);
+    if (!item.valid || !Number.isFinite(item.finalScore) || previous && !compatible) {
+      if (current.length > 1) segments.push(current);
+      current = [];
+    }
+    if (item.valid && Number.isFinite(item.finalScore)) current.push(`${4 + index * 92 / Math.max(1, trend.points.length - 1)},${y(item.finalScore)}`);
+    previous = item.valid ? item : null;
+  });
+  if (current.length > 1) segments.push(current);
+  const latestPoint = trend.points.findLast((item) => item.valid && Number.isFinite(item.finalScore));
+  const endIndex = trend.points.lastIndexOf(latestPoint);
+  const startPoint = trend.points.find((item) => item.valid && Number.isFinite(item.finalScore));
+  const startIndex = trend.points.indexOf(startPoint);
+  return `<svg viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18H96" class="research-spark-guide"/>${segments.map((segment) => `<polyline points="${segment.join(" ")}"/>`).join("")}<circle class="research-spark-start" cx="${4 + startIndex * 92 / Math.max(1, trend.points.length - 1)}" cy="${y(startPoint.finalScore)}" r="2.2"/><circle cx="${4 + endIndex * 92 / Math.max(1, trend.points.length - 1)}" cy="${y(latestPoint.finalScore)}" r="2.4"/></svg>`;
+}
 
 function scoreChart(history) {
   const points = [...history].sort((a, b) => a.asOf.localeCompare(b.asOf));
@@ -42,32 +103,33 @@ export function selectResearchScorePoint(plot, index) {
     `${point.date} · 基礎 ${fmt(point.baseScore)} · 最終 ${fmt(point.finalScore)}${point.cap?.enabled ? ` · 上限 ${fmt(point.cap.value)}` : ""}${point.source === "historical-recalculation" ? " · 歷史重算" : ""}`;
 }
 
-export function renderResearchCenter({ favorites, stocks, rows, date, sort, filter, esc }) {
+export function renderResearchCenter({ favorites, stocks, rows, store, date, sort, filter, esc }) {
   const bySymbol = new Map(stocks.map((stock) => [stock.symbol, stock]));
-  const values = favorites.map((symbol) => ({ symbol, stock: bySymbol.get(symbol), row: rows.get(symbol) }));
-  const comparable = values.filter(({ row }) => row?.comparison?.status === "comparable");
-  const increased = comparable.filter(({ row }) => row.comparison.finalDelta > 0).length;
+  const values = favorites.map((symbol) => ({ symbol, stock: bySymbol.get(symbol), row: rows.get(symbol),
+    trend: researchCardTrend(activeResearchPeriod(store, symbol), rows.get(symbol)) }));
+  const comparable = values.filter(({ trend }) => trend.status === "comparable" && trend.initial.asOf !== trend.latest.asOf);
+  const increased = comparable.filter(({ trend }) => trend.delta > 0).length;
   const changed = new Set(values.filter(({ row }) => important(row)).map(({ symbol }) => symbol)).size;
   const filtered = values.filter(({ row }) => filter === "all" || filter === "important" && important(row) ||
     filter === "improved" && row?.comparison?.conditionsImproved || filter === "lost" && row?.comparison?.conditionsLost);
   filtered.sort((a, b) => {
-    const av = sort === "change" ? a.row?.comparison?.status === "comparable" ? a.row.comparison.finalDelta : null : a.row?.latest?.valid ? a.row.latest.finalScore : null;
-    const bv = sort === "change" ? b.row?.comparison?.status === "comparable" ? b.row.comparison.finalDelta : null : b.row?.latest?.valid ? b.row.latest.finalScore : null;
+    const av = sort === "change" ? a.trend.status === "comparable" && a.trend.initial.asOf !== a.trend.latest.asOf ? a.trend.delta : null : a.row?.latest?.valid ? a.row.latest.finalScore : null;
+    const bv = sort === "change" ? b.trend.status === "comparable" && b.trend.initial.asOf !== b.trend.latest.asOf ? b.trend.delta : null : b.row?.latest?.valid ? b.row.latest.finalScore : null;
     return av === null && bv === null ? a.symbol.localeCompare(b.symbol) : av === null ? 1 : bv === null ? -1 : bv - av || a.symbol.localeCompare(b.symbol);
   });
-  const cards = filtered.map(({ symbol, stock, row }) => {
-    const snap = row?.latest, comparison = row?.comparison;
+  const cards = filtered.map(({ symbol, stock, row, trend }) => {
+    const snap = row?.latest;
     const label = stock?.name ?? symbol;
     const condition = snap?.valid ? `${snap.passedCount}/${snap.totalConditions} 必要條件通過` : "必要資料不足";
-    const summary = comparison?.summary ?? (row?.loading ? "讀取研究快照中" : "缺少當日評分快照");
-    const prior = row?.previous;
-    const changeDate = comparison?.status === "comparable" ? `較 ${esc(prior.asOf.slice(5).replace("-", "/"))}` : "前日比較";
-    const changeValue = comparison?.status === "comparable" ? delta(comparison.finalDelta) : "—";
-    const changeSource = row?.source === "historical-recalculation" ? "本機示範資料歷史重算" : "已保存評分快照";
-    const changeDetail = comparison?.status === "comparable" ? `${prior.asOf} ${fmt(prior.finalScore)} 分 → ${snap.asOf} ${fmt(snap.finalScore)} 分；${changeSource}` : comparison?.summary ?? "缺少前期資料";
-    return `<article class="research-card" data-research-symbol="${esc(symbol)}"><button type="button" class="research-card-main" data-entry-score="${esc(symbol)}"><span class="research-stock"><span class="research-stock-head"><span class="research-code">${esc(symbol)}</span><strong>${esc(label)}</strong></span>${row?.source === "historical-recalculation" ? "<small>模擬重算</small>" : ""}</span><span class="research-score"><small>最終分數</small><strong>${fmt(snap?.finalScore)}</strong></span><span class="research-delta ${tone(comparison?.finalDelta)}" title="${esc(changeDetail)}" aria-label="${esc(changeDetail)}"><small>${changeDate}</small><strong>${changeValue}</strong></span><span class="research-condition ${snap?.valid ? "" : "insufficient"}">${esc(condition)}${snap?.cap?.enabled ? ` · 上限 ${fmt(snap.cap.value)}` : ""}</span><span class="research-summary">${esc(summary)}</span></button></article>`;
+    const comparableTrend = trend.status === "comparable" && trend.initial.asOf !== trend.latest.asOf;
+    const changeValue = comparableTrend ? delta(trend.delta) : "—";
+    const baseline = trend.initial ? `${trend.initial.asOf} ${fmt(trend.initial.finalScore)} 分` : "尚無收藏基準";
+    const changeDetail = `${trend.label}：${baseline} → ${snap?.asOf ?? "—"} ${fmt(snap?.finalScore)} 分；${trend.reason ?? ""}`;
+    const chartLabel = `${trend.initial ? `${trend.label}分數走勢；${baseline}` : "近期已保存評分走勢；收藏時分數未知"}，最新 ${snap?.asOf ?? "—"} ${fmt(snap?.finalScore)} 分${trend.points.some((point) => point.asOf === "gap") ? "；中間資料未保存，線段中斷" : ""}`;
+    const chartStart = trend.initial ?? trend.points.find((point) => point.valid && Number.isFinite(point.finalScore));
+    return `<article class="research-card" data-research-symbol="${esc(symbol)}"><button type="button" class="research-card-main" data-entry-score="${esc(symbol)}"><span class="research-stock"><span class="research-stock-head"><span class="research-code">${esc(symbol)}</span><strong>${esc(label)}</strong></span>${row?.source === "historical-recalculation" ? "<small>模擬重算</small>" : ""}</span><span class="research-score"><small>最終分數</small><strong>${fmt(snap?.finalScore)}</strong></span><span class="research-delta ${tone(comparableTrend ? trend.delta : null)}" title="${esc(changeDetail)}" aria-label="${esc(changeDetail)}"><small>${esc(trend.label)}</small><strong>${changeValue}</strong></span><span class="research-sparkline" role="img" aria-label="${esc(chartLabel)}"><small>${chartStart ? esc(chartStart.asOf.slice(5).replace("-", "/")) : "—"}</small>${researchCardSparkline(trend, esc)}<small>${esc(snap?.asOf?.slice(5).replace("-", "/") ?? "最新")}</small></span><span class="research-card-foot"><span class="research-condition ${snap?.valid ? "" : "insufficient"}">${esc(condition)}${snap?.cap?.enabled ? ` · 上限 ${fmt(snap.cap.value)}` : ""}</span><span class="research-summary">${esc(row?.loading ? "讀取研究快照中" : trend.reason ?? "缺少當日評分快照")}</span></span></button></article>`;
   }).join("");
-  return { stats: `<div><strong>${favorites.length}</strong><span>追蹤股票</span></div><div><strong>${increased}<small> / ${comparable.length}</small></strong><span>分數提高／可比較</span></div><div><strong>${changed}<small> / ${favorites.length}</small></strong><span>重要異動／追蹤</span></div>`,
+  return { stats: `<div><strong>${favorites.length}</strong><span>追蹤股票</span></div><div><strong>${increased}<small> / ${comparable.length}</small></strong><span>收藏後提高／可比較</span></div><div><strong>${changed}<small> / ${favorites.length}</small></strong><span>重要異動／追蹤</span></div>`,
     cards: cards || `<p class="research-muted">${favorites.length ? "此篩選目前沒有股票。" : "尚無追蹤股票。"}</p>` };
 }
 

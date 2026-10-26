@@ -183,7 +183,7 @@ async function loadResearchReview(symbol) {
 function renderResearch() {
   if (!researchStore || !document.querySelector("#research-list")) return;
   const result = renderResearchCenter({ favorites: state.favorites, stocks: snapshots,
-    rows: researchRows, date: state.date,
+    rows: researchRows, store: researchStore, date: state.date,
     sort: researchSort, filter: researchFilter, esc });
   document.querySelector("#research-date").textContent = `最新可用交易日 ${dataset.info.asOf || "—"}${researchMeta?.revisions?.length > 1 ? " · 當日市場資料有修訂版本" : ""}`;
   document.querySelector("#research-stats").innerHTML = result.stats;

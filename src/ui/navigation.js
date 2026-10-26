@@ -1,6 +1,6 @@
 const pageCopy = {
   market: ["MARKET WATCHLIST", "市場觀察清單", "比較全部標的的價量、技術指標與法人籌碼。"],
-  favorites: ["MY RESEARCH WATCHLIST", "株研追蹤", "查看關注股票的最新株研評分、前一交易日分數變化與必要條件異動。可排序、篩選，點選股票查看紀錄。"],
+  favorites: ["MY RESEARCH WATCHLIST", "株研追蹤", "查看關注股票的最新株研評分、收藏後分數變化與必要條件異動。可排序、篩選，點選股票查看紀錄。"],
   sectors: ["INSTITUTIONAL RANKING", "法人買株", "依產業排名觀察法人資金方向；點選產業查看個股價格與買賣超張數。"],
 };
 

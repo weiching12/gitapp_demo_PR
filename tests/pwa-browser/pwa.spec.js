@@ -8,7 +8,7 @@ test("manifest and install icons are served with the expected metadata", async (
   expect(response.ok()).toBe(true);
   expect(response.headers()["content-type"]).toContain("application/manifest+json");
   const manifest = await response.json();
-  expect(manifest).toMatchObject({ name: "株研｜台股研究室", short_name: "株研", display: "standalone" });
+  expect(manifest).toMatchObject({ name: "株研｜台股研究室", short_name: "株研", display: "standalone", background_color: "#14243b" });
   expect(manifest.icons).toEqual(expect.arrayContaining([
     expect.objectContaining({ sizes: "192x192", type: "image/png" }),
     expect.objectContaining({ sizes: "512x512", type: "image/png" }),
@@ -130,9 +130,16 @@ test("standalone app shows the branded launch animation once per session", async
   const splash = page.locator("#app-splash");
   await expect(splash).toBeVisible();
   await expect(splash).toContainText("株研");
+  const launchBackground = await page.evaluate(() => ({
+    html: getComputedStyle(document.documentElement).backgroundColor,
+    body: getComputedStyle(document.body).backgroundColor,
+    bottom: document.elementFromPoint(innerWidth / 2, innerHeight - 1)?.closest("#app-splash")?.id,
+  }));
+  expect(launchBackground).toEqual({ html: "rgb(20, 36, 59)", body: "rgb(20, 36, 59)", bottom: "app-splash" });
   await page.waitForTimeout(1_000);
   await expect(splash).toBeVisible();
   await expect(splash).toHaveCount(0, { timeout: 3_000 });
   await page.reload();
   await expect(page.locator("#app-splash")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(248, 250, 252)");
 });
