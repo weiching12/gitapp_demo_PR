@@ -130,7 +130,9 @@ test("standalone app shows the branded launch animation once per session", async
   const splash = page.locator("#app-splash");
   await expect(splash).toBeVisible();
   await expect(splash).toContainText("株研");
-  await expect(splash).toHaveCount(0, { timeout: 2_000 });
+  await page.waitForTimeout(1_000);
+  await expect(splash).toBeVisible();
+  await expect(splash).toHaveCount(0, { timeout: 3_000 });
   await page.reload();
   await expect(page.locator("#app-splash")).toBeHidden();
 });

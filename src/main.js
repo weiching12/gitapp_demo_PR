@@ -286,7 +286,7 @@ function toast(message) {
 function dismissAppSplash() {
   const splash = document.querySelector("#app-splash");
   if (!splash || document.documentElement.classList.contains("app-splash-seen")) return;
-  const delay = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : Math.max(0, 850 - performance.now());
+  const delay = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : Math.max(0, 1800 - performance.now());
   window.setTimeout(() => {
     splash.classList.add("is-leaving");
     window.setTimeout(() => {
