@@ -9,11 +9,12 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(page.locator("#watchlist h2")).toHaveCount(0);
   await expect(page.locator("#legacy-watchlist")).toBeHidden();
   await expect(page.locator("#research-stats")).toContainText("追蹤股票");
+  await expect(page.locator("#research-list table")).toBeVisible();
+  await expect(page.locator("#research-list thead")).toContainText("最新異動");
   const card = page.locator(".research-card").first();
   await expect(card).toBeVisible();
-  await expect(card.locator(".research-delta")).toContainText("收藏後變化");
-  await expect(card.locator(".research-sparkline")).toBeVisible();
-  await expect(card.locator(".research-sparkline")).toHaveAttribute("aria-label", /評分走勢/);
+  await expect(card.locator(".research-delta")).toBeVisible();
+  await expect(card.locator(".research-sparkline")).toHaveCount(0);
   await expect(card.locator(".research-card-more")).toHaveCount(0);
   await expect(card.locator(".research-card-review")).toHaveCount(0);
   await expect(card.locator(".research-stock")).not.toContainText("評分交易日");
@@ -29,6 +30,14 @@ test("research center preserves favorites and opens existing score detail", asyn
   await same.locator(".research-card-main").click();
   await expect(page.locator(".research-detail")).toContainText("研究追蹤");
   await expect(page.locator("#dialog-heading")).toContainText("株研評分");
+});
+
+test("research table rows open score details across the row", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "株研追蹤" }).first().click();
+  await page.locator(".research-card .research-score").first().click();
+  await expect(page.locator("#info-dialog")).toBeVisible();
+  await expect(page.locator(".research-detail")).toContainText("研究追蹤");
 });
 
 test("a saved stock shows research history only when opened from research tracking", async ({ page }) => {
@@ -102,7 +111,7 @@ test("research tracking always compares the latest available trading day", async
   await page.locator("#trade-date").selectOption("2026-10-15");
   await page.getByRole("button", { name: "株研追蹤" }).first().click();
   await expect(page.locator(".date-control")).toBeHidden();
-  await expect(page.locator("#research-date")).toContainText("2026-10-16");
+  await expect(page.locator("#research-date")).toHaveText("交易日 2026-10-16");
   await expect(page.locator(".research-card").first()).not.toContainText("評分交易日");
 });
 

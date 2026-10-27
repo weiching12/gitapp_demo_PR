@@ -185,7 +185,7 @@ function renderResearch() {
   const result = renderResearchCenter({ favorites: state.favorites, stocks: snapshots,
     rows: researchRows, store: researchStore, date: state.date,
     sort: researchSort, filter: researchFilter, esc });
-  document.querySelector("#research-date").textContent = `最新可用交易日 ${dataset.info.asOf || "—"}${researchMeta?.revisions?.length > 1 ? " · 當日市場資料有修訂版本" : ""}`;
+  document.querySelector("#research-date").textContent = `交易日 ${dataset.info.asOf || "—"}${researchMeta?.revisions?.length > 1 ? " · 當日市場資料有修訂版本" : ""}`;
   document.querySelector("#research-stats").innerHTML = result.stats;
   document.querySelector("#research-list").innerHTML = result.cards;
   document.querySelector("#research-sort").value = researchSort;
@@ -799,6 +799,11 @@ function bindEvents() {
     const stockRow = event.target.closest("#stock-rows tr[data-symbol]");
     if (stockRow && !event.target.closest("button, a, input, select, textarea")) {
       void openEntryScoreDialog(stockRow.dataset.symbol, !touchInteraction);
+      return;
+    }
+    const researchRow = event.target.closest("#research-list tr.research-card[data-entry-score]");
+    if (researchRow && !event.target.closest("button, a, input, select, textarea")) {
+      void openEntryScoreDialog(researchRow.dataset.entryScore, !touchInteraction, true);
       return;
     }
     const button = event.target.closest("button");

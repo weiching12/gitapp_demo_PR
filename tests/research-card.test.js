@@ -22,24 +22,24 @@ test("card trend compares to the saved join score and summarizes the changed con
   assert.equal(trend.status, "comparable");
   assert.equal(trend.delta, 5);
   assert.equal(trend.reason, "KD條件改善");
-  assert.deepEqual(trend.points.map(({ asOf }) => asOf), ["2026-10-15", "2026-10-16"]);
+  assert.equal(trend.label, "自收藏後");
 });
 
-test("an older join baseline does not connect across missing history", () => {
+test("an older join baseline remains the comparison date when intermediate history is missing", () => {
   const initial = snapshot("2026-09-01", 60);
   const latest = snapshot("2026-10-16", 80);
   const trend = researchCardTrend({ addedSnapshot: initial }, { latest, history: [snapshot("2026-10-15", 78), latest] });
   assert.equal(trend.delta, 20);
-  assert.deepEqual(trend.points.map(({ asOf }) => asOf), ["2026-09-01", "gap", "2026-10-15", "2026-10-16"]);
+  assert.equal(trend.initial.asOf, "2026-09-01");
+  assert.equal(trend.latest.asOf, "2026-10-16");
 });
 
-test("legacy favorites show recent data without fabricating a since-join change", () => {
+test("legacy favorites do not fabricate a since-join change", () => {
   const latest = snapshot("2026-10-16", 80);
   const trend = researchCardTrend({ addedSnapshot: null, firstValidSnapshot: null },
     { latest, history: [snapshot("2026-10-15", 78), latest] });
   assert.equal(trend.status, "missing-initial");
   assert.equal(trend.delta, undefined);
-  assert.equal(trend.points.length, 2);
   assert.match(trend.reason, /收藏基準未知/);
 });
 
