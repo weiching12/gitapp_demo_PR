@@ -3,6 +3,7 @@ const list = (items, esc, empty) => items.length
 const guideItem = (index, title, content) =>
   `<article class="guide-item entry-guide-item"><span>${index}</span><div><h4>${title}</h4>${content}</div></article>`;
 import { dailyCloseSeries } from "../../shared/price-history.js";
+import { institutionalScoreBreakdown } from "../../shared/entry-score.js";
 
 export function priceTrend(series) {
   const valid = series.filter(({ close }) => Number.isFinite(close) && close > 0);
@@ -144,15 +145,17 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
   if (!score.categories || !Object.keys(score.categories).length && valid)
     return `${heading}<p role="status">評分明細載入中…</p>`;
   const metrics = score.metrics;
+  const institutionParts = institutionalScoreBreakdown(metrics.netRatio,
+    metrics.institutionBuyDays, metrics.institutionPositiveCategories);
   const chartSeries = stock.priceHistory ?? dailyCloseSeries(stock.history,
     stock.tradingDates ?? stock.history?.map((bar) => bar.date), score.asOf);
   return `<div class="entry-dialog">${heading}
     <p class="entry-dialog-meta">波段順勢進場 · ${esc(score.asOf)}</p>
+    ${priceChartMarkup(stock, esc, number, chartSeries)}
     <section class="entry-summary"><div class="entry-summary-head"><strong${valid ? ` data-score-target="${score.finalScore}"` : ""}>${valid ? `${number(score.finalScore, 2)} / 100` : "—"}</strong><span>${esc(score.status)}</span></div>
       <dl class="entry-summary-facts"><div><dt>核心條件</dt><dd>${score.passedCount ?? 0} / ${score.totalConditions ?? 5} 通過</dd></div>
       <div><dt>收盤／漲跌</dt><dd>${stock.latest ? number(stock.latest.close, 2) : "—"}／${stock.latest ? percent(stock.latest.changePercent) : "—"}</dd></div>
       </dl></section>
-    ${priceChartMarkup(stock, esc, number, chartSeries)}
     <section class="entry-evidence entry-core-panel"><h3>核心條件檢查</h3><div class="entry-condition-list">${Object.entries(CORE_LABELS).map(([key, label]) => {
       const item = score.coreConditions?.[key];
       const status = item?.status === "PASS" ? "通過" : item?.status === "FAIL" ? "未通過" : "資料不足";
@@ -172,7 +175,7 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
       <details class="entry-metrics"><summary>查看完整計算依據</summary>
       ${guideItem("01", "趨勢與均線", `<p>月線 MA20：${number(metrics.ma20, 2)}（前日 ${number(metrics.previousMa20, 2)}）</p><p>季線 MA60：${number(metrics.ma60, 2)}（前日 ${number(metrics.previousMa60, 2)}）</p><code>近五日站上月線：${metrics.fiveAboveMa20} 日</code>`)}
       ${guideItem("02", "KD 與今日量價", `<p>K／D：${number(metrics.k, 2)}／${number(metrics.d, 2)}（前日 ${number(metrics.previousK, 2)}／${number(metrics.previousD, 2)}）</p><code>${esc(metrics.priceVolume)} · ${number(metrics.rvol20, 2)} 倍均量</code>`)}
-      ${guideItem("03", "法人籌碼", `<p>近五日法人淨額 ${number(metrics.institutionNet5)} 股，成交量 ${number(metrics.institutionVolume5)} 股</p><code>法人淨額占比 ${percent(metrics.netRatio * 100)} · 買超 ${metrics.institutionBuyDays} 日 · 買超類別 ${metrics.institutionPositiveCategories}／3</code>`)}
+      ${guideItem("03", "法人籌碼", `<p>近五個交易日三大法人合計淨買賣超 ${number(metrics.institutionNet5)} 股；同期個股成交量 ${number(metrics.institutionVolume5)} 股。</p><p>法人淨額占比 = 淨買賣超 ÷ 成交量 = ${percent(metrics.netRatio * 100)}。</p><p>占比分數 = 50 + 50 × 占比 ÷ 5%，限制在 0～100 分；此筆為 ${number(institutionParts.ratioScore, 2)} 分，計入 ${number(institutionParts.ratioContribution, 2)} 分（占 60%）。</p><p>法人合計買超 ${metrics.institutionBuyDays} 日 × 5 = ${number(institutionParts.dayContribution, 2)} 分；累計買超 ${metrics.institutionPositiveCategories} 類 × 5 = ${number(institutionParts.categoryContribution, 2)} 分。</p><code>法人籌碼分數 = ${number(institutionParts.ratioContribution, 2)} + ${number(institutionParts.dayContribution, 2)} + ${number(institutionParts.categoryContribution, 2)} = ${number(institutionParts.score, 2)} 分；通過法人核心條件時，依此構面的 20% 權重計入總分。</code>`)}
       ${guideItem("04", "進場位置與波動", `<p>月線乖離 ${percent(metrics.deviation20)} · 近十日前低點 ${number(metrics.previous10Low, 2)} · 距離 ${percent(metrics.riskDistance)}</p><code>ATR14 ${number(metrics.atr14, 2)}（${percent(metrics.atrPercent)}）</code>`)}</details></section>` :
       `<section class="entry-evidence"><h3>無法評分的原因</h3>${list(score.missingData, esc, "必要資料尚未齊備。")}</section>`}
     ${trackingHtml}<p class="helper-text entry-disclaimer">此分數僅表示固定研究策略的條件符合程度，不代表上漲機率、預期報酬率或買賣指令。法人完整明細請至法人買賣頁面查看。<br>模型版本：${esc(score.modelVersion)}</p></div>`;

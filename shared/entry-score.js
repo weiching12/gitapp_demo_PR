@@ -1,4 +1,5 @@
-import { getInstitutionNet, getInstitutionalNet, getPriceVolumeSignal } from "./indicators.js";
+import { analyzeHistory, getInstitutionNet, getInstitutionalNet, getPriceVolumeSignal } from "./indicators.js";
+import { referenceAdjustedDividendHistory } from "./corporate-actions.js";
 
 export const ENTRY_MODEL_VERSION = "entry-score-v1.2";
 export const ENTRY_STRATEGY = "swing-trend";
@@ -91,6 +92,14 @@ const PRICE_VOLUME_SCORES = Object.freeze({
 });
 const INSTITUTION_NAMES = ["外資", "投信", "自營商"];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+export function institutionalScoreBreakdown(netRatio, buyDays, positiveCategories) {
+  const ratioScore = clamp(50 + 50 * netRatio / 0.05, 0, 100);
+  const ratioContribution = ratioScore * 0.6;
+  const dayContribution = buyDays * 5;
+  const categoryContribution = positiveCategories * 5;
+  return { ratioScore, ratioContribution, dayContribution, categoryContribution,
+    score: ratioContribution + dayContribution + categoryContribution };
+}
 const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 const validPrice = (value) => Number.isFinite(value) && value > 0;
 const validBar = (bar) => bar && validPrice(bar.open) && validPrice(bar.high) &&
@@ -121,6 +130,22 @@ export function getEntryScore(stock, tradingDates, asOf, options = {}) {
     pendingConditions: [], missingData: [], rawCategories: {}, rawBaseScore: null, rawFinalScore: null };
   const index = tradingDates?.indexOf(asOf) ?? -1;
   if (index < 60) base.missingData.push("需截至評估日連續 61 個市場交易日行情");
+  const requiredActionDates = index >= 0 ? tradingDates.slice(Math.max(0, index - 59), index + 1) : [];
+  const actionDates = new Set(requiredActionDates);
+  const actionsForStock = options.corporateActions?.eventsBySymbol?.get(stock.symbol);
+  const relevantActions = new Map([...actionsForStock ?? []].filter(([date]) => actionDates.has(date)));
+  if (base.priceBasis === "unadjusted" && relevantActions.size) {
+    const covered = options.corporateActions?.coveredDates;
+    const adjusted = [...relevantActions.keys()].every((date) => covered?.has(date))
+      ? referenceAdjustedDividendHistory(stock.history, relevantActions) : null;
+    if (adjusted) {
+      stock = { ...stock, history: analyzeHistory(adjusted, options.settings) };
+      base.priceBasis = "reference-adjusted";
+      base.conflictingEvidence.push("已依核對的除息參考價調整歷史價格；不含股息再投資");
+    } else {
+      base.missingData.push("公司行動參考價無法核對；未還原價格不適合直接評分");
+    }
+  }
   const byDate = new Map((stock.history ?? []).filter((bar) => bar.date <= asOf).map((bar) => [bar.date, bar]));
   const window = index >= 0 ? tradingDates.slice(Math.max(0, index - 60), index + 1).map((date) => byDate.get(date)) : [];
   const completeHistory = window.length === 61 && window.every(validBar);
@@ -156,12 +181,8 @@ export function getEntryScore(stock, tradingDates, asOf, options = {}) {
   base.passedCount = CORE_KEYS.filter((key) => base.coreConditions[key].status === "PASS").length;
   base.coreConditionsPassed = base.passedCount === CORE_KEYS.length;
   if (base.priceBasis === "unadjusted" && options.corporateActions) {
-    const { coveredDates, eventsBySymbol } = options.corporateActions;
-    const requiredActionDates = index >= 0 ? tradingDates.slice(Math.max(0, index - 59), index + 1) : [];
-    const eventDates = new Set(requiredActionDates);
-    if (eventsBySymbol?.get(stock.symbol) && [...eventsBySymbol.get(stock.symbol).keys()].some((date) => eventDates.has(date)))
-      base.missingData.push("評估區間發生公司行動；未還原價格不適合直接評分");
-    else if (coveredDates && requiredActionDates.some((date) => !coveredDates.has(date)))
+    const { coveredDates } = options.corporateActions;
+    if (coveredDates && requiredActionDates.some((date) => !coveredDates.has(date)))
       base.conflictingEvidence.push("部分歷史日期尚未完成公司行動查核；採未還原價格評分");
   } else if (base.priceBasis === "unadjusted") {
     base.conflictingEvidence.push("未還原價格且未提供公司行動查核；除權息可能影響分數");
@@ -179,10 +200,10 @@ export function getEntryScore(stock, tradingDates, asOf, options = {}) {
     (today.k >= 20 && today.k < 80 ? 20 : today.k < 20 ? 10 : 0);
   const priceVolume = PRICE_VOLUME_SCORES[volumeSignal.code];
   const netRatio = net / fiveVolume;
-  const institution = clamp(50 + 50 * netRatio / 0.05, 0, 100) * 0.6 +
-    institutionDays.filter((bar) => getInstitutionalNet(bar.institutions) > 0).length * 5 +
-    INSTITUTION_NAMES.filter((name) => institutionDays.reduce((sum, bar) =>
-      sum + getInstitutionNet(bar.institutions, name), 0) > 0).length * 5;
+  const institutionBuyDays = institutionDays.filter((bar) => getInstitutionalNet(bar.institutions) > 0).length;
+  const institutionPositiveCategories = INSTITUTION_NAMES.filter((name) => institutionDays.reduce((sum, bar) =>
+    sum + getInstitutionNet(bar.institutions, name), 0) > 0).length;
+  const institution = institutionalScoreBreakdown(netRatio, institutionBuyDays, institutionPositiveCategories).score;
   const deviation20 = (today.close - today.ma20) / today.ma20 * 100;
   const riskDistance = (today.close - previous10Low) / today.close * 100;
   const atrPercent = atr14 / today.close * 100;
@@ -238,9 +259,13 @@ export function getEntryScore(stock, tradingDates, asOf, options = {}) {
     fiveAboveMa20: five.filter((bar) => bar.close > bar.ma20).length,
     rvol20: volumeSignal.rvol20, priceVolume: volumeSignal.label,
     institutionNet5: net, institutionVolume5: fiveVolume,
-    institutionBuyDays: institutionDays.filter((bar) => getInstitutionalNet(bar.institutions) > 0).length,
-    institutionPositiveCategories: INSTITUTION_NAMES.filter((name) => institutionDays.reduce((sum, bar) =>
-      sum + getInstitutionNet(bar.institutions, name), 0) > 0).length,
+    institutionBuyDays, institutionPositiveCategories,
     netRatio, deviation20, previous10Low, riskDistance, atr14, atrPercent };
   return base;
+}
+
+export function entryScoreDayChange(current, previous, previousDate) {
+  if (!previousDate || !Number.isFinite(current?.finalScore) || !Number.isFinite(previous?.finalScore))
+    return { previousDate: previousDate ?? null, delta: null };
+  return { previousDate, delta: Math.round((current.finalScore - previous.finalScore) * 100) / 100 };
 }

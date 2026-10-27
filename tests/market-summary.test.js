@@ -11,6 +11,7 @@ import { MarketSummaryCoordinator } from "../cloudflare/summary-coordinator.js";
 import { MANIFEST_KEY, shardKey } from "../cloudflare/storage/market-keys.js";
 import { testDatabase } from "./helpers/t86-db.js";
 import { CorporateActionRepository } from "../cloudflare/corporate-actions/repository.js";
+import { entryScoreDayChange } from "../shared/entry-score.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/twse-20261016.json", import.meta.url)));
 const catalog = normalizeCatalog(fixture.companies);
@@ -40,6 +41,7 @@ test("market summary matches existing indicators and omits market history", asyn
     assert.deepEqual(row.trend, original.trend);
     assert.equal(row.entryScore.modelVersion, "entry-score-v1.2");
     assert.equal(row.entryScore.totalScore, null);
+    assert.deepEqual(row.entryScoreChange, { previousDate: null, delta: null });
     assert.ok(row.entryScore.missingData.length > 0);
     assert.ok(!("categories" in row.entryScore));
     assert.deepEqual(row.dominantInstitution, getDominantInstitution(original.latest?.institutions));
@@ -63,6 +65,18 @@ test("market summary matches existing indicators and omits market history", asyn
   assert.equal(sector.data.name, catalog[0].sector);
   assert.ok(sector.data.members.length > 0);
   await assert.rejects(service.summary("2026-10-17", result.meta.settings), { code: "INVALID_QUERY" });
+});
+
+test("score changes compare final scores and preserve missing previous data", () => {
+  const previousDate = "2026-10-15";
+  assert.deepEqual(entryScoreDayChange({ finalScore: 81 }, { finalScore: 78.5 }, previousDate),
+    { previousDate, delta: 2.5 });
+  assert.deepEqual(entryScoreDayChange({ finalScore: 81 }, { finalScore: 83 }, previousDate),
+    { previousDate, delta: -2 });
+  assert.deepEqual(entryScoreDayChange({ finalScore: 81 }, { finalScore: 81 }, previousDate),
+    { previousDate, delta: 0 });
+  assert.deepEqual(entryScoreDayChange({ finalScore: 81 }, null, previousDate),
+    { previousDate, delta: null });
 });
 
 test("first browser load requests only manifest and latest summary", async () => {

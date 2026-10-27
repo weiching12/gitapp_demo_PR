@@ -23,7 +23,7 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(card.locator(".research-stock")).toContainText("模擬重算");
   await card.locator(".research-card-main").click();
   await expect(page.locator(".research-edit")).toHaveCount(0);
-  await expect(page.locator(".research-detail")).toContainText("追蹤價格表現");
+  await expect(page.locator(".research-detail")).toContainText("追蹤價格與評分");
   await expect(page.locator(".research-detail")).toContainText("加入時與目前研究差異");
   await expect(page.locator(".research-detail")).not.toContainText("基礎分數");
   await expect(page.locator(".research-detail")).not.toContainText("最終分數");
@@ -34,6 +34,13 @@ test("research center preserves favorites and opens existing score detail", asyn
   const same = page.locator(".research-card").first();
   await same.locator(".research-card-main").click();
   await expect(page.locator(".research-detail")).toContainText("研究追蹤");
+  await expect(page.locator(".research-tracking-facts > div")).toHaveCount(2);
+  await expect(page.locator(".research-tracking-facts")).toContainText("追蹤時間");
+  await expect(page.locator(".research-tracking-facts")).toContainText("追蹤時評分");
+  await expect(page.locator(".research-tracking-facts")).not.toContainText("最新保存快照");
+  await expect(page.locator(".research-review-summary")).toHaveCount(0);
+  await expect(page.locator(".research-chart-readout")).toContainText("收盤");
+  await expect(page.locator(".research-chart-readout")).toContainText("評分");
   await expect(page.locator("#dialog-heading")).toContainText("株研評分");
 });
 
@@ -157,7 +164,7 @@ test("phone history review opens on demand and chart responds to touch and keybo
   expect(Math.abs(alignment.codeY - alignment.nameY)).toBeLessThan(5);
   expect(alignment.gap).toBeGreaterThanOrEqual(0);
   await page.locator(".research-card-main").first().click();
-  await expect(page.locator(".research-review-detail")).toContainText("第 5 個交易日");
+  await expect(page.locator(".research-review-detail")).not.toContainText("基準後第 5 個交易日價格變化");
   await expect(page.locator(".research-chart-heading h4")).toHaveText("個股歷史評分");
   await expect(page.locator(".research-price-chart .research-chart-heading h5")).toHaveText("追蹤價格與評分");
   await page.getByLabel("個股歷史評分說明").click();
@@ -168,6 +175,7 @@ test("phone history review opens on demand and chart responds to touch and keybo
   await page.getByLabel("個股歷史評分說明").click();
   await page.getByLabel("追蹤價格與評分說明").click();
   await expect(page.locator(".research-chart-info").last()).toContainText("不代表實際投資報酬");
+  await expect(page.locator(".research-chart-info").last()).toContainText("變化點數");
   await page.getByLabel("追蹤價格與評分說明").click();
   const chart = page.locator(".research-chart-plot");
   await expect(chart).toBeVisible();
@@ -178,7 +186,11 @@ test("phone history review opens on demand and chart responds to touch and keybo
   await expect(page.locator(".research-chart-plot .price-marker")).not.toHaveCount(0);
   const series = await chart.evaluate((plot) => JSON.parse(plot.dataset.points));
   expect(series.every((point) => Object.hasOwn(point, "close") && Object.hasOwn(point, "score"))).toBe(true);
+  expect(series.every((point) => Object.hasOwn(point, "priceChange") && Object.hasOwn(point, "scoreChange"))).toBe(true);
   expect(series.some((point) => Number.isFinite(point.score))).toBe(true);
+  await chart.press("Home");
+  await expect(page.locator(".research-chart-readout")).toContainText(series[0].priceChange);
+  await expect(page.locator(".research-chart-readout")).toContainText(series[0].scoreChange);
   await page.locator('[data-review-range="20"]').click();
   await expect(page.locator(".research-price-chart")).toHaveAttribute("data-range", "20");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

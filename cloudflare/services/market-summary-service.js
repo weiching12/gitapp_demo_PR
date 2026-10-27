@@ -2,7 +2,7 @@ import { expandStock, shardOf, SHARD_COUNT, validSymbol } from "../../shared/mar
 import { getSnapshot, getStockInstitutionEstimate, getStockInstitutionSeries,
   getDominantInstitution, getInstitutionNet } from "../../shared/indicators.js";
 import { calculateMarketSentiment } from "../../shared/sentiment.js";
-import { entryScoreSummary, getEntryScore } from "../../shared/entry-score.js";
+import { entryScoreDayChange, entryScoreSummary, getEntryScore } from "../../shared/entry-score.js";
 import { DEFAULT_SETTINGS } from "../../shared/indicators.js";
 import { compareResearchSnapshots, researchConfigId, researchSnapshot } from "../../shared/research-tracking.js";
 import { reviewEventTimeline } from "../../shared/research-review.js";
@@ -55,22 +55,27 @@ export class MarketSummaryService {
       Object.keys(DEFAULT_SETTINGS).every((key) => settings[key] === DEFAULT_SETTINGS[key]));
     const capturedAt = capture ? new Date().toISOString() : null;
     const revisionId = capture ? `${manifest.generation}:${this.actions ? await this.actions.revision() : "no-actions"}` : null;
+    const previousDate = dates.at(-2) ?? null;
     const researchRows = [];
-    const data = stocks.map((stock) => ({
-      symbol: stock.symbol, name: stock.name, sector: stock.sector, market: stock.market,
-      assetType: stock.assetType, currency: stock.currency, listedOn: stock.listedOn,
-      latest: stock.latest, signal: stock.signal, priceVolume: stock.priceVolume,
-      trend: stock.trend, entryScore: (() => {
-        const score = getEntryScore(stock, dates, asOf,
-          { priceBasis: "unadjusted", corporateActions: actions });
-        if (capture) researchRows.push(researchSnapshot(score, { symbol: stock.symbol,
-          market: stock.market, asOf, capturedAt, generation: manifest.generation,
-          revisionId, settings }));
-        return entryScoreSummary(score);
-      })(),
-      dominantInstitution: getDominantInstitution(stock.latest?.institutions),
-      money: { day: { total: getStockInstitutionEstimate(stock, "total", "day", dates) } },
-    }));
+    const data = stocks.map((stock) => {
+      const score = getEntryScore(stock, dates, asOf,
+        { priceBasis: "unadjusted", corporateActions: actions, settings });
+      const previous = previousDate ? getSnapshot({ ...stock, tradingDates: dates }, previousDate, settings) : null;
+      const previousScore = previous ? getEntryScore(previous, dates, previousDate,
+        { priceBasis: "unadjusted", corporateActions: actions, settings }) : null;
+      if (capture) researchRows.push(researchSnapshot(score, { symbol: stock.symbol,
+        market: stock.market, asOf, capturedAt, generation: manifest.generation,
+        revisionId, settings }));
+      return {
+        symbol: stock.symbol, name: stock.name, sector: stock.sector, market: stock.market,
+        assetType: stock.assetType, currency: stock.currency, listedOn: stock.listedOn,
+        latest: stock.latest, signal: stock.signal, priceVolume: stock.priceVolume,
+        trend: stock.trend, entryScore: entryScoreSummary(score),
+        entryScoreChange: entryScoreDayChange(score, previousScore, previousDate),
+        dominantInstitution: getDominantInstitution(stock.latest?.institutions),
+        money: { day: { total: getStockInstitutionEstimate(stock, "total", "day", dates) } },
+      };
+    });
     const sectors = Object.fromEntries(WINDOWS.map((window) => [window,
       getSectorOverview(stocks, { window, sort: "net-desc", tradingDates: dates, asOf })
         .map(({ stocks: _stocks, leader, ...sector }) => ({ ...sector,

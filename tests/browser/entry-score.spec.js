@@ -21,7 +21,8 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   const initialScores = await rows.locator(".entry-score-button strong").allTextContents();
   const initialNumeric = initialScores.map((value) => Number(value)).filter(Number.isFinite);
   expect(initialNumeric).toEqual([...initialNumeric].sort((a, b) => b - a));
-  await expect(rows.first().locator(".entry-score-button")).toHaveText(/^\d+\.\d{2}$/);
+  await expect(rows.first().locator(".entry-score-button strong")).toHaveText(/^\d+\.\d{2}$/);
+  await expect(rows.first().locator(".entry-score-change")).toContainText(/較前日|前日資料不足/);
   const firstListScore = await rows.first().locator(".entry-score-button strong").textContent();
   const firstSymbol = await rows.first().getAttribute("data-symbol");
   await rows.first().locator(".entry-score-button").click();

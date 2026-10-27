@@ -18,7 +18,7 @@ export class AnalysisService {
     const dates = source.stock.tradingDates.filter((date) => date <= asOf);
     const actions = this.actions ? await this.actions.window(dates.slice(-61)) : null;
     const entryScore = getEntryScore(snapshot, dates, asOf,
-      { priceBasis: "unadjusted", corporateActions: actions });
+      { priceBasis: "unadjusted", corporateActions: actions, settings });
     const money = Object.fromEntries(["day", "5", "20"].map((window) => [window,
       Object.fromEntries(["total", "外資", "投信", "自營商"].map((name) => [name,
         getStockInstitutionEstimate(snapshot, name, window, dates)]))]));

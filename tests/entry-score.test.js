@@ -1,10 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analyzeHistory, getSnapshot } from "../shared/indicators.js";
-import { ENTRY_WEIGHTS, getQualifiedEntryScore, evaluateCoreConditions, getAtr14, getEntryScore } from "../shared/entry-score.js";
+import { ENTRY_WEIGHTS, getQualifiedEntryScore, evaluateCoreConditions, getAtr14, getEntryScore, institutionalScoreBreakdown } from "../shared/entry-score.js";
+
 import { MarketSummaryService } from "../cloudflare/services/market-summary-service.js";
 import { AnalysisService } from "../cloudflare/services/analysis-service.js";
 import { SHARD_COUNT, shardOf } from "../shared/market-codec.js";
+import { referenceAdjustedDividendHistory } from "../shared/corporate-actions.js";
+
+test("institutional score explanation uses the same capped components as the model", () => {
+  assert.deepEqual(institutionalScoreBreakdown(2934000 / 42052054, 4, 3), {
+    ratioScore: 100, ratioContribution: 60, dayContribution: 20,
+    categoryContribution: 15, score: 95,
+  });
+});
 
 function fixture(overrides = {}) {
   const dates = Array.from({ length: 75 }, (_, index) =>
@@ -202,6 +211,29 @@ test("known unadjusted corporate action rejects score; unverified dates are stat
   const noEvent = score(dates.at(-1), { corporateActions: { ...options.corporateActions,
     eventsBySymbol: new Map() } });
   assert.ok(noEvent.conflictingEvidence.some((item) => item.includes("未還原價格")));
+});
+
+test("verified cash dividend uses official reference price and restores scoring", () => {
+  const { stock, dates, score } = fixture();
+  const date = dates.at(-30), previousClose = stock.history.at(-31).close;
+  const actions = { coveredDates: new Set(dates), eventsBySymbol: new Map([[stock.symbol,
+    new Map([[date, { kind: "息", beforeClose: previousClose, reference: previousClose - 2 }]])]]) };
+  const raw = stock.history.map((bar) => ({ ...bar }));
+  const result = score(dates.at(-1), { priceBasis: "unadjusted", corporateActions: actions });
+  assert.ok(Number.isFinite(result.finalScore));
+  assert.equal(result.priceBasis, "reference-adjusted");
+  assert.ok(result.conflictingEvidence.some((text) => text.includes("除息參考價")));
+  assert.deepEqual(stock.history, raw);
+  const adjusted = referenceAdjustedDividendHistory(stock.history, actions.eventsBySymbol.get(stock.symbol));
+  assert.equal(adjusted.at(-31).close, previousClose * (previousClose - 2) / previousClose);
+  assert.equal(adjusted.at(-30).close, stock.history.at(-30).close);
+  for (const event of [{ kind: "息", beforeClose: previousClose + 1, reference: previousClose - 2 },
+    { kind: "減資", beforeClose: previousClose, reference: previousClose - 2 }]) {
+    actions.eventsBySymbol.get(stock.symbol).set(date, event);
+    const blocked = score(dates.at(-1), { priceBasis: "unadjusted", corporateActions: actions });
+    assert.equal(blocked.finalScore, null);
+    assert.ok(blocked.missingData.some((text) => text.includes("公司行動")));
+  }
 });
 
 test("market Summary API and stock Analysis API return the same score on selected dates", async () => {

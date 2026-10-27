@@ -22,7 +22,7 @@ import { bindResponsiveSearchOrder } from "./ui/responsive-layout.js";
 import { bindKeyboardNavigation } from "./ui/keyboard.js";
 import { createTableBatchController } from "./ui/table-batches.js";
 import { calculateMarketSentiment } from "../shared/sentiment.js";
-import { getEntryScore } from "../shared/entry-score.js";
+import { entryScoreDayChange, getEntryScore } from "../shared/entry-score.js";
 import { compareResearchSnapshots, researchSnapshot } from "../shared/research-tracking.js";
 import { activeResearchPeriod, addResearchPeriod, loadResearchStore, persistResearchStore, recordFirstValidSnapshot, recordFirstValidPriceBaseline, removeResearchPeriod } from "./ui/research-store.js";
 import { renderResearchCenter, researchDetailMarkup, selectResearchScorePoint } from "./ui/research.js";
@@ -329,6 +329,12 @@ function refreshData() {
   latestSnapshots = cached(dataset.info.asOf, latestCache);
   snapshots = state.date === dataset.info.asOf ? latestSnapshots
     : cached(state.date, historicalCache);
+  const previousDate = dataset.dates[dataset.dates.indexOf(state.date) - 1] ?? null;
+  const previousSnapshots = previousDate ? cached(previousDate, historicalCache) : [];
+  const previousBySymbol = new Map(previousSnapshots.map((stock) => [stock.symbol, stock]));
+  for (const stock of snapshots)
+    stock.entryScoreChange = entryScoreDayChange(stock.entryScore,
+      previousBySymbol.get(stock.symbol)?.entryScore, previousDate);
   currentSentiment = calculateMarketSentiment(latestSnapshots, dataset.info.asOf, 20, dataset.dates);
   renderSentiment(currentSentiment);
   renderTable();
