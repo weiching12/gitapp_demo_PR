@@ -774,7 +774,8 @@ h1 {
 .entry-dialog h2 { flex: 1; min-width: 0; margin: 6px 0 4px; font-size: 20px; line-height: 1.4; }
 .entry-dialog-title .favorite-button { flex: none; }
 .entry-dialog-meta { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
-.entry-summary { padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--accent-soft); }
+.entry-summary { padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: #f1f5f9; }
+[data-theme="dark"] .entry-summary { background: #1a293a; }
 .entry-summary-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; }
 .entry-summary-head strong { font-size: 30px; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .entry-summary-head span { font-weight: 600; }
@@ -782,7 +783,7 @@ h1 {
 .entry-summary-facts div, .entry-condition-data span { min-width: 0; }
 .entry-summary-facts dt, .entry-condition-data dt { color: var(--muted); font-size: 12px; }
 .entry-summary-facts dd, .entry-condition-data dd { margin: 3px 0 0; font-variant-numeric: tabular-nums; }
-.entry-price-chart { --ma20-tone: #b47b20; margin-top: 20px; }
+.entry-price-chart { --ma20-tone: #b47b20; margin-top: 24px; padding-top: 18px; box-shadow: inset 0 1px var(--border); }
 [data-theme="dark"] .entry-price-chart { --ma20-tone: #f3bc66; }
 .entry-price-chart[data-trend="up"] { --chart-tone: var(--up); }
 .entry-price-chart[data-trend="down"] { --chart-tone: var(--down); }
@@ -847,9 +848,9 @@ h1 {
 .entry-condition-kd-chart.hide-d .entry-kd-point-label.d,
 .entry-condition-kd-chart.hide-d .entry-chart-d { display: none; }
 .entry-condition-kd-chart .entry-chart-dates { padding-left: 0; padding-right: 24px; }
-.entry-categories, .entry-evidence { margin-top: 22px; }
-.entry-categories h3, .entry-evidence h3 { margin: 0 0 12px; font-size: 16px; }
-.entry-core-panel { padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.entry-categories, .entry-evidence { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border); }
+.entry-categories h3, .entry-evidence h3 { margin: 0 0 14px; font-size: 16px; }
+.entry-core-panel { padding: 18px 0 0; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 0; }
 .entry-condition-list { display: grid; }
 .entry-condition + .entry-condition { border-top: 1px solid var(--border); }
 .entry-condition summary { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; cursor: pointer; list-style: none; }

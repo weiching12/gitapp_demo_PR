@@ -138,7 +138,7 @@ const coreData = (data, esc, number) => Object.entries(data ?? {}).map(([key, va
 
 export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = false, icon = () => "", trackingHtml = "") {
   const score = stock.entryScore;
-  const heading = `<p class="entry-dialog-sector">${esc(stock.sector ?? "產業未分類")}</p><div class="entry-dialog-title"><h2 id="dialog-heading">${esc(stock.symbol)} ${esc(stock.name)}｜株研評分</h2><button type="button" class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${esc(stock.symbol)}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></div>`;
+  const heading = `<p class="entry-dialog-sector">${esc(stock.sector ?? "產業未分類")}</p><div class="entry-dialog-title"><button type="button" class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${esc(stock.symbol)}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button><h2 id="dialog-heading">${esc(stock.symbol)} ${esc(stock.name)}｜株研評分</h2></div>`;
   if (!score) return `${heading}<p>資料不足，無法評分。</p>${trackingHtml}`;
   const valid = Number.isFinite(score.finalScore);
   if (!score.categories || !Object.keys(score.categories).length && valid)
