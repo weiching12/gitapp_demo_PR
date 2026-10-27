@@ -34,7 +34,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
         <div id="app-status" class="app-status" role="status" hidden><span></span></div>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>
         <section id="watchlist" data-page-panel="favorites" aria-label="株研追蹤" hidden>
-          <section class="research-center" aria-label="自選股評分與研究異動"><div id="research-stats" class="research-stats"></div><div class="research-controls"><label>排序 <select id="research-sort"><option value="score">最終分數</option><option value="change">收藏後變化</option></select></label><label>篩選 <select id="research-filter"><option value="all">全部追蹤</option><option value="improved">必要條件改善</option><option value="lost">必要條件失效</option><option value="important">重要異動</option></select></label></div><div id="research-list" class="research-list"></div></section>
+          <section class="research-center" aria-label="自選股評分與研究異動"><div id="research-stats" class="research-stats"></div><div class="research-controls"><label>排序 <select id="research-sort"><option value="score">分數</option><option value="change">收藏後變化</option></select></label><label>篩選 <select id="research-filter"><option value="all">全部追蹤</option><option value="improved">必要條件改善</option><option value="lost">必要條件失效</option><option value="important">重要異動</option></select></label></div><div id="research-list" class="research-list"></div></section>
         </section>
         <section id="market-sentiment" class="market-sentiment" data-page-panel="market" data-sentiment="unknown" aria-labelledby="sentiment-title">
           <button type="button" data-dialog="sentiment" aria-haspopup="dialog">

@@ -151,7 +151,7 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
     <section class="entry-summary"><div class="entry-summary-head"><strong${valid ? ` data-score-target="${score.finalScore}"` : ""}>${valid ? `${number(score.finalScore, 2)} / 100` : "—"}</strong><span>${esc(score.status)}</span></div>
       <dl class="entry-summary-facts"><div><dt>核心條件</dt><dd>${score.passedCount ?? 0} / ${score.totalConditions ?? 5} 通過</dd></div>
       <div><dt>收盤／漲跌</dt><dd>${stock.latest ? number(stock.latest.close, 2) : "—"}／${stock.latest ? percent(stock.latest.changePercent) : "—"}</dd></div>
-      ${valid ? `<div><dt>基礎分數</dt><dd>${number(score.baseScore, 2)}</dd></div><div><dt>最終分數</dt><dd>${number(score.finalScore, 2)}</dd></div>` : ""}</dl></section>
+      </dl></section>
     ${priceChartMarkup(stock, esc, number, chartSeries)}
     <section class="entry-evidence entry-core-panel"><h3>核心條件檢查</h3><div class="entry-condition-list">${Object.entries(CORE_LABELS).map(([key, label]) => {
       const item = score.coreConditions?.[key];
@@ -163,8 +163,8 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
       return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span></summary><div class="entry-condition-detail">${key === "momentum" ? kdChartMarkup(chartSeries, esc, number, item?.data) : data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>"}</div></details>`;
     }).join("")}</div></section>
     ${valid ? `<section class="entry-categories"><h3>五項評分明細</h3>${Object.entries(score.categories).map(([key, item]) =>
-      `<div class="entry-category ${score.coreConditions?.[key]?.status === "PASS" ? "" : "excluded"}"><div><strong>${esc(item.label)}</strong><span>權重 ${item.weight}% · 基礎貢獻 ${number(item.creditedContribution ?? (score.coreConditions?.[key]?.status === "PASS" ? item.contribution : 0), 2)}</span></div><small>${number(item.score, 2)} 分${score.coreConditions?.[key]?.status === "PASS" ? "" : " · 條件未通過，計入 0.00"}</small><progress value="${item.score}" max="100" aria-label="${esc(item.label)}"></progress></div>`).join("")}
-      <p>基礎加權分數 ${number(score.baseScore, 2)}；通過條件計入 ${number(score.qualifiedScore, 2)}。未通過條件的貢獻不計入最終分數。</p></section>
+      `<div class="entry-category ${score.coreConditions?.[key]?.status === "PASS" ? "" : "excluded"}"><div><strong>${esc(item.label)}</strong><span>權重 ${item.weight}% · 計入分數 ${number(item.creditedContribution ?? (score.coreConditions?.[key]?.status === "PASS" ? item.contribution : 0), 2)}</span></div><small>${number(item.score, 2)} 分${score.coreConditions?.[key]?.status === "PASS" ? "" : " · 條件未通過，計入 0.00"}</small><progress value="${item.score}" max="100" aria-label="${esc(item.label)}"></progress></div>`).join("")}
+      <p>未通過核心條件的構面貢獻不計入分數。</p></section>
       <section class="entry-evidence entry-more"><details><summary>支持條件、風險與後續觀察</summary>
       ${guideItem("01", "支持條件", list(score.supportingEvidence, esc, "目前沒有符合的支持條件。"))}
       ${guideItem("02", "疑慮與風險", list(score.conflictingEvidence, esc, "目前沒有額外風險提示。"))}

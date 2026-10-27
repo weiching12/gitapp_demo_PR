@@ -39,6 +39,9 @@ test("compares both scores, cap transitions, conditions and threshold with stabl
   assert.equal(result.capChanged, true);
   assert.ok(result.events.some((event) => event.type === "cap-enabled"));
   assert.ok(result.events.some((event) => event.type === "final-score-change"));
+  assert.equal(result.events.some((event) => event.type === "base-score-change"), false);
+  assert.match(result.summary, /^分數下降 10\.00 分/);
+  assert.doesNotMatch(result.summary, /基礎分數|最終分數/);
   assert.deepEqual(result.events.map((event) => event.key),
     compareResearchSnapshots(after, before, "2026-10-15").events.map((event) => event.key));
   assert.equal(RESEARCH_CHANGE_THRESHOLD, 10);

@@ -11,6 +11,8 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(page.locator("#research-stats")).toContainText("追蹤股票");
   await expect(page.locator("#research-list table")).toBeVisible();
   await expect(page.locator("#research-list thead")).toContainText("最新異動");
+  await expect(page.locator("#research-list thead")).toContainText("分數");
+  await expect(page.locator("#research-list thead")).not.toContainText("最終分數");
   const card = page.locator(".research-card").first();
   await expect(card).toBeVisible();
   await expect(card.locator(".research-delta")).toBeVisible();
@@ -23,6 +25,9 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(page.locator(".research-edit")).toHaveCount(0);
   await expect(page.locator(".research-detail")).toContainText("追蹤價格表現");
   await expect(page.locator(".research-detail")).toContainText("加入時與目前研究差異");
+  await expect(page.locator(".research-detail")).not.toContainText("基礎分數");
+  await expect(page.locator(".research-detail")).not.toContainText("最終分數");
+  await expect(page.locator(".entry-summary")).not.toContainText("基礎分數");
   await expect(page.locator("#research-note-form")).toHaveCount(0);
   await page.reload();
   await page.getByRole("button", { name: "株研追蹤" }).first().click();

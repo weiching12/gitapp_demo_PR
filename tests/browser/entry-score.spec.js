@@ -33,7 +33,8 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(page.locator(".entry-summary-reason")).toHaveCount(0);
   await expect(page.locator(".entry-summary-head strong")).toContainText(firstListScore);
   await expect(page.locator(".entry-summary-head strong")).toHaveAttribute("data-score-target", String(Number(firstListScore)));
-  await expect(page.locator(".entry-summary-facts dd").last()).toContainText(firstListScore);
+  await expect(page.locator(".entry-summary-facts")).not.toContainText("基礎分數");
+  await expect(page.locator(".entry-summary-facts")).not.toContainText("最終分數");
   const chart = page.locator(".entry-price-chart");
   const plot = chart.locator(".entry-chart-plot");
   await expect(chart.locator("h3")).toBeVisible();
@@ -134,11 +135,11 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(kdChart.locator(".entry-chart-k")).toBeVisible();
   await expect(page.locator(".entry-dialog-meta")).not.toContainText("未還原價格");
   await expect(page.locator(".entry-category")).toHaveCount(5);
-  await expect(page.locator(".entry-category").first().locator("div span")).toContainText("權重 25% · 基礎貢獻");
+  await expect(page.locator(".entry-category").first().locator("div span")).toContainText("權重 25% · 計入分數");
   await expect(page.locator(".entry-category").first().locator("small")).toHaveText(/^\d+\.\d{2} 分$/);
   const excluded = page.locator(".entry-category.excluded");
   if (await excluded.count()) {
-    await expect(excluded.first().locator("div span")).toContainText("基礎貢獻 0.00");
+    await expect(excluded.first().locator("div span")).toContainText("計入分數 0.00");
     await expect(page.locator(".entry-summary-head span")).toHaveText("核心條件不通過");
   }
   await page.locator(".entry-more > details").first().locator("summary").click();

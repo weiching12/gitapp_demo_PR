@@ -17,12 +17,13 @@ export function researchReviewSummary(period, row, esc) {
   const baseline = result.baseline;
   const initial = reviewInitialScore(period, row.latest);
   const initialText = initial.status === "comparable" || initial.status === "same-snapshot"
-    ? `加入時／首次有效快照 ${esc(initial.initial.asOf)} → ${esc(row.latest.asOf)}：基礎 ${fmt(initial.baseDelta)} 分、最終 ${fmt(initial.finalDelta)} 分`
+    ? `加入時／首次有效快照 ${esc(initial.initial.asOf)} → ${esc(row.latest.asOf)}：分數變化 ${initial.finalDelta > 0 ? "+" : ""}${fmt(initial.finalDelta)} 分`
     : initial.status === "incompatible" ? "設定不同，無法直接比較評分" : "缺少加入時可比評分快照";
-  const latestEvent = row?.timeline?.at(-1) ?? row?.events?.at(-1);
+  const latestEvent = (row?.timeline ?? row?.events ?? []).filter((event) => event.type !== "base-score-change").at(-1);
+  const latestReason = latestEvent?.type === "final-score-change" ? latestEvent.reason?.replace(/^最終分數/, "分數") : latestEvent?.reason;
   return `<div class="research-review-summary"><p>${baseline ? `${result.baselineType === "join" ? "加入時基準" : "自首次有效價格起"} ${esc(baseline.asOf)} · ${fmt(baseline.close)} · ${esc(baseline.source)}` : "加入時沒有可靠價格基準"}</p>
     <dl>${[5, 10, 20].map((day) => `<div><dt>第 ${day} 個交易日</dt><dd>${result.milestones[day].status === "pending" ? `尚未滿 ${day} 個交易日` : `${result.milestones[day].date ? `${esc(result.milestones[day].date)} · ` : ""}${resultText(result.milestones[day])}`}</dd></div>`).join("")}
-    <div><dt>截至 ${esc(result.latestDate ?? "最新交易日")}</dt><dd>${resultText(result.latest)}</dd></div></dl><p>${initialText}</p><p>最近研究事件：${latestEvent ? `${esc(latestEvent.toDate)} · ${esc(latestEvent.reason)}` : "尚無可確認事件"}</p>
+    <div><dt>截至 ${esc(result.latestDate ?? "最新交易日")}</dt><dd>${resultText(result.latest)}</dd></div></dl><p>${initialText}</p><p>最近研究事件：${latestEvent ? `${esc(latestEvent.toDate)} · ${esc(latestReason)}` : "尚無可確認事件"}</p>
     <small>價格變化採未還原收盤價，未計入股息；有公司行動或待查核區間不顯示可比變化。${row.review.source === "demo" ? "本機示範價格及平日曆，非真實市場資料。" : ""}</small></div>`;
 }
 

@@ -77,14 +77,11 @@ export function compareResearchSnapshots(current, previous, expectedPreviousDate
   if (Boolean(previous.cap?.enabled) !== Boolean(current.cap?.enabled))
     add(current.cap?.enabled ? "cap-enabled" : "cap-released",
       current.cap?.enabled ? `啟用 ${current.cap.value} 分上限：${current.cap.reason}` : "分數上限解除");
-  if (Math.abs(baseDelta) >= RESEARCH_CHANGE_THRESHOLD)
-    add("base-score-change", `基礎分數${baseDelta > 0 ? "提高" : "下降"} ${Math.abs(baseDelta).toFixed(2)} 分`);
   if (Math.abs(finalDelta) >= RESEARCH_CHANGE_THRESHOLD)
-    add("final-score-change", `最終分數${finalDelta > 0 ? "提高" : "下降"} ${Math.abs(finalDelta).toFixed(2)} 分`);
-  const summary = [baseDelta ? `基礎分數${baseDelta > 0 ? "提高" : "下降"} ${Math.abs(baseDelta).toFixed(2)} 分` : "基礎分數持平",
+    add("final-score-change", `分數${finalDelta > 0 ? "提高" : "下降"} ${Math.abs(finalDelta).toFixed(2)} 分`);
+  const summary = [finalDelta ? `分數${finalDelta > 0 ? "提高" : "下降"} ${Math.abs(finalDelta).toFixed(2)} 分` : "分數持平",
     ...events.filter(({ type }) => type.startsWith("trend-") || type.startsWith("momentum-") ||
-      type.startsWith("institutional-") || type.startsWith("cap-")).map(({ reason }) => reason),
-    finalDelta ? `最終分數${finalDelta > 0 ? "提高" : "下降"} ${Math.abs(finalDelta).toFixed(2)} 分` : "最終分數持平"].join("；");
+      type.startsWith("institutional-") || type.startsWith("cap-")).map(({ reason }) => reason)].join("；");
   return { status: "comparable", baseDelta, finalDelta, categoryDeltas, events, summary,
     dates: [previous.asOf, current.asOf], capChanged: Boolean(previous.cap?.enabled) !== Boolean(current.cap?.enabled),
     conditionsImproved: CORE_KEYS.some((key) => previous.conditions[key].status === "FAIL" && current.conditions[key].status === "PASS"),
