@@ -41,8 +41,10 @@ export function researchCardTrend(period, row) {
 }
 
 function scoreChart(history) {
-  const points = [...history].sort((a, b) => a.asOf.localeCompare(b.asOf));
-  if (points.length < 2) return '<p class="research-muted">已保存的交易日快照不足，尚無法繪製歷史圖。</p>';
+  const points = [...history].filter((item) => item.valid && Number.isFinite(item.finalScore))
+    .sort((a, b) => a.asOf.localeCompare(b.asOf));
+  const heading = '<div class="research-chart-heading"><details class="research-chart-info"><summary aria-label="個股歷史評分說明"><span aria-hidden="true">ⓘ</span></summary><p>顯示這檔股票各交易日可取得的株研評分，觀察研究條件符合程度如何變化。可能包含收藏前的評分；沒有可用分數的日期不列入圖表。</p></details><h4>個股歷史評分</h4></div>';
+  if (!points.length) return `<div class="research-chart">${heading}<p class="research-muted">目前沒有可繪製的有效評分。</p></div>`;
   const line = (key, color) => {
     let segments = [], current = [];
     points.forEach((item, index) => {
@@ -51,15 +53,16 @@ function scoreChart(history) {
         if (current.length > 1) segments.push(current);
         current = [];
       }
-      if (item.valid && Number.isFinite(item[key])) current.push(`${8 + index * 284 / (points.length - 1)},${106 - item[key] * .9}`);
+      if (item.valid && Number.isFinite(item[key])) current.push(`${8 + index * 284 / Math.max(1, points.length - 1)},${106 - item[key] * .9}`);
     });
     if (current.length > 1) segments.push(current);
     return segments.map((segment) => `<polyline points="${segment.join(" ")}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>`).join("");
   };
   const last = points.at(-1);
   const markers = points.map((point, index) => point.cap?.enabled && point.valid
-    ? `<circle cx="${8 + index * 284 / (points.length - 1)}" cy="${106 - point.finalScore * .9}" r="3" fill="#e19971"><title>${point.asOf} · 上限 ${point.cap.value}</title></circle>` : "").join("");
-  return `<div class="research-chart"><p class="research-score-readout" aria-live="polite">${last.asOf} · ${fmt(last.finalScore)} 分${last.cap?.enabled ? ` · 上限 ${fmt(last.cap.value)}` : ""}${last.source === "historical-recalculation" ? " · 歷史重算" : ""}</p><div class="research-score-plot" role="slider" tabindex="0" aria-label="分數歷史；點選或水平拖曳查看" aria-valuemin="1" aria-valuemax="${points.length}" aria-valuenow="${points.length}" data-points="${encodeURIComponent(JSON.stringify(points.map((point) => ({ date: point.asOf, finalScore: point.finalScore ?? null, cap: point.cap ?? null, source: point.source ?? null }))))}"><svg viewBox="0 0 300 116" preserveAspectRatio="none" aria-hidden="true"><path d="M8 16H292M8 61H292M8 106H292" stroke="currentColor" opacity=".15"/>${line("finalScore", "#6a9cff")}${markers}<line class="cursor" x1="292" x2="292" y1="16" y2="106"/></svg></div><div><span>${points[0].asOf}</span><span>圓點：分數上限</span><span>${points.at(-1).asOf}</span></div></div>`;
+    ? `<circle cx="${8 + index * 284 / Math.max(1, points.length - 1)}" cy="${106 - point.finalScore * .9}" r="3" fill="#e19971"><title>${point.asOf} · 上限 ${point.cap.value}</title></circle>` : "").join("");
+  const singleMarker = points.length === 1 ? `<circle cx="8" cy="${106 - last.finalScore * .9}" r="3" fill="#6a9cff"><title>${last.asOf} · ${fmt(last.finalScore)} 分</title></circle>` : "";
+  return `<div class="research-chart">${heading}<p class="research-score-readout" aria-live="polite">${last.asOf} · ${fmt(last.finalScore)} 分${last.cap?.enabled ? ` · 上限 ${fmt(last.cap.value)}` : ""}${last.source === "historical-recalculation" ? " · 歷史重算" : ""}</p>${points.length === 1 ? '<p class="research-muted">目前只有一筆有效評分，尚無跨日變化。</p>' : ""}<div class="research-score-plot" role="slider" tabindex="0" aria-label="分數歷史；點選或水平拖曳查看" aria-valuemin="1" aria-valuemax="${points.length}" aria-valuenow="${points.length}" data-points="${encodeURIComponent(JSON.stringify(points.map((point) => ({ date: point.asOf, finalScore: point.finalScore ?? null, cap: point.cap ?? null, source: point.source ?? null }))))}"><svg viewBox="0 0 300 116" preserveAspectRatio="none" aria-hidden="true"><path d="M8 16H292M8 61H292M8 106H292" stroke="currentColor" opacity=".15"/>${line("finalScore", "#6a9cff")}${markers}${singleMarker}<line class="cursor" x1="${points.length === 1 ? 8 : 292}" x2="${points.length === 1 ? 8 : 292}" y1="16" y2="106"/></svg></div><div><span>${points[0].asOf}</span><span>${points.length > 1 ? "圓點：分數上限" : "僅一筆有效評分"}</span><span>${points.at(-1).asOf}</span></div></div>`;
 }
 
 export function selectResearchScorePoint(plot, index) {

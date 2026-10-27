@@ -808,13 +808,12 @@ function bindEvents() {
     }
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.reviewMode || button.dataset.reviewRange) {
+    if (button.dataset.reviewRange) {
       const chart = button.closest(".research-price-chart");
       const symbol = chart?.dataset.reviewSymbol;
       const period = activeResearchPeriod(researchStore, symbol);
       if (chart && period) chart.outerHTML = researchPriceChart(period, researchRows.get(symbol), esc,
-        button.dataset.reviewMode ?? chart.dataset.mode,
-        Number(button.dataset.reviewRange ?? chart.dataset.range));
+        Number(button.dataset.reviewRange));
       return;
     }
     if (button.dataset.chartSeries) {

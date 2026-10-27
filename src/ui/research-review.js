@@ -1,4 +1,4 @@
-import { reviewInitialScore, reviewMilestones, reviewPriceStatus } from "../../shared/research-review.js";
+import { reviewInitialScore, reviewMilestones } from "../../shared/research-review.js";
 
 const fmt = (value) => Number.isFinite(value) ? value.toFixed(2) : "—";
 const signed = (value) => Number.isFinite(value) ? `${value > 0 ? "+" : ""}${(value * 100).toFixed(2)}%` : "—";
@@ -27,7 +27,7 @@ export function researchReviewSummary(period, row, esc) {
     <small>價格變化採未還原收盤價，未計入股息；有公司行動或待查核區間不顯示可比變化。${row.review.source === "demo" ? "本機示範價格及平日曆，非真實市場資料。" : ""}</small></div>`;
 }
 
-export function researchPriceChart(period, row, esc, mode = "index", range = 60) {
+export function researchPriceChart(period, row, esc, range = 60) {
   const review = row?.review;
   const baseline = period?.baseline ?? period?.firstValidPriceBaseline;
   if (!review || !baseline) return '<p class="research-muted">缺少可靠價格基準或價格資料，無法繪製追蹤價格走勢。</p>';
@@ -35,32 +35,36 @@ export function researchPriceChart(period, row, esc, mode = "index", range = 60)
   if (base < 0) return '<p class="research-muted">基準日期已超出可查詢的歷史範圍，無法繪製連續走勢。</p>';
   const dates = review.dates.slice(Math.max(base, review.dates.length - range));
   const byDate = new Map(review.bars.map((bar) => [bar.date, bar.close]));
-  const points = dates.map((date) => {
-    const status = reviewPriceStatus(baseline, date, review);
-    return { date, value: mode === "actual" ? byDate.get(date) ?? null : status.index,
-      status: status.status, close: byDate.get(date) ?? null };
-  });
-  const values = points.map((point) => point.value).filter((value) => Number.isFinite(value) && value > 0);
-  if (!values.length) return '<p class="research-muted">此區間沒有可比的價格資料。</p>';
+  const scores = new Map((row.history ?? []).filter((snap) => snap.valid && Number.isFinite(snap.finalScore))
+    .map((snap) => [snap.asOf, snap.finalScore]));
+  const points = dates.map((date) => ({ date, close: byDate.get(date) ?? null, score: scores.get(date) ?? null }));
+  const values = points.map((point) => point.close).filter((value) => Number.isFinite(value) && value > 0);
+  if (!values.length) return '<p class="research-muted">此區間沒有有效收盤價資料。</p>';
   const lo = Math.min(...values), hi = Math.max(...values), pad = Math.max((hi - lo) * .1, hi * .01);
   const x = (index) => 12 + index * 296 / Math.max(1, points.length - 1);
-  const y = (value) => 108 - (value - lo + pad) / (hi - lo + pad * 2) * 90;
-  const segments = []; let current = [];
-  for (const [index, point] of points.entries()) {
-    if (!Number.isFinite(point.value) || point.value <= 0) {
-      if (current.length > 1) segments.push(current);
-      current = [];
-    } else current.push(`${x(index).toFixed(1)},${y(point.value).toFixed(1)}`);
-  }
-  if (current.length > 1) segments.push(current);
+  const priceY = (value) => 108 - (value - lo + pad) / (hi - lo + pad * 2) * 90;
+  const scoreY = (value) => 108 - Math.max(0, Math.min(100, value)) * .9;
+  const segments = (key, y) => {
+    const result = []; let current = [];
+    for (const [index, point] of points.entries()) {
+      if (!Number.isFinite(point[key]) || (key === "close" && point.close <= 0)) {
+        if (current.length > 1) result.push(current);
+        current = [];
+      } else current.push(`${x(index).toFixed(1)},${y(point[key]).toFixed(1)}`);
+    }
+    if (current.length > 1) result.push(current);
+    return result.map((segment) => `<polyline points="${segment.join(" ")}" class="${key}-line"/>`).join("");
+  };
   const milestoneDates = [5, 10, 20].map((day) => review.dates[base + day]).filter(Boolean);
   const eventDates = new Set((row.timeline ?? []).map((event) => event.toDate));
-  const markers = points.map((point, index) => !Number.isFinite(point.value) ? "" :
-    `<circle cx="${x(index).toFixed(1)}" cy="${y(point.value).toFixed(1)}" r="${milestoneDates.includes(point.date) || eventDates.has(point.date) ? 3 : 1.5}" class="${eventDates.has(point.date) ? "event" : ""}"><title>${esc(point.date)} ${fmt(point.value)}${eventDates.has(point.date) ? " · 研究事件" : ""}</title></circle>`).join("");
+  const markers = points.map((point, index) => !Number.isFinite(point.close) || point.close <= 0 ? "" :
+    `<circle cx="${x(index).toFixed(1)}" cy="${priceY(point.close).toFixed(1)}" r="${milestoneDates.includes(point.date) || eventDates.has(point.date) ? 3 : 1.5}" class="price-marker${eventDates.has(point.date) ? " event" : ""}"><title>${esc(point.date)} 收盤 ${fmt(point.close)}${eventDates.has(point.date) ? " · 研究事件" : ""}</title></circle>`).join("");
+  const scoreMarkers = points.map((point, index) => Number.isFinite(point.score)
+    ? `<circle cx="${x(index).toFixed(1)}" cy="${scoreY(point.score).toFixed(1)}" r="2.5" class="score-marker"><title>${esc(point.date)} 評分 ${fmt(point.score)}</title></circle>` : "").join("");
   const last = points.at(-1);
-  return `<div class="research-price-chart" data-mode="${mode}" data-range="${range}" data-review-symbol="${esc(period.symbol)}"><div class="research-chart-controls"><button type="button" data-review-mode="index" aria-pressed="${mode === "index"}">基準 100</button><button type="button" data-review-mode="actual" aria-pressed="${mode === "actual"}">實際價格</button><span></span>${[20, 60, 120].map((days) => `<button type="button" data-review-range="${days}" aria-pressed="${range === days}">${days} 日</button>`).join("")}</div>
-    <p class="research-chart-readout" aria-live="polite">${esc(last.date)} · ${mode === "index" ? "相對指數" : "收盤價"} ${fmt(last.value)}${last.status !== "comparable" ? ` · ${stateText[last.status] ?? "資料不足"}` : ""}</p>
-    <div class="research-chart-plot" role="slider" tabindex="0" aria-label="追蹤價格走勢；點選或水平拖曳查看交易日" aria-valuemin="1" aria-valuemax="${points.length}" aria-valuenow="${points.length}" data-points="${esc(JSON.stringify(points))}"><svg viewBox="0 0 320 124" preserveAspectRatio="none" aria-hidden="true"><path d="M12 18H308M12 63H308M12 108H308" class="grid"/>${segments.map((segment) => `<polyline points="${segment.join(" ")}" class="line"/>`).join("")}${markers}<line class="cursor" x1="${x(points.length - 1)}" x2="${x(points.length - 1)}" y1="18" y2="108"/></svg></div><div class="research-chart-dates"><span>${esc(points[0].date)}</span><span>${esc(points.at(-1).date)}</span></div><p class="research-muted">${esc(baseline.asOf)} 為${period.baseline ? "加入時" : "首次有效"}基準 · 未還原，未計入股息 · 公司行動版本 ${esc(review.corporateActions?.revisionId ?? "待查核")}</p></div>`;
+  return `<div class="research-price-chart" data-range="${range}" data-review-symbol="${esc(period.symbol)}"><div class="research-chart-heading"><details class="research-chart-info"><summary aria-label="追蹤價格與評分說明"><span aria-hidden="true">ⓘ</span></summary><p>同時顯示收藏後各交易日的實際收盤價與株研評分。評分使用原始分數，不換算為基準 100；兩條線各用自己的刻度。缺少評分的日期不補零，價格也不代表實際投資報酬。</p></details><h5>追蹤價格與評分</h5></div><div class="research-chart-controls"><span class="research-series-key"><i class="price-key"></i>收盤價</span><span class="research-series-key"><i class="score-key"></i>株研評分</span><span></span>${[20, 60, 120].map((days) => `<button type="button" data-review-range="${days}" aria-pressed="${range === days}">${days} 日</button>`).join("")}</div>
+    <p class="research-chart-readout" aria-live="polite">${esc(last.date)} · 收盤 ${fmt(last.close)} · 評分 ${fmt(last.score)} 分</p>
+    <div class="research-chart-axis"><span>價格 ${fmt(hi)}<br>${fmt(lo)}</span><span>評分 100<br>0</span></div><div class="research-chart-plot" role="slider" tabindex="0" aria-label="追蹤價格與評分；點選或水平拖曳查看交易日" aria-valuemin="1" aria-valuemax="${points.length}" aria-valuenow="${points.length}" data-points="${esc(JSON.stringify(points))}"><svg viewBox="0 0 320 124" preserveAspectRatio="none" aria-hidden="true"><path d="M12 18H308M12 63H308M12 108H308" class="grid"/>${segments("close", priceY)}${segments("score", scoreY)}${markers}${scoreMarkers}<line class="cursor" x1="${x(points.length - 1)}" x2="${x(points.length - 1)}" y1="18" y2="108"/></svg></div><div class="research-chart-dates"><span>${esc(points[0].date)}</span><span>${esc(points.at(-1).date)}</span></div><p class="research-muted">${esc(baseline.asOf)} 為${period.baseline ? "加入時" : "首次有效"}價格基準 · 收盤價未還原，未計入股息 · 公司行動版本 ${esc(review.corporateActions?.revisionId ?? "待查核")}</p></div>`;
 }
 
 export function selectResearchPricePoint(plot, index) {
@@ -71,5 +75,5 @@ export function selectResearchPricePoint(plot, index) {
   plot.querySelector(".cursor")?.setAttribute("x1", String(12 + selected * 296 / Math.max(1, points.length - 1)));
   plot.querySelector(".cursor")?.setAttribute("x2", String(12 + selected * 296 / Math.max(1, points.length - 1)));
   plot.closest(".research-price-chart").querySelector(".research-chart-readout").textContent =
-    `${point.date} · ${plot.closest(".research-price-chart").dataset.mode === "index" ? "相對指數" : "收盤價"} ${fmt(point.value)}${point.status !== "comparable" ? ` · ${stateText[point.status] ?? "資料不足"}` : ""}`;
+    `${point.date} · 收盤 ${fmt(point.close)} · 評分 ${fmt(point.score)} 分`;
 }
