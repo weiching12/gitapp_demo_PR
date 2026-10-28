@@ -11,7 +11,7 @@ async function swipe(page, target, distance = 120) {
   await client.detach();
 }
 
-test('phone entry header is compact and its body supports pull-down dismissal', async ({ page }) => {
+test('phone entry pulls down to a chart preview, expands upward and closes only after a second pull', async ({ page }) => {
   await page.goto('/');
   const trigger = page.locator('#stock-rows .entry-score-button').first();
   await trigger.click();
@@ -24,10 +24,49 @@ test('phone entry header is compact and its body supports pull-down dismissal', 
   await swipe(page, page.locator('.entry-dialog-meta'), 45);
   await expect(dialog).toBeVisible();
   await swipe(page, page.locator('.entry-dialog-meta'));
+  await expect(dialog).toHaveAttribute('data-mobile-sheet', 'preview');
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('.entry-price-chart')).toBeVisible();
+  await expect(page.locator('.entry-summary')).toBeHidden();
+  const previewBounds = await dialog.boundingBox();
+  const chartBounds = await page.locator('.entry-price-chart').boundingBox();
+  expect(chartBounds.y + chartBounds.height).toBeLessThanOrEqual(previewBounds.y + previewBounds.height);
+  await swipe(page, page.locator('.entry-dialog-meta'), -120);
+  await expect(dialog).not.toHaveAttribute('data-mobile-sheet', 'preview');
+  await expect(page.locator('.entry-summary')).toBeVisible();
+  await dialog.evaluate(node => { node.scrollTop = 240; });
+  await page.locator('.info-dialog-handle').scrollIntoViewIfNeeded();
+  await swipe(page, page.locator('.info-dialog-handle'));
+  await expect(dialog).toHaveAttribute('data-mobile-sheet', 'preview');
+  expect(await dialog.evaluate(node => node.scrollTop)).toBe(0);
+  await page.locator('.info-dialog-handle').press('ArrowUp');
+  await swipe(page, page.locator('.entry-dialog-meta'));
+  await expect(dialog).toHaveAttribute('data-mobile-sheet', 'preview');
+  await swipe(page, page.locator('.entry-dialog-meta'));
   await expect(dialog).toBeHidden();
   await trigger.click();
   await expect(dialog).toBeVisible();
+  await expect(dialog).not.toHaveAttribute('data-mobile-sheet', 'preview');
   await page.locator('.info-dialog-handle').click();
+  await expect(dialog).toBeHidden();
+});
+
+test('entry preview supports keyboard controls and a full pull can close directly', async ({ page }) => {
+  await page.goto('/');
+  const trigger = page.locator('#stock-rows .entry-score-button').first();
+  const dialog = page.locator('#info-dialog');
+  const handle = page.locator('.info-dialog-handle');
+  await trigger.click();
+  await handle.press('ArrowDown');
+  await expect(dialog).toHaveAttribute('data-mobile-sheet', 'preview');
+  await handle.press('ArrowUp');
+  await expect(dialog).not.toHaveAttribute('data-mobile-sheet', 'preview');
+  await handle.press('ArrowDown');
+  await handle.press('ArrowDown');
+  await expect(dialog).toBeHidden();
+  await trigger.click();
+  const bounds = await dialog.boundingBox();
+  await swipe(page, handle, Math.max(250, bounds.height * .7));
   await expect(dialog).toBeHidden();
 });
 

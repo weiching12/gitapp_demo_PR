@@ -20,7 +20,8 @@ export function createDialogController() {
   };
 
   const bindMobileDismiss = (dialog, handleSelector) => {
-    bindMobileDragDismiss(dialog, dialog.querySelector(handleSelector));
+    bindMobileDragDismiss(dialog, dialog.querySelector(handleSelector),
+      dialog.id === "info-dialog" ? { previewSelector: ".entry-price-chart" } : {});
   };
 
   return { open, bindBackdropDismiss, bindMobileDismiss };

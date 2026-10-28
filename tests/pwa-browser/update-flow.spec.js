@@ -48,6 +48,14 @@ test("new app version waits for its mandatory button and restores research track
   const prompt = page.locator('#required-update-dialog');
   await expect(prompt).toBeVisible();
   await expect(prompt).toContainText('有新版本可更新');
+  await expect(prompt.locator('p')).toHaveText('請更新至最新版本，完成後將自動回到原畫面。');
+  for (const width of [320, 390, 487, 1440]) {
+    await page.setViewportSize({ width, height: 956 });
+    const bounds = await prompt.boundingBox();
+    expect(Math.abs(bounds.x + bounds.width / 2 - width / 2)).toBeLessThanOrEqual(1);
+    expect(Math.abs(bounds.y + bounds.height / 2 - 956 / 2)).toBeLessThanOrEqual(1);
+    expect(await prompt.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  }
   await page.keyboard.press('Escape');
   await page.mouse.click(3, 3);
   await expect(prompt).toBeVisible();

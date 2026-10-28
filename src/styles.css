@@ -3309,11 +3309,19 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
 .research-score-readout { min-height: 1.4em; margin: .6rem 0; font-size: .8rem; }
 .research-chart-dates { display: flex; justify-content: space-between; color: var(--muted); font-size: .75rem; }
 
-#required-update-dialog { width: min(360px, calc(100vw - 32px)); padding: 24px; color: var(--ink); background: var(--surface, #fff); border: 1px solid var(--border); border-radius: 14px; }
-#required-update-dialog h2 { margin: 0 0 12px; font-size: 20px; }
-#required-update-dialog p { margin: 0 0 20px; line-height: 1.6; color: var(--muted); }
-#required-update-dialog button { width: 100%; min-height: 44px; }
-#required-update-dialog::backdrop { background: rgb(10 25 45 / 55%); }
+#required-update-dialog { position: fixed; inset: 50dvh auto auto 50vw; margin: 0; transform: translate(-50%, -50%); height: fit-content; width: min(360px, calc(100vw - 40px)); max-height: calc(100dvh - 32px); padding: 28px 24px 24px; color: var(--ink); background: #fff; border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 24px 80px rgb(8 23 45 / 24%); text-align: center; }
+[data-theme="dark"] #required-update-dialog { background: #142135; }
+#required-update-dialog .update-dialog-icon { display: grid; place-items: center; width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 16px; color: var(--accent); background: var(--accent-soft); }
+#required-update-dialog .update-dialog-icon svg { width: 26px; height: 26px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#required-update-dialog h2 { margin: 0 0 10px; font-size: 20px; line-height: 1.4; letter-spacing: .02em; }
+#required-update-dialog p { margin: 0 0 24px; font-size: 14px; line-height: 1.7; color: var(--muted); overflow-wrap: anywhere; }
+#required-update-dialog button { justify-content: center; width: 100%; min-height: 44px; border-radius: 10px; font-size: 14px; font-weight: 600; }
+#required-update-dialog[data-phase="error"] .update-dialog-icon { color: #b7791f; background: #fff4da; }
+#required-update-dialog::backdrop { background: rgb(10 25 45 / 55%); backdrop-filter: blur(5px); }
+@media (prefers-reduced-motion: no-preference) {
+  #required-update-dialog[aria-busy="true"] .update-dialog-icon svg { animation: update-dialog-spin 1.2s linear infinite; }
+  @keyframes update-dialog-spin { to { transform: rotate(360deg); } }
+}
 .info-dialog-handle { display: none; }
 @media (max-width: 520px) {
   #info-dialog:has(.entry-dialog) #close-dialog { display: none; }
@@ -3321,6 +3329,8 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
   .info-dialog-handle::before { content: ""; width: 40px; height: 5px; border-radius: 999px; background: #cbd5e1; }
   #info-dialog { transform: translateY(var(--mobile-drag-y, 0px)); transition: transform 180ms ease-out; }
   #info-dialog.is-dragging { transition: none; user-select: none; }
+  #info-dialog[data-mobile-sheet="preview"]:has(.entry-dialog) { inset: auto 0 max(12px, env(safe-area-inset-bottom)); margin: 0 auto; }
+  #info-dialog[data-mobile-sheet="preview"] .entry-dialog > :not(.entry-dialog-title):not(.entry-dialog-meta):not(.entry-price-chart) { display: none; }
   #info-dialog .entry-dialog-title { grid-template-columns: minmax(0, 1fr) 44px; }
   #info-dialog .entry-dialog-sector, #info-dialog .entry-dialog h2 { grid-column: 1; }
   #info-dialog .entry-dialog-title .favorite-button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }

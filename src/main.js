@@ -645,6 +645,7 @@ function animateEntryScore(dialog) {
 
 function openDialog(type, focusClose = true, showResearch = false) {
   const infoDialog = document.querySelector("#info-dialog");
+  if (!type.startsWith("entry:") || infoDialog.dataset.entrySymbol !== type.slice(6)) delete infoDialog.dataset.mobileSheet;
   infoDialog.dataset.entrySymbol = type.startsWith("entry:") ? type.slice(6) : "";
   infoDialog.dataset.showResearch = String(type.startsWith("entry:") && showResearch);
   infoDialog.dataset.request = String(Number(infoDialog.dataset.request ?? 0) + 1);
