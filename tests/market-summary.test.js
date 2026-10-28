@@ -41,7 +41,10 @@ test("market summary matches existing indicators and omits market history", asyn
     assert.deepEqual(row.trend, original.trend);
     assert.equal(row.entryScore.modelVersion, "entry-score-v1.2");
     assert.equal(row.entryScore.totalScore, null);
-    assert.deepEqual(row.entryScoreChange, { previousDate: null, delta: null });
+    assert.equal(row.entryScoreChange.previousDate, null);
+    assert.equal(row.entryScoreChange.delta, null);
+    assert.equal(row.entryScoreChange.status, "missing-current");
+    assert.deepEqual(row.entryScoreChange.missingData, row.entryScore.missingData);
     assert.ok(row.entryScore.missingData.length > 0);
     assert.ok(!("categories" in row.entryScore));
     assert.deepEqual(row.dominantInstitution, getDominantInstitution(original.latest?.institutions));
@@ -70,20 +73,21 @@ test("market summary matches existing indicators and omits market history", asyn
 test("score changes compare final scores and preserve missing previous data", () => {
   const previousDate = "2026-10-15";
   assert.deepEqual(entryScoreDayChange({ finalScore: 81 }, { finalScore: 78.5 }, previousDate),
-    { previousDate, delta: 2.5 });
+    { previousDate, delta: 2.5, status: "comparable" });
   assert.deepEqual(entryScoreDayChange({ finalScore: 81 }, { finalScore: 83 }, previousDate),
-    { previousDate, delta: -2 });
+    { previousDate, delta: -2, status: "comparable" });
   assert.deepEqual(entryScoreDayChange({ finalScore: 81 }, { finalScore: 81 }, previousDate),
-    { previousDate, delta: 0 });
+    { previousDate, delta: 0, status: "comparable" });
   assert.deepEqual(entryScoreDayChange({ finalScore: 81 }, null, previousDate),
-    { previousDate, delta: null });
+    { previousDate, delta: null, status: "missing-previous", missingData: [] });
 });
 
 test("first browser load requests only manifest and latest summary", async () => {
   const result = await service.summary(date, { period: 9, kSmooth: 3, dSmooth: 3 });
   const calls = [];
-  const fetcher = async (path) => {
+  const fetcher = async (path, options) => {
     calls.push(path);
+    if (path.startsWith("/api/v1/market/summary")) assert.equal(options.cache, "no-cache");
     return Response.json(path === "/api/v1/market" ? manifest : result);
   };
   const loaded = await loadMarketSummary(fetcher, { settings: result.meta.settings });
@@ -197,7 +201,7 @@ test("Free-plan coordinator computes once and stores large summaries in bounded 
     return marketData.get(key) ?? null;
   } } });
   const url = `https://example.test/api/v1/market/summary?period=9&kSmooth=3&dSmooth=3&asOf=${date}`;
-  const oldKey = `view:price-volume-trend-v2:${manifest.generation}:/api/v1/market/summary?period=9&kSmooth=3&dSmooth=3&asOf=${date}`;
+  const oldKey = `view:entry-score-v1.2-research-v2:${manifest.generation}:not-applicable:/api/v1/market/summary?period=9&kSmooth=3&dSmooth=3&asOf=${date}`;
   storageData.set(`${oldKey}:part:0`, JSON.stringify({ data: { stocks: [{ symbol: "stale" }] } }));
   storageData.set(`${oldKey}:parts`, 1);
   const first = await coordinator.fetch(new Request(url));

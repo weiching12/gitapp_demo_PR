@@ -125,7 +125,7 @@ export async function loadMarketSummary(fetcher = fetch, { onCacheFallback, sett
   const manifestResponse = await client.market();
   if (manifestResponse.response.headers.get("X-PWA-Cache") === "fallback") onCacheFallback?.();
   const manifest = validateManifest(manifestResponse.data);
-  const summaryResponse = await client.summary(manifest.asOf, settings);
+  const summaryResponse = await client.summary(manifest.asOf, settings, { cache: "no-cache" });
   if (summaryResponse.response.headers.get("X-PWA-Cache") === "fallback") onCacheFallback?.();
   if (summaryResponse.data.meta?.generation !== manifest.generation ||
       summaryResponse.data.meta?.asOf !== manifest.asOf ||

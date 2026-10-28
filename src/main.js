@@ -358,7 +358,7 @@ async function selectSummary(date) {
   try {
     if (!result) {
       result = await summaryCache.load(key, async () => {
-        const response = await marketClient.summary(date, settings);
+        const response = await marketClient.summary(date, settings, { cache: "no-cache" });
         if (response.response.headers.get("X-PWA-Cache") === "fallback") usingCachedData = true;
         const body = response.data;
         if (body.meta?.generation !== dataset.info.generation || body.meta?.asOf !== date ||

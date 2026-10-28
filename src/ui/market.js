@@ -1,5 +1,23 @@
 import { filterStocks, getDominantInstitution } from "../../shared/indicators.js";
 
+export function entryScoreChangePresentation(stock, number) {
+  const entry = stock.entryScore, change = stock.entryScoreChange;
+  const date = entry?.asOf ?? "所選日期";
+  const reasons = (change?.missingData ?? entry?.missingData ?? []).join("；");
+  if (!Number.isFinite(entry?.finalScore)) return { label: "當日資料不足",
+    title: `${date} 無法評分${reasons ? `：${reasons}` : ""}` };
+  if (Number.isFinite(change?.delta)) return {
+    label: `較前期 ${change.delta > 0 ? "+" : ""}${number(change.delta, 2)}`,
+    title: `${date} 與 ${change.previousDate} 的株研評分差額`,
+  };
+  if (change?.status === "no-previous-session" || change?.previousDate === null)
+    return { label: "尚無前期資料", title: `${date} 之前沒有可比較的市場交易日` };
+  if (change?.status === "missing-previous") return { label: "前期資料不足",
+    title: `${change.previousDate} 無法評分${reasons ? `：${reasons}` : ""}` };
+  // Older offline summaries may have no reason metadata. Do not guess which data is missing.
+  return { label: "前期無法比較", title: "尚無可用的前期比較結果，連線後請重新整理" };
+}
+
 export function compareDefaultMarketStocks(a, b) {
   const rank = (stock) => {
     const analysisIncomplete = !stock.latest || !stock.signal?.code || stock.signal.code === "insufficient" ||
@@ -77,8 +95,8 @@ export function renderMarketView(context) {
       const entry = stock.entryScore;
       const change = stock.entryScoreChange;
       const delta = change?.delta;
-      const changeLabel = Number.isFinite(delta) ? `較前日 ${delta > 0 ? "+" : ""}${number(delta, 2)}` : "前日資料不足";
-      const entryCell = `<button type="button" class="entry-score-button" data-entry-score="${stock.symbol}" aria-label="查看${esc(stock.name)}株研評分"><strong>${Number.isFinite(entry?.finalScore) ? number(entry.finalScore, 2) : "—"}</strong><small class="entry-score-change ${Number.isFinite(delta) ? direction(delta) : ""}">${changeLabel}</small></button>`;
+      const changePresentation = entryScoreChangePresentation(stock, number);
+      const entryCell = `<button type="button" class="entry-score-button" data-entry-score="${stock.symbol}" aria-label="查看${esc(stock.name)}株研評分"><strong>${Number.isFinite(entry?.finalScore) ? number(entry.finalScore, 2) : "—"}</strong><small class="entry-score-change ${Number.isFinite(delta) ? direction(delta) : ""}" title="${esc(changePresentation.title)}">${esc(changePresentation.label)}</small></button>`;
       const html = `<tr data-symbol="${stock.symbol}"><td><button class="icon-button favorite-button ${favorite ? "is-favorite" : ""}" data-favorite="${stock.symbol}" aria-label="${favorite ? "移除" : "加入"}${esc(stock.name)}自選" aria-pressed="${favorite}">${icon("star")}</button></td><th scope="row"><div class="stock-name"><strong>${stock.symbol}</strong><span>${esc(stock.name)}<span class="sector-inline">${esc(stock.sector)}</span></span></div></th><td class="entry-cell">${entryCell}</td><td class="price-cell"><span class="stock-price-line"><span class="stock-close">${number(bar.close, 2)}</span><span class="mobile-change change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></span><small class="stock-volume">量 ${number(bar.volume / 1000)} 張</small></td><td class="price-volume-cell">${priceVolumeCell}</td><td class="trend-cell">${trendCell}</td><td class="net-cell-mobile ${direction(bar.institutionalNet)}">${mobileNetCell}</td><td class="change-cell"><span class="change-chip ${direction(bar.changePercent)}">${percent(bar.changePercent)}</span></td><td><span class="k-cell">${number(bar.k, 2)}${bar.k !== null ? `<i style="--k:${Math.max(0, Math.min(100, bar.k))}%"></i>` : ""}</span><small class="kd-detail">D ${number(bar.d, 2)}</small></td><td class="signal-cell"><span class="signal-badge ${signal.tone}" data-signal="${signal.code}">${esc(signal.label)}</span><small class="signal-reason">${esc(signal.reason)}</small></td><td><span class="position-tag ${direction(bar.deviation)}">${bar.deviation === null ? "資料不足" : bar.deviation > 0 ? "季線之上" : bar.deviation < 0 ? "季線之下" : "季線持平"}</span><small class="deviation ${direction(bar.deviation)}">${percent(bar.deviation)}</small></td><td class="net-cell-desktop ${direction(bar.institutionalNet)}">${netCell}</td></tr>`;
       const holder = document.createElement("tbody");
       holder.innerHTML = html;

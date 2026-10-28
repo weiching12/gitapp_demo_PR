@@ -1,5 +1,37 @@
 import { test, expect } from "@playwright/test";
 
+test("2031 comparison follows the selected market date", async ({ page, request }) => {
+  const manifest = await (await request.get("/api/v1/market")).json();
+  const settings = "period=9&kSmooth=3&dSmooth=3";
+  await page.addInitScript(() => localStorage.setItem("stock-insight-v1",
+    JSON.stringify({ favorites: ["2031"], catalogVersion: 2, settings: { period: 9, kSmooth: 3, dSmooth: 3 } })));
+  await page.goto("/");
+  await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false");
+  await page.locator("#stock-search").fill("2031");
+  const row = page.locator('#stock-rows [data-symbol="2031"]');
+  for (const date of [manifest.asOf, manifest.dates.at(-2)]) {
+    const response = await request.get(`/api/v1/market/summary?asOf=${date}&${settings}`);
+    expect(response.ok()).toBe(true);
+    const stock = (await response.json()).data.stocks.find((stock) => stock.symbol === "2031");
+    expect(Number.isFinite(stock.entryScore.finalScore)).toBe(true);
+    expect(Number.isFinite(stock.entryScoreChange.delta)).toBe(true);
+    await page.locator("#trade-date").selectOption(date);
+    await expect(row.locator(".entry-score-button strong")).toHaveText(stock.entryScore.finalScore.toFixed(2));
+    await expect(row.locator(".entry-score-change")).toHaveText(
+      `較前期 ${stock.entryScoreChange.delta > 0 ? "+" : ""}${stock.entryScoreChange.delta.toFixed(2)}`);
+    await expect(row.locator(".entry-score-change")).toHaveAttribute("title", new RegExp(stock.entryScoreChange.previousDate));
+  }
+  const previousDate = manifest.dates.at(-2);
+  const research = await (await request.get(`/api/v1/favorites/research?symbols=2031&asOf=${previousDate}&${settings}`)).json();
+  await page.locator('.sidebar [data-page="favorites"]').click();
+  await expect(page.locator('#research-list [data-research-symbol="2031"] .research-score strong'))
+    .toHaveText(research.data[0].latest.finalScore.toFixed(2));
+  await page.locator('#research-list [data-research-symbol="2031"] .research-card-main').click();
+  await expect(page.locator("#info-dialog .research-detail")).toBeVisible();
+  if (["missing-current", "missing-previous"].includes(research.data[0].comparison.status))
+    await expect(page.locator("#info-dialog .research-detail")).toContainText(research.data[0].comparison.summary);
+});
+
 test("full listed market uses a shared summary and opens research tracking", async ({ page, request }) => {
   const manifest = await (await request.get("/api/market")).json();
   expect(manifest.stocks.length).toBeGreaterThanOrEqual(1000);

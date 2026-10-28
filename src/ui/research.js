@@ -115,6 +115,8 @@ function researchDetailMarkupV2({ symbol, row, store, esc }) {
   if (!period) return "";
   const snap = row?.latest;
   const comparison = row?.comparison;
+  const comparisonNotice = ["missing-current", "missing-previous"].includes(comparison?.status)
+    ? `<p class="research-muted">${esc(comparison.summary)}</p>` : "";
   const events = visibleEvents(row);
   const categoryNames = { trend: "趨勢結構", momentum: "KD 動能", priceVolume: "量價表現",
     institutional: "法人籌碼", entryRisk: "進場位置與風險" };
@@ -124,7 +126,7 @@ function researchDetailMarkupV2({ symbol, row, store, esc }) {
   const trackingScore = period.addedSnapshot?.valid && Number.isFinite(period.addedSnapshot.finalScore)
     ? `${esc(period.addedSnapshot.asOf)} · ${fmt(period.addedSnapshot.finalScore)} 分`
     : period.addedSnapshot ? "追蹤時資料不足" : "追蹤時評分未保存";
-  return `<section class="entry-evidence research-detail"><h3>研究追蹤</h3><dl class="research-facts research-tracking-facts"><div><dt>追蹤時間</dt><dd>${period.startedAt ? esc(dateTime(period.startedAt)) : "追蹤時間未知"}</dd></div><div><dt>追蹤時評分</dt><dd>${trackingScore}</dd></div></dl>${scoreChart(row?.history ?? [])}${categoryMarkup}<h4>研究事件時間軸</h4>${events.length ? `<ol class="research-events">${events.map((event) => `<li><time>${esc(event.fromDate)} → ${esc(event.toDate)}</time><span>${esc(event.reason)}</span></li>`).join("")}</ol>` : '<p class="research-muted">尚無可判定的研究異動。</p>'}<p class="research-muted">明顯變化提示門檻為 10 分，未經策略回測驗證；歷史覆蓋以已保存快照為準。</p></section>`;
+  return `<section class="entry-evidence research-detail"><h3>研究追蹤</h3>${comparisonNotice}<dl class="research-facts research-tracking-facts"><div><dt>追蹤時間</dt><dd>${period.startedAt ? esc(dateTime(period.startedAt)) : "追蹤時間未知"}</dd></div><div><dt>追蹤時評分</dt><dd>${trackingScore}</dd></div></dl>${scoreChart(row?.history ?? [])}${categoryMarkup}<h4>研究事件時間軸</h4>${events.length ? `<ol class="research-events">${events.map((event) => `<li><time>${esc(event.fromDate)} → ${esc(event.toDate)}</time><span>${esc(event.reason)}</span></li>`).join("")}</ol>` : '<p class="research-muted">尚無可判定的研究異動。</p>'}<p class="research-muted">明顯變化提示門檻為 10 分，未經策略回測驗證；歷史覆蓋以已保存快照為準。</p></section>`;
 }
 
 export function researchDetailMarkup({ symbol, row, store, esc }) {

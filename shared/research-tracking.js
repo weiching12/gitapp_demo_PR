@@ -42,9 +42,10 @@ export function researchSnapshot(score, { symbol, market, asOf, capturedAt, gene
 }
 
 export function compareResearchSnapshots(current, previous, expectedPreviousDate) {
-  if (!current) return { status: "missing-current", events: [], summary: "缺少當日評分快照" };
+  if (!current) return { status: "missing-current", events: [], summary: "缺少當日保存的評分快照" };
   if (!previous || previous.asOf !== expectedPreviousDate)
-    return { status: "missing-previous", events: [], summary: "缺少前期資料" };
+    return { status: "missing-previous", events: [],
+      summary: expectedPreviousDate ? `缺少 ${expectedPreviousDate} 保存的評分快照` : "尚無前期保存的評分快照" };
   if (current.asOf === previous.asOf)
     return { status: "revision", events: [], summary: "資料修訂", dates: [previous.asOf, current.asOf] };
   if (["modelVersion", "strategy", "configId", "priceBasis"].some((key) => current[key] !== previous[key]))
