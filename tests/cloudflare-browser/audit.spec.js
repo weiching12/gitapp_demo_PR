@@ -97,3 +97,107 @@ test("industry page and detail retain the latest session after historical market
   await expect(page.locator("#sector-dialog-meta")).toContainText(manifest.asOf);
   expect(requested).toEqual([manifest.asOf]);
 });
+
+test("switching back to an in-flight date shares one summary request", async ({ page }) => {
+  const waiting = defer(), entered = defer(), oldDate = demo.dates.at(-2);
+  let calls = 0;
+  await setup(page, async (route, url) => {
+    if (url.pathname !== "/api/v1/market/summary" || url.searchParams.get("asOf") !== oldDate) return false;
+    calls++; entered.resolve(); await waiting.promise;
+    await route.fulfill({ json: await summary.summary(oldDate, { period: 9, kSmooth: 3, dSmooth: 3 }) });
+    return true;
+  });
+  try {
+    await page.locator("#trade-date").selectOption(oldDate);
+    await entered.promise;
+    await page.locator("#trade-date").selectOption(manifest.asOf);
+    await page.locator("#trade-date").selectOption(oldDate);
+    waiting.resolve();
+    await expect(page.locator("#table-summary")).toContainText(oldDate);
+    await expect(page.locator("#date-loading")).toBeHidden();
+    expect(calls).toBe(1);
+  } finally { waiting.resolve(); }
+});
+
+test("reopening pending stock details shares one analysis request", async ({ page }) => {
+  const waiting = defer(), entered = defer();
+  let calls = 0;
+  await setup(page, async (route, url) => {
+    const symbol = url.pathname.match(/\/stocks\/([^/]+)\/analysis$/)?.[1];
+    if (!symbol) return false;
+    calls++; entered.resolve(); await waiting.promise;
+    await route.fulfill({ json: await analysis.stock(symbol, { asOf: manifest.asOf }) });
+    return true;
+  });
+  try {
+    await page.locator(".entry-score-button").first().click();
+    await entered.promise;
+    await page.locator("#close-dialog").click();
+    await page.locator(".entry-score-button").first().click();
+    waiting.resolve();
+    await expect(page.locator("#dialog-content .entry-chart-plot svg")).toBeVisible();
+    expect(calls).toBe(1);
+  } finally { waiting.resolve(); }
+});
+
+test("reopening a sector shares a pending request and retries after failure", async ({ page }) => {
+  const waiting = defer(), entered = defer();
+  let calls = 0;
+  await setup(page, async (route, url) => {
+    if (!url.pathname.startsWith("/api/v1/sectors/")) return false;
+    calls++;
+    if (calls === 1) {
+      entered.resolve(); await waiting.promise;
+      await route.fulfill({ status: 503, json: { error: { message: "sector temporarily unavailable" } } });
+      return true;
+    }
+    return false;
+  });
+  try {
+    await page.locator('.sidebar [data-page="sectors"]').click();
+    await page.locator(".sector-card").first().click();
+    await entered.promise;
+    await page.locator("#close-sector-dialog").click();
+    await page.locator(".sector-card").first().click();
+    waiting.resolve();
+    await expect(page.locator("#sector-dialog-content")).toContainText("sector temporarily unavailable");
+    expect(calls).toBe(1);
+    await page.locator("#close-sector-dialog").click();
+    await page.locator(".sector-card").first().click();
+    await expect(page.locator(".sector-stock-table tbody tr").first()).toBeVisible();
+    expect(calls).toBe(2);
+  } finally { waiting.resolve(); }
+});
+
+test("removing all favorites invalidates pending research and allows the same selection to reload", async ({ page }) => {
+  const symbol = stocks[0].symbol, waiting = defer(), entered = defer();
+  let calls = 0;
+  await page.addInitScript((symbol) => localStorage.setItem("stock-insight-v1",
+    JSON.stringify({ favorites: [symbol], catalogVersion: 2 })), symbol);
+  await setup(page, async (route, url) => {
+    if (url.pathname !== "/api/v1/favorites/research") return false;
+    calls++;
+    const stale = calls === 1;
+    if (stale) { entered.resolve(); await waiting.promise; }
+    await route.fulfill({ json: { data: [{ symbol, latest: null, previous: null,
+      comparison: { status: "missing-current", events: [], summary: "缺少當日評分快照" },
+      events: [], history: [], timeline: [] }], meta: { asOf: manifest.asOf, revisions: stale ? [{}, {}] : [] } } });
+    return true;
+  });
+  try {
+    await entered.promise;
+    const favorite = page.locator(`#stock-rows [data-favorite="${symbol}"]`);
+    await favorite.click();
+    await expect(favorite).toHaveAttribute("aria-pressed", "false");
+    const finished = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/favorites/research");
+    waiting.resolve();
+    await finished;
+    await expect(page.locator("#research-date")).not.toContainText("修訂版本");
+    await favorite.click();
+    // One initial request, one join-snapshot read and one new research load.
+    await expect.poll(() => calls).toBe(3);
+    await page.locator('.sidebar [data-page="favorites"]').click();
+    await expect(page.locator("#research-list .research-card")).toHaveCount(1);
+    await expect(page.locator("#research-list")).not.toContainText("讀取研究快照中");
+  } finally { waiting.resolve(); }
+});

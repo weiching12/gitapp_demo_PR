@@ -12,6 +12,12 @@ import { DomainError } from "../../shared/domain-error.js";
 const WINDOWS = ["day", "5", "20"];
 const INSTITUTIONS = ["total", "外資", "投信", "自營商"];
 
+function validateFavoriteSymbols(symbols) {
+  if (!Array.isArray(symbols) || !symbols.length || symbols.length > 50 ||
+      new Set(symbols).size !== symbols.length || symbols.some((symbol) => !validSymbol(symbol)))
+    throw new DomainError("INVALID_QUERY", "自選股票代號無效");
+}
+
 export class MarketSummaryService {
   constructor(market, actions = null, research = null) {
     this.market = market; this.actions = actions; this.researchStore = research;
@@ -92,9 +98,7 @@ export class MarketSummaryService {
 
   async research(symbols, date, settings) {
     if (!this.researchStore) throw new DomainError("DATA_UNAVAILABLE", "研究快照資料庫尚未啟用");
-    if (!Array.isArray(symbols) || !symbols.length || symbols.length > 50 ||
-        new Set(symbols).size !== symbols.length || symbols.some((symbol) => !validSymbol(symbol)))
-      throw new DomainError("INVALID_QUERY", "自選股票代號無效");
+    validateFavoriteSymbols(symbols);
     const manifest = await this.market.market();
     const asOf = date || manifest.asOf;
     const index = manifest.dates.indexOf(asOf);
@@ -105,30 +109,26 @@ export class MarketSummaryService {
     const previousDate = manifest.dates[index - 1] ?? null;
     const configId = researchConfigId(settings);
     const historyDates = manifest.dates.slice(Math.max(0, index - 29), index + 1);
-    const [today, previous, history, revisions] = await Promise.all([
-      this.researchStore.latest(asOf, configId, symbols),
-      previousDate ? this.researchStore.latest(previousDate, configId, symbols)
-        : Promise.resolve({ revision: null, snapshots: new Map() }),
-      this.researchStore.history(historyDates, configId, symbols),
+    const [sessions, revisions] = await Promise.all([
+      this.researchStore.sessions(historyDates, configId, symbols),
       this.researchStore.revisions(asOf, configId),
     ]);
+    const today = sessions.get(asOf), previous = sessions.get(previousDate);
     return { data: symbols.map((symbol) => {
-      const latest = today.snapshots.get(symbol) ?? null;
-      const prior = previous.snapshots.get(symbol) ?? null;
+      const latest = today?.snapshots.get(symbol) ?? null;
+      const prior = previous?.snapshots.get(symbol) ?? null;
       const comparison = compareResearchSnapshots(latest, prior, previousDate);
-      const series = historyDates.map((day) => (history.get(symbol) ?? []).find((item) => item.asOf === day) ??
+      const series = historyDates.map((day) => sessions.get(day)?.snapshots.get(symbol) ??
         { asOf: day, valid: false });
       const timeline = reviewEventTimeline(series, historyDates);
       return { symbol, latest, previous: prior, comparison, events: comparison.events,
         history: series, timeline };
-    }), meta: { asOf, previousDate, configId, latestRevision: today.revision,
-      previousRevision: previous.revision, revisions, source: "saved", coverage: today.revision?.stockCount ?? 0 } };
+    }), meta: { asOf, previousDate, configId, latestRevision: today?.revision ?? null,
+      previousRevision: previous?.revision ?? null, revisions, source: "saved", coverage: today?.revision.stockCount ?? 0 } };
   }
 
   async favorites(symbols, date, settings) {
-    if (!Array.isArray(symbols) || !symbols.length || symbols.length > 50 ||
-        new Set(symbols).size !== symbols.length || symbols.some((symbol) => !validSymbol(symbol)))
-      throw new DomainError("INVALID_QUERY", "自選股票代號無效");
+    validateFavoriteSymbols(symbols);
     const { manifest, asOf, dates, stocks } = await this.snapshots(date, settings, null, symbols);
     if (stocks.length !== symbols.length) throw new DomainError("INVALID_QUERY", "自選股票不在上市清單");
     return { data: stocks.map((stock) => ({ symbol: stock.symbol,

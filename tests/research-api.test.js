@@ -25,10 +25,11 @@ test("versioned research route is read-only and preserves the old favorites summ
 test("research response compares only exact previous session and has no private notes", async () => {
   const calls = [];
   const market = { market: async () => ({ asOf, dates, stocks: [{ symbol: "2330" }] }) };
-  const research = { latest: async (date, config, symbols) => {
-    calls.push([date, config, symbols]);
-    return { revision: { id: date }, snapshots: new Map([["2330", snapshot(date, date === asOf ? 72 : 60)]]) };
-  }, history: async () => new Map([["2330", [snapshot(previousDate, 60), snapshot(asOf, 72)]]]),
+  const research = { sessions: async (requestedDates, config, symbols) => {
+    calls.push([requestedDates, config, symbols]);
+    return new Map([previousDate, asOf].map((date) => [date, { revision: { id: date },
+      snapshots: new Map([["2330", snapshot(date, date === asOf ? 72 : 60)]]) }]));
+  },
   revisions: async () => [{ RevisionId: "r1" }] };
   const summary = new MarketSummaryService(market, null, research);
   const url = new URL(`https://example.test/api/v1/favorites/research?symbols=2330&asOf=${asOf}`);
@@ -38,7 +39,7 @@ test("research response compares only exact previous session and has no private 
   assert.equal(response.data[0].history.length, 30);
   assert.equal(response.data[0].history[0].valid, false);
   assert.equal(JSON.stringify(response).includes("privateNote"), false);
-  assert.deepEqual(calls.map((item) => item[0]), [asOf, previousDate]);
+  assert.deepEqual(calls, [[dates.slice(-30), researchConfigId(settings), ["2330"]]]);
   await assert.rejects(summary.research(Array.from({ length: 51 }, (_, index) => String(index).padStart(4, "0")), asOf, settings),
     /自選股票代號無效/);
 });

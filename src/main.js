@@ -3,6 +3,7 @@ import "./styles.css";
 import "./typography.css";
 import { loadDataset, loadMarketSummary } from "./provider.js";
 import { MarketApiClient } from "./api/market-client.js";
+import { RequestCache } from "./api/request-cache.js";
 import { startPresence } from "./presence.js";
 import { startPwa } from "./pwa.js";
 import { startPushNotifications } from "./push.js";
@@ -111,9 +112,9 @@ const dialogs = createDialogController();
 let dataset, snapshots, latestSnapshots, currentSentiment;
 const apiMode = import.meta.env.VITE_DATA_MODE === "api";
 const marketClient = new MarketApiClient();
-const summaryCache = new Map(), sectorDetailCache = new Map(), stockDetailCache = new Map();
+const summaryCache = new RequestCache(), sectorDetailCache = new RequestCache(), stockDetailCache = new RequestCache();
 let researchStore, researchRows = new Map(), researchRequest = 0;
-const researchReviewCache = new Map(), researchReviewRequests = new Map();
+const researchReviewCache = new RequestCache();
 let researchMeta = null;
 let researchSort = "score", researchFilter = "all";
 let researchLoadKey = "";
@@ -137,9 +138,7 @@ function saveResearch() { return persistResearchStore(preferenceStorage(), resea
 
 async function loadResearchReview(symbol) {
   const key = `${dataset.info.generation ?? "demo"}:${symbol}`;
-  if (researchReviewCache.has(key)) return researchReviewCache.get(key);
-  if (researchReviewRequests.has(key)) return researchReviewRequests.get(key);
-  const task = (async () => {
+  return researchReviewCache.load(key, async () => {
     let review;
     if (apiMode) {
       const response = await marketClient.review(symbol);
@@ -156,7 +155,6 @@ async function loadResearchReview(symbol) {
         priceBasis: "unadjusted", corporateActions: { coveredDates: dates.slice(1), events: [], revisionId: "demo-no-actions" },
         source: "demo", retrievedAt: new Date().toISOString() };
     }
-    researchReviewCache.set(key, review);
     const period = activeResearchPeriod(researchStore, symbol);
     if (period && !period.baseline) {
       const latest = review.bars.findLast((bar) => bar.date === dataset.info.asOf);
@@ -175,9 +173,7 @@ async function loadResearchReview(symbol) {
         store: researchStore, esc });
     }
     return review;
-  })().finally(() => researchReviewRequests.delete(key));
-  researchReviewRequests.set(key, task);
-  return task;
+  });
 }
 
 function renderResearch() {
@@ -210,12 +206,17 @@ async function captureAddedSnapshot(period, symbol) {
 }
 
 async function loadResearch() {
-  if (!researchStore || !state.favorites.length || !state.date) { researchRows = new Map(); researchMeta = null; renderResearch(); return; }
+  if (!researchStore || !state.favorites.length || !state.date) {
+    researchRequest++;
+    researchLoadKey = "";
+    researchRows = new Map(); researchMeta = null; renderResearch(); return;
+  }
   const key = `${summaryKey(state.date)}:${state.favorites.join(",")}`;
   if (researchLoadKey === key) { renderResearch(); return; }
   researchLoadKey = key;
   const request = ++researchRequest;
   const date = state.date;
+  const symbols = [...state.favorites], settings = { ...state.settings };
   if (!apiMode) {
     researchMeta = null;
     const index = dataset.dates.indexOf(date), previousDate = dataset.dates[index - 1] ?? null;
@@ -240,8 +241,9 @@ async function loadResearch() {
   try {
     const rows = [];
     let meta;
-    for (let offset = 0; offset < state.favorites.length; offset += 50) {
-      const { data } = await marketClient.research(state.favorites.slice(offset, offset + 50), date, state.settings);
+    for (let offset = 0; offset < symbols.length; offset += 50) {
+      const { data } = await marketClient.research(symbols.slice(offset, offset + 50), date, settings);
+      if (request !== researchRequest) return;
       if (data.meta?.asOf !== date) throw new Error("研究快照交易日不一致");
       meta = data.meta;
       rows.push(...data.data);
@@ -355,12 +357,14 @@ async function selectSummary(date) {
   renderLoadState();
   try {
     if (!result) {
-      const response = await marketClient.summary(date, settings);
-      if (response.response.headers.get("X-PWA-Cache") === "fallback") usingCachedData = true;
-      result = response.data;
-      if (result.meta?.generation !== dataset.info.generation || result.meta?.asOf !== date ||
-          result.data?.stocks?.length !== dataset.stocks.length) throw new Error("Invalid market summary");
-      summaryCache.set(key, result);
+      result = await summaryCache.load(key, async () => {
+        const response = await marketClient.summary(date, settings);
+        if (response.response.headers.get("X-PWA-Cache") === "fallback") usingCachedData = true;
+        const body = response.data;
+        if (body.meta?.generation !== dataset.info.generation || body.meta?.asOf !== date ||
+            body.data?.stocks?.length !== dataset.stocks.length) throw new Error("Invalid market summary");
+        return body;
+      });
     }
   } catch (error) {
     if (request !== summaryRequest) return;
@@ -480,13 +484,18 @@ function openSectorDialog(name, focusHandle = true) {
     if (sectorDetailCache.has(key)) renderSectorDialog(name);
     else {
       document.querySelector("#sector-dialog-content").innerHTML = '<p role="status">資料載入中…</p>';
-      marketClient.sector(name, date, { ...state.settings }).then(({ data }) => {
+      const settings = { ...state.settings };
+      const isCurrent = () => document.querySelector("#sector-dialog").open && state.sectorName === name &&
+        key === `${summaryKey(dataset.info.asOf)}:${name}`;
+      sectorDetailCache.load(key, async () => {
+        const { data } = await marketClient.sector(name, date, settings);
         if (data.meta?.generation !== dataset.info.generation || data.meta?.asOf !== date)
           throw new Error("產業資料版本不一致，請重新載入");
-        sectorDetailCache.set(key, data.data);
-        if (state.sectorName === name && key === `${summaryKey(dataset.info.asOf)}:${name}`) renderSectorDialog(name);
+        return data.data;
+      }).then(() => {
+        if (isCurrent()) renderSectorDialog(name);
       }).catch((error) => {
-        if (state.sectorName === name) document.querySelector("#sector-dialog-content").textContent = error.message;
+        if (isCurrent()) document.querySelector("#sector-dialog-content").textContent = error.message;
       });
     }
   } else renderSectorDialog(name);
@@ -604,13 +613,15 @@ async function openEntryScoreDialog(symbol, focusClose = true, showResearch = fa
     dialog.dataset.entrySymbol === symbol && key === `${summaryKey(state.date)}:${symbol}`;
   if (!apiMode || stockDetailCache.has(key)) return;
   const summary = snapshots.find((stock) => stock.symbol === symbol)?.entryScore;
+  const settings = { ...state.settings };
   try {
-    const { data } = await marketClient.analysis(symbol, date, { ...state.settings });
-    const detail = data.data?.entryScore;
-    if (data.meta?.asOf !== date || detail?.modelVersion !== summary?.modelVersion ||
-        detail?.totalScore !== summary?.totalScore) throw new Error("清單與個股評分版本不一致");
-    const entryDetail = data.data;
-    stockDetailCache.set(key, entryDetail);
+    const entryDetail = await stockDetailCache.load(key, async () => {
+      const { data } = await marketClient.analysis(symbol, date, settings);
+      const detail = data.data?.entryScore;
+      if (data.meta?.asOf !== date || detail?.modelVersion !== summary?.modelVersion ||
+          detail?.totalScore !== summary?.totalScore) throw new Error("清單與個股評分版本不一致");
+      return data.data;
+    });
     if (isCurrent()) {
       document.querySelector("#dialog-content").innerHTML = entryScoreDialogMarkup(
         { ...snapshots.find((stock) => stock.symbol === symbol), ...entryDetail }, esc, number, percent,
