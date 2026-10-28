@@ -573,8 +573,19 @@ function sectorContext() { return { state, dataset, loading, loadFailed, latestS
 function renderSectorOverview() { renderSectorOverviewView(sectorContext()); }
 function renderSectorDialog(name) { renderSectorDialogView(name, sectorContext()); }
 
-function openSectorDialog(name, focusHandle = true) {
+function openSectorDialog(name, focusHandle = true, stockSymbol = null) {
+  const dialog = document.querySelector("#sector-dialog");
   state.sectorName = name;
+  dialog.dataset.stockTarget = stockSymbol ?? "";
+  const locateStock = () => {
+    if (!stockSymbol || !dialog.open || state.sectorName !== name || dialog.dataset.stockTarget !== stockSymbol) return;
+    const target = dialog.querySelector(`[data-sector-stock="${CSS.escape(stockSymbol)}"]`);
+    if (!target) return;
+    target.setAttribute("data-sector-target", "true");
+    target.tabIndex = -1;
+    target.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+    target.focus({ preventScroll: true });
+  };
   if (apiMode) {
     const date = dataset.info.asOf, key = `${summaryKey(date)}:${name}`;
     if (sectorDetailCache.has(key)) renderSectorDialog(name);
@@ -589,18 +600,18 @@ function openSectorDialog(name, focusHandle = true) {
           throw new Error("產業資料版本不一致，請重新載入");
         return data.data;
       }).then(() => {
-        if (isCurrent()) renderSectorDialog(name);
+        if (isCurrent()) { renderSectorDialog(name); locateStock(); }
       }).catch((error) => {
         if (isCurrent()) document.querySelector("#sector-dialog-content").textContent = error.message;
       });
     }
   } else renderSectorDialog(name);
-  const dialog = document.querySelector("#sector-dialog");
   dialogs.open(dialog, {
     focus: focusHandle,
     mobileTarget: ".sector-dialog-handle",
     desktopTarget: "#close-sector-dialog",
   });
+  locateStock();
 }
 
 
@@ -960,6 +971,20 @@ function bindEvents() {
       return;
     }
     if (button.id === "reload-data") { void refreshWithVersionCheck(); return; }
+    if (button.dataset.institutionSector) {
+      const symbol = button.dataset.institutionSector;
+      const stock = latestSnapshots.find(item => item.symbol === symbol);
+      if (!stock?.sector || isEtf(stock)) { toast("目前沒有可查看的產業法人資料"); return; }
+      document.querySelector("#info-dialog").close();
+      state.page = "sectors";
+      state.sectorWindow = "5";
+      renderPage(); renderSectorOverview();
+      const sectorCard = [...document.querySelectorAll("#sector-grid [data-sector-details]")]
+        .find(card => card.dataset.sectorDetails === stock.sector);
+      sectorCard?.scrollIntoView({ block: "center", behavior: "instant" });
+      openSectorDialog(stock.sector, !touchInteraction, symbol);
+      return;
+    }
       if (button.dataset.dialog) openDialog(button.dataset.dialog, !touchInteraction);
     if (button.dataset.entryScore) void openEntryScoreDialog(button.dataset.entryScore, !touchInteraction,
       state.page === "favorites" && Boolean(button.closest("#research-list")));

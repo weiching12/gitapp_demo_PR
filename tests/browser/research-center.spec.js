@@ -12,10 +12,13 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(page.locator("#research-list table")).toBeVisible();
   await expect(page.locator("#research-list thead")).toContainText("最新異動");
   await expect(page.locator("#research-list thead")).toContainText("分數");
+  await expect(page.locator("#research-list thead th").nth(2)).toHaveText("股價");
   await expect(page.locator("#research-list thead")).not.toContainText("最終分數");
   const card = page.locator(".research-card").first();
   await expect(card).toBeVisible();
-  await expect(card.locator(".research-delta")).toBeVisible();
+  await expect(card.locator(".research-score-change")).toBeVisible();
+  await expect(card.locator(".research-price strong")).toHaveText(/^\d+\.\d{2}$/);
+  await expect(card.locator(".research-sector-badge")).not.toBeEmpty();
   await expect(card.locator(".research-sparkline")).toHaveCount(0);
   await expect(card.locator(".research-card-more")).toHaveCount(0);
   await expect(card.locator(".research-card-review")).toHaveCount(0);
@@ -111,7 +114,7 @@ test("phone research cards fit the viewport and remain operable", async ({ page 
       return { header: textRight(table.querySelector('thead th:nth-child(2)')),
         score: textRight(row.querySelector('.research-score strong')),
         scoreTop: row.querySelector('.research-score strong').getBoundingClientRect().top,
-        deltaTop: row.querySelector('.research-delta strong').getBoundingClientRect().top };
+        deltaTop: row.querySelector('.research-price strong').getBoundingClientRect().top };
     });
     expect(Math.abs(scoreAlignment.header - scoreAlignment.score)).toBeLessThanOrEqual(1);
     expect(Math.abs(scoreAlignment.scoreTop - scoreAlignment.deltaTop)).toBeLessThanOrEqual(1);

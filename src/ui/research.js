@@ -46,6 +46,20 @@ export function researchCardTrend(period, row) {
   return { status: result.status, label, initial, latest, delta: result.finalDelta, reason: badges[0].label, badges };
 }
 
+export function researchCardPrice(period, row, stock, asOf = row?.latest?.asOf) {
+  const positive = value => Number.isFinite(value) && value > 0;
+  const latest = row?.latest?.asOf === asOf ? row.latest : null;
+  const close = positive(latest?.close) ? latest.close : stock?.latest?.date === asOf && positive(stock.latest.close) ? stock.latest.close : null;
+  // Snapshot.close is the observed closing price, even when scoring adjusts earlier bars.
+  const joined = period?.addedSnapshot;
+  const baseline = period?.baseline ?? (positive(joined?.close) ? { asOf: joined.asOf, close: joined.close, priceBasis: "unadjusted" } : null);
+  if (!close) return { close: null, delta: null, asOf, reason: "當日收盤價不足" };
+  if (!positive(baseline?.close) || !baseline.asOf) return { close, delta: null, asOf, reason: "收藏價格未保存，無法比較" };
+  if (baseline.asOf > asOf || baseline.priceBasis && baseline.priceBasis !== "unadjusted")
+    return { close, delta: null, asOf, reason: "收藏價格日期或基準不一致，無法比較" };
+  return { close, delta: close - baseline.close, asOf, baseline };
+}
+
 function scoreChart(history) {
   const points = [...history].filter((item) => item.valid && Number.isFinite(item.finalScore))
     .sort((a, b) => a.asOf.localeCompare(b.asOf));
@@ -105,15 +119,17 @@ export function renderResearchCenter({ favorites, stocks, rows, store, date, sor
     const changeValue = comparableTrend ? delta(trend.delta) : "—";
     const baseline = trend.initial ? `${trend.initial.asOf} ${fmt(trend.initial.finalScore)} 分` : "尚無收藏基準";
     const changeDetail = `${trend.label}：${baseline} → ${snap?.asOf ?? "—"} ${fmt(snap?.finalScore)} 分；${trend.reason ?? ""}`;
-    const dateLabel = comparableTrend ? `${trend.label} · ${trend.initial.asOf.slice(5).replace("-", "/")} → ${snap.asOf.slice(5).replace("-", "/")}` : trend.label;
+    const price = researchCardPrice(activeResearchPeriod(store, symbol), row, stock, date);
+    const priceDetail = price.baseline ? `收藏基準 ${price.baseline.asOf} ${fmt(price.baseline.close)} → ${price.asOf} ${fmt(price.close)}；未還原收盤價差，未計股息，不代表投資損益` : price.reason;
+    const sectorBadge = stock?.sector ? `<span class="research-sector-badge" title="${esc(stock.sector)}">${esc(stock.sector)}</span>` : "";
     const reason = row?.loading ? "讀取研究快照中" : trend.reason ?? "缺少當日評分快照";
     const badges = row?.loading ? [{ label: reason, tone: "neutral" }] : trend.badges ?? [{ label: reason, tone: "neutral" }];
     const badgesMarkup = `<span class="research-change-badges">${badges.map(badge => `<span class="research-change-badge ${badge.tone}">${esc(badge.label)}</span>`).join("")}</span>`;
     const conditionText = `${condition}${snap?.cap?.enabled ? ` · 上限 ${fmt(snap.cap.value)}` : ""}`;
-    return `<tr class="research-card" data-research-symbol="${esc(symbol)}" data-entry-score="${esc(symbol)}"><th scope="row"><button type="button" class="research-card-main" data-entry-score="${esc(symbol)}" aria-label="查看 ${esc(symbol)} ${esc(label)} 株研評分"><span class="research-stock"><span class="research-stock-head"><span class="research-code">${esc(symbol)}</span><strong>${esc(label)}</strong></span>${row?.source === "historical-recalculation" ? "<small>模擬重算</small>" : ""}</span></button><span class="research-stock-badges">${badgesMarkup}</span></th><td class="research-score"><strong>${fmt(snap?.finalScore)}</strong></td><td class="research-delta ${tone(comparableTrend ? trend.delta : null)}" title="${esc(changeDetail)}"><strong>${changeValue}</strong><small>${esc(dateLabel)}</small></td><td class="research-condition ${snap?.valid ? "" : "insufficient"}">${esc(conditionText)}</td><td class="research-summary">${badgesMarkup}</td></tr>`;
+    return `<tr class="research-card" data-research-symbol="${esc(symbol)}" data-entry-score="${esc(symbol)}"><th scope="row"><button type="button" class="research-card-main" data-entry-score="${esc(symbol)}" aria-label="查看 ${esc(symbol)} ${esc(label)} 株研評分"><span class="research-stock"><span class="research-stock-head"><span class="research-code">${esc(symbol)}</span><strong>${esc(label)}</strong>${sectorBadge}</span>${row?.source === "historical-recalculation" ? "<small>模擬重算</small>" : ""}</span></button><span class="research-stock-badges">${badgesMarkup}</span></th><td class="research-score"><strong>${fmt(snap?.finalScore)}</strong><small class="research-score-change ${tone(comparableTrend ? trend.delta : null)}" title="${esc(changeDetail)}" aria-label="${esc(trend.label)}評分變化 ${esc(changeValue)}">${changeValue}</small></td><td class="research-price"><strong aria-label="${esc(price.asOf ?? "")} 收盤價 ${fmt(price.close)}">${fmt(price.close)}</strong><small class="research-price-change ${tone(price.delta)}" title="${esc(priceDetail)}" aria-label="自收藏後股價差異 ${delta(price.delta)}">${delta(price.delta)}</small></td><td class="research-condition ${snap?.valid ? "" : "insufficient"}">${esc(conditionText)}</td><td class="research-summary">${badgesMarkup}</td></tr>`;
   }).join("");
   return { stats: `<div><strong>${favorites.length}</strong><span>追蹤股票</span></div><div><strong>${increased}<small> / ${comparable.length}</small></strong><span>收藏後提高／可比較</span></div><div><strong>${changed}<small> / ${favorites.length}</small></strong><span>重要異動／追蹤</span></div>`,
-    cards: entries ? `<table class="research-table"><thead><tr><th scope="col">股票</th><th scope="col">分數</th><th scope="col">分數變化</th><th scope="col">必要條件</th><th scope="col">最新異動</th></tr></thead><tbody>${entries}</tbody></table>`
+    cards: entries ? `<table class="research-table"><thead><tr><th scope="col">股票</th><th scope="col">分數</th><th scope="col">股價</th><th scope="col">必要條件</th><th scope="col">最新異動</th></tr></thead><tbody>${entries}</tbody></table>`
       : `<p class="research-muted">${favorites.length ? "此篩選目前沒有股票。" : "尚無追蹤股票。"}</p>` };
 }
 

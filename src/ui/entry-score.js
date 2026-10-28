@@ -4,6 +4,7 @@ const guideItem = (index, title, content) =>
   `<article class="guide-item entry-guide-item"><span>${index}</span><div><h4>${title}</h4>${content}</div></article>`;
 import { dailyCloseSeries } from "../../shared/price-history.js";
 import { institutionalScoreBreakdown } from "../../shared/entry-score.js";
+import { isEtf } from "../../shared/market-codec.js";
 
 export function priceTrend(series) {
   const valid = series.filter(({ close }) => Number.isFinite(close) && close > 0);
@@ -59,7 +60,7 @@ function priceChartMarkup(stock, esc, number, series) {
   }).join("");
   const last = series.at(-1);
   const readout = chartReadout(last, number);
-  return `<section class="entry-price-chart" data-trend="${trend}"><div class="entry-chart-header">${heading}<div class="entry-chart-readout" aria-label="選定交易日資訊" hidden><div><strong class="entry-chart-selected-date">${esc(last.date.slice(5).replace("-", "/"))}</strong><span class="entry-chart-selected-close">${esc(Number.isFinite(last.close) ? `收盤 ${number(last.close, 2)}` : "無收盤價")}</span><small class="entry-chart-selected-volume">${esc(Number.isFinite(last.volume) ? `量 ${number(last.volume / 1000)} 張` : "成交量不足")}</small></div><strong class="entry-chart-selected-change ${Number.isFinite(last.changePercent) ? last.changePercent > 0 ? "up" : last.changePercent < 0 ? "down" : "" : ""}">${chartChange(last.changePercent)}</strong></div></div>
+  return `<section class="entry-price-chart" data-trend="${trend}"><div class="entry-chart-header"><div class="entry-chart-default">${heading}<div class="entry-chart-latest"><strong aria-label="${esc(last.date)} 收盤價 ${esc(Number.isFinite(last.close) ? number(last.close, 2) : "—")}">${Number.isFinite(last.close) ? number(last.close, 2) : "—"}</strong><small class="entry-chart-latest-change ${last.changePercent > 0 ? "up" : last.changePercent < 0 ? "down" : ""}">${chartChange(last.changePercent)}</small></div></div><div class="entry-chart-readout" aria-label="選定交易日資訊" hidden><div><strong class="entry-chart-selected-date">${esc(last.date.slice(5).replace("-", "/"))}</strong><span class="entry-chart-selected-close">${esc(Number.isFinite(last.close) ? `收盤 ${number(last.close, 2)}` : "無收盤價")}</span><small class="entry-chart-selected-volume">${esc(Number.isFinite(last.volume) ? `量 ${number(last.volume / 1000)} 張` : "成交量不足")}</small></div><strong class="entry-chart-selected-change ${Number.isFinite(last.changePercent) ? last.changePercent > 0 ? "up" : last.changePercent < 0 ? "down" : "" : ""}">${chartChange(last.changePercent)}</strong></div></div>
     <div class="entry-chart-legend">${[
       ["close", "收盤價"], ["ma20", "月線 MA20"], ["ma60", "季線 MA60"],
       ["volume", "成交量"],
@@ -110,7 +111,7 @@ export function selectEntryChartPoint(plot, index, number) {
   plot.setAttribute("aria-valuenow", String(selected + 1));
   plot.setAttribute("aria-valuetext", readout);
   const chart = plot.closest(".entry-price-chart");
-  chart.querySelector("h3").hidden = true;
+  chart.querySelector(".entry-chart-default").hidden = true;
   chart.querySelector(".entry-chart-readout").hidden = false;
   chart.querySelector(".entry-chart-selected-date").textContent = point.date.slice(5).replace("-", "/");
   chart.querySelector(".entry-chart-selected-close").textContent = Number.isFinite(point.close) ? `收盤 ${number(point.close, 2)}` : "無收盤價";
@@ -128,7 +129,7 @@ export function selectEntryChartPoint(plot, index, number) {
 
 export function restoreEntryChartTitle(plot) {
   const chart = plot.closest(".entry-price-chart");
-  chart.querySelector("h3").hidden = false;
+  chart.querySelector(".entry-chart-default").hidden = false;
   chart.querySelector(".entry-chart-readout").hidden = true;
 }
 const CORE_LABELS = { trend: "趨勢結構", momentum: "KD 動能", priceVolume: "量價表現",
@@ -163,7 +164,10 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
         ? `<span class="entry-category ${tone === "pass" ? "" : "excluded"}"><span class="entry-category-values"><strong>${number(category.score, 2)} 分</strong><span>權重 ${category.weight}% · 計入分數 ${number(category.creditedContribution ?? (tone === "pass" ? category.contribution : 0), 2)}</span></span><progress value="${category.score}" max="100" aria-label="${esc(label)}評分"></progress></span>` : "";
       const iconPath = tone === "pass" ? "M4.5 10.25 8.5 14.25 15.5 6.5" :
         tone === "fail" ? "M5.5 5.5 14.5 14.5 M14.5 5.5 5.5 14.5" : "M5 10 15 10";
-      return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span>${scoreDetail}</summary><div class="entry-condition-detail">${key === "momentum" ? kdChartMarkup(chartSeries, esc, number, item?.data) : data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>"}</div></details>`;
+      const detail = key === "momentum" ? kdChartMarkup(chartSeries, esc, number, item?.data) : data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>";
+      const institutionDetail = key === "institutional" && stock.sector && !isEtf(stock)
+        ? `<div class="entry-institution-detail">${detail}<button type="button" class="outline-button" data-institution-sector="${esc(stock.symbol)}" aria-label="查看${esc(stock.name)}所屬${esc(stock.sector)}產業法人買賣">查看產業法人 ↗</button></div>` : detail;
+      return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span>${scoreDetail}</summary><div class="entry-condition-detail">${institutionDetail}</div></details>`;
     }).join("")}</div>
     ${valid ? `<div class="entry-more"><details><summary>支持條件、風險與後續觀察</summary>
       ${guideItem("01", "支持條件", list(score.supportingEvidence, esc, "目前沒有符合的支持條件。"))}

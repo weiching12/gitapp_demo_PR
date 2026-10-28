@@ -1,0 +1,25 @@
+import { test, expect } from '@playwright/test';
+
+for (const width of [390, 1440]) {
+  test(`institution detail links to the matching stock and sector at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 956 });
+    await page.goto('/');
+    await page.locator('#stock-rows tr[data-symbol="2330"] .entry-score-button').click();
+    const sector = await page.locator('.entry-dialog-sector').textContent();
+    const condition = page.locator('.entry-condition').filter({ has: page.locator('.entry-condition-copy strong', { hasText: '法人籌碼' }) });
+    await condition.locator('summary').click();
+    await condition.locator('[data-institution-sector="2330"]').click();
+    await expect(page.locator('#info-dialog')).toBeHidden();
+    await expect(page.locator('#sector-dialog')).toBeVisible();
+    await expect(page.locator('#sector-dialog-heading')).toHaveText(sector);
+    await expect(page.locator('.sidebar [data-page="sectors"]')).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('[data-sector-window="5"]')).toHaveAttribute('aria-pressed', 'true');
+    const stock = page.locator('[data-sector-stock="2330"]');
+    await expect(stock).toHaveAttribute('data-sector-target', 'true');
+    await expect(stock).toBeFocused();
+    await expect(stock).toBeInViewport();
+    await page.locator(width <= 520 ? '.sector-dialog-handle' : '#close-sector-dialog').click();
+    await expect(page.locator('#sector-dialog')).toBeHidden();
+    await expect(page.locator('#page-title')).toContainText('法人買株');
+  });
+}

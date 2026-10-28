@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { researchCardTrend } from "../src/ui/research.js";
+import { researchCardPrice, researchCardTrend } from "../src/ui/research.js";
 
 const keys = ["trend", "momentum", "priceVolume", "institutional", "entryRisk"];
 function snapshot(asOf, finalScore, options = {}) {
@@ -89,4 +89,25 @@ test("score caps explain a directional change without listing unrelated improvem
   Object.assign(latest, { id: "latest", asOf: "2026-10-28", finalScore: 60, baseScore: 80,
     cap: { enabled: true, value: 60 } });
   assert.deepEqual(researchCardTrend({ addedSnapshot: initial }, { latest }).badges.map(badge => badge.label), ["分數上限啟用"]);
+});
+
+test("card price shows an absolute closing-price difference from the saved join baseline", () => {
+  const period = { baseline: { asOf: "2026-10-22", close: 48.2, priceBasis: "unadjusted" } };
+  const result = researchCardPrice(period, { latest: { asOf: "2026-10-28", close: 47.5, valid: false } });
+  assert.equal(result.close, 47.5);
+  assert(Math.abs(result.delta + .7) < 1e-10);
+  assert.equal(result.baseline.asOf, "2026-10-22");
+});
+
+test("a saved join snapshot can supply its observed close but a later first-valid baseline cannot", () => {
+  const row = { latest: { asOf: "2026-10-28", close: 52 } };
+  assert.equal(researchCardPrice({ addedSnapshot: { asOf: "2026-10-22", close: 50, priceBasis: "reference-adjusted" } }, row).delta, 2);
+  assert.equal(researchCardPrice({ firstValidPriceBaseline: { asOf: "2026-10-27", close: 51 } }, row).delta, null);
+});
+
+test("card price rejects stale closes, later join dates and different price bases", () => {
+  const baseline = { asOf: "2026-10-22", close: 50, priceBasis: "unadjusted" };
+  assert.equal(researchCardPrice({ baseline }, { latest: { asOf: "2026-10-27", close: 51 } }, { latest: { date: "2026-10-27", close: 51 } }, "2026-10-28").close, null);
+  assert.equal(researchCardPrice({ baseline: { ...baseline, asOf: "2026-10-29" } }, { latest: { asOf: "2026-10-28", close: 52 } }).delta, null);
+  assert.equal(researchCardPrice({ baseline: { ...baseline, priceBasis: "adjusted" } }, { latest: { asOf: "2026-10-28", close: 52 } }).delta, null);
 });
