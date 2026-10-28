@@ -152,10 +152,10 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
   return `<div class="entry-dialog">${heading}
     <p class="entry-dialog-meta">波段順勢進場 · ${esc(score.asOf)}</p>
     ${priceChartMarkup(stock, esc, number, chartSeries)}
-    <section class="entry-summary"><div class="entry-summary-head"><strong${valid ? ` data-score-target="${score.finalScore}"` : ""}>${valid ? `${number(score.finalScore, 2)} / 100` : "—"}</strong><span>${esc(score.status)}</span></div>
+    <section class="entry-summary" data-conditions-passed="${Boolean(score.coreConditionsPassed)}"><time class="entry-summary-date" datetime="${esc(score.asOf ?? "")}">${esc(score.asOf?.replaceAll("-", "/") ?? "—")}</time><div class="entry-summary-head"><strong${valid ? ` data-score-target="${score.finalScore}"` : ""}>${valid ? `${number(score.finalScore, 2)} / 100` : "—"}</strong><span>${esc(score.status)}</span></div>
       <dl class="entry-summary-facts"><div><dt>核心條件</dt><dd>${score.passedCount ?? 0} / ${score.totalConditions ?? 5} 通過</dd></div>
       <div><dt>收盤／漲跌</dt><dd>${stock.latest ? number(stock.latest.close, 2) : "—"}／${stock.latest ? percent(stock.latest.changePercent) : "—"}</dd></div>
-      </dl></section>
+      </dl>
     <section class="entry-evidence entry-core-panel"><h3>核心條件檢查</h3><div class="entry-condition-list">${Object.entries(CORE_LABELS).map(([key, label]) => {
       const item = score.coreConditions?.[key];
       const status = item?.status === "PASS" ? "通過" : item?.status === "FAIL" ? "未通過" : "資料不足";
@@ -163,11 +163,11 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
       const data = coreData(item?.data, esc, number);
       const category = score.categories?.[key];
       const scoreDetail = valid && Number.isFinite(category?.score)
-        ? `<div class="entry-category ${tone === "pass" ? "" : "excluded"}"><div><strong>${number(category.score, 2)} 分</strong><span>權重 ${category.weight}% · 計入分數 ${number(category.creditedContribution ?? (tone === "pass" ? category.contribution : 0), 2)}</span></div><progress value="${category.score}" max="100" aria-label="${esc(label)}評分"></progress>${tone === "pass" ? "" : "<small>條件未通過，計入 0.00</small>"}</div>` : "";
+        ? `<span class="entry-category ${tone === "pass" ? "" : "excluded"}"><span class="entry-category-values"><strong>${number(category.score, 2)} 分</strong><span>權重 ${category.weight}% · 計入分數 ${number(category.creditedContribution ?? (tone === "pass" ? category.contribution : 0), 2)}</span></span><progress value="${category.score}" max="100" aria-label="${esc(label)}評分"></progress></span>` : "";
       const iconPath = tone === "pass" ? "M4.5 10.25 8.5 14.25 15.5 6.5" :
         tone === "fail" ? "M5.5 5.5 14.5 14.5 M14.5 5.5 5.5 14.5" : "M5 10 15 10";
-      return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span></summary><div class="entry-condition-detail">${scoreDetail}${key === "momentum" ? kdChartMarkup(chartSeries, esc, number, item?.data) : data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>"}</div></details>`;
-    }).join("")}</div></section>
+      return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span>${scoreDetail}</summary><div class="entry-condition-detail">${key === "momentum" ? kdChartMarkup(chartSeries, esc, number, item?.data) : data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>"}</div></details>`;
+    }).join("")}</div></section></section>
     ${valid ? `<section class="entry-evidence entry-more"><details><summary>支持條件、風險與後續觀察</summary>
       ${guideItem("01", "支持條件", list(score.supportingEvidence, esc, "目前沒有符合的支持條件。"))}
       ${guideItem("02", "疑慮與風險", list(score.conflictingEvidence, esc, "目前沒有額外風險提示。"))}

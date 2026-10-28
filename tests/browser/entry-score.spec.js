@@ -27,6 +27,8 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   const firstSymbol = await rows.first().getAttribute("data-symbol");
   await rows.first().locator(".entry-score-button").click();
   await expect(page.locator("#info-dialog")).toBeVisible();
+  await expect(page.locator(".entry-summary-date")).toHaveAttribute("datetime", await page.locator("#trade-date").inputValue());
+  await expect(page.locator(".entry-summary-date")).toHaveCSS("font-size", "11px");
   await expect(page.locator(".entry-dialog-sector")).not.toBeEmpty();
   await expect(page.locator("#dialog-heading")).toHaveText(new RegExp(`^${firstSymbol} .+$`));
   await expect(page.locator("#dialog-content")).toContainText("波段順勢進場");
@@ -108,6 +110,7 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(plot).toHaveAttribute("aria-valuenow", "2");
   await expect(chart.locator(".entry-chart-readout")).toBeVisible();
   await expect(page.locator(".entry-core-panel .entry-condition")).toHaveCount(5);
+  await expect(page.locator(".entry-summary .entry-core-panel .entry-condition")).toHaveCount(5);
   await expect(page.locator(".entry-dialog-title [data-favorite]")).toHaveCount(1);
   await expect(page.locator("#info-dialog .dialog-top .eyebrow")).toBeHidden();
   const dialogFavorite = page.locator(".entry-dialog-title [data-favorite]");
@@ -118,6 +121,9 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
     .toHaveAttribute("aria-pressed", wasFavorite === "true" ? "false" : "true");
   await expect(page.locator(".entry-condition-icon svg")).toHaveCount(5);
   await expect(page.locator(".entry-condition-data").first()).toBeHidden();
+  await expect(page.locator(".entry-condition:not([open]) .entry-category")).toHaveCount(5);
+  await expect(page.locator(".entry-category").first()).toBeVisible();
+  await expect(page.locator(".entry-category").last()).toBeVisible();
   await page.locator(".entry-condition summary").first().click();
   await expect(page.locator(".entry-condition-data").first()).toBeVisible();
   await page.locator(".entry-condition summary").nth(1).click();
@@ -138,11 +144,11 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(page.locator(".entry-category")).toHaveCount(5);
   await expect(page.locator(".entry-categories")).toHaveCount(0);
   await expect(page.locator(".entry-condition .entry-category")).toHaveCount(5);
-  await expect(page.locator(".entry-category").first().locator("div span")).toContainText("權重 25% · 計入分數");
+  await expect(page.locator(".entry-category").first().locator(".entry-category-values > span")).toContainText("權重 25% · 計入分數");
   await expect(page.locator(".entry-category").first().locator("strong")).toHaveText(/^\d+\.\d{2} 分$/);
   const excluded = page.locator(".entry-category.excluded");
   if (await excluded.count()) {
-    await expect(excluded.first().locator("div span")).toContainText("計入分數 0.00");
+    await expect(excluded.first().locator(".entry-category-values > span")).toContainText("計入分數 0.00");
     await expect(page.locator(".entry-summary-head span")).toHaveText("核心條件不通過");
   }
   await page.locator(".entry-more > details").first().locator("summary").click();
