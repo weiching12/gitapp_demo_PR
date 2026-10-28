@@ -3205,7 +3205,7 @@ dialog.sector-dialog {
 @media (hover: hover) and (pointer: fine) { .research-card:hover { background: color-mix(in srgb, currentColor 5%, transparent); } }
 .research-card-main { display: block; width: 100%; padding: 0; color: inherit; background: transparent; border: 0; text-align: left; cursor: pointer; }
 .research-card-main:focus-visible { outline-offset: 3px; }
-.research-mobile-detail { display: none; }
+.research-stock-badges { display: none; }
 .research-stock { display: flex; flex-direction: column; min-width: 0; }
 .research-stock-head { display: flex; align-items: baseline; gap: .4rem; min-width: 0; }
 .research-stock-head strong { min-width: 0; overflow-wrap: anywhere; }
@@ -3271,8 +3271,7 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
   .research-table th:nth-child(n+4), .research-card td:nth-child(n+4) { display: none; }
   .research-stock-head { flex-wrap: wrap; gap: .1rem .3rem; }.research-stock-head strong { font-size: .9rem; }
   .research-delta small { font-size: .62rem; }
-  .research-mobile-detail { display: table-row; }.research-mobile-detail td { padding: 0 .35rem .7rem; color: var(--muted); font-size: .72rem; line-height: 1.35; }
-  .research-card > th, .research-card > td { border-bottom: 0; }
+  .research-stock-badges { display: block; margin-top: 8px; font-weight: 400; }
 }
 .page-heading.favorites-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: .25rem .75rem; }
 .page-heading.favorites-heading > div:first-child { display: contents; }

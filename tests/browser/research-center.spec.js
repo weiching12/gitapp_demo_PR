@@ -87,7 +87,8 @@ test("phone research cards fit the viewport and remain operable", async ({ page 
   await page.getByRole("button", { name: "株研追蹤" }).first().click();
   await expect(page.locator("#page-description")).toBeVisible();
   await expect(page.locator("#research-list .research-card").first()).toBeVisible();
-  for (const width of [320, 390]) {
+  await expect(page.locator('.research-mobile-detail')).toHaveCount(0);
+  for (const width of [320, 390, 483]) {
     await page.setViewportSize({ width, height: 844 });
     const heading = await page.locator(".page-heading").evaluate((node) => {
       const title = node.querySelector("#page-title").getBoundingClientRect();
@@ -114,6 +115,14 @@ test("phone research cards fit the viewport and remain operable", async ({ page 
     });
     expect(Math.abs(scoreAlignment.header - scoreAlignment.score)).toBeLessThanOrEqual(1);
     expect(Math.abs(scoreAlignment.scoreTop - scoreAlignment.deltaTop)).toBeLessThanOrEqual(1);
+    const badgeLayout = await page.locator('.research-card > th').first().evaluate(cell => {
+      const heading = cell.querySelector('.research-stock-head').getBoundingClientRect();
+      const badges = cell.querySelector('.research-stock-badges').getBoundingClientRect();
+      const bounds = cell.getBoundingClientRect();
+      return { headingBottom: heading.bottom, badgesTop: badges.top, badgesRight: badges.right, cellRight: bounds.right };
+    });
+    expect(badgeLayout.badgesTop).toBeGreaterThan(badgeLayout.headingBottom);
+    expect(badgeLayout.badgesRight).toBeLessThanOrEqual(badgeLayout.cellRight);
   }
   await page.locator("#research-filter").selectOption("important");
   await page.locator("#research-filter").selectOption("all");
