@@ -13,6 +13,12 @@
     "test:pwa": "npm run build && playwright test --config playwright.pwa.config.js",
     "test:cloudflare": "playwright test --config playwright.cloudflare.config.js",
     "build:cloudflare": "vite build --mode cloudflare --configLoader runner",
+    "build:native": "vite build --mode native --configLoader runner",
+    "dev:native": "vite --mode native --host 127.0.0.1",
+    "native:sync": "npm run build:native && cap sync ios",
+    "native:ios": "cap open ios",
+    "test:native": "playwright test --config playwright.native.config.js",
+    "verify:native-build": "node scripts/verify-native-build.mjs",
     "dev:cloudflare": "npm run build:cloudflare && wrangler dev --port 8787",
     "deploy": "npm run build:cloudflare && wrangler deploy",
     "deploy:ui": "node scripts/deploy-ui.js",
@@ -24,11 +30,17 @@
     "test:refactor-browser": "node tests/refactor-browser-runtime.mjs"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.3",
     "@playwright/test": "^1.58.2",
     "vite": "^7.3.1",
     "wrangler": "^4.151.1"
   },
   "dependencies": {
-    "@block65/webcrypto-web-push": "^2.0.0"
+    "@block65/webcrypto-web-push": "^2.0.0",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/preferences": "8.0.1",
+    "@capacitor/push-notifications": "8.1.3"
   }
 }

@@ -111,6 +111,7 @@ const dialogs = createDialogController();
 
 let dataset, snapshots, latestSnapshots, currentSentiment;
 const apiMode = import.meta.env.VITE_DATA_MODE === "api";
+const nativeMode = import.meta.env.VITE_APP_TARGET === "native";
 const marketClient = new MarketApiClient();
 const summaryCache = new RequestCache(), sectorDetailCache = new RequestCache(), stockDetailCache = new RequestCache();
 let researchStore, researchRows = new Map(), researchRequest = 0;
@@ -128,13 +129,15 @@ const tableBatches = createTableBatchController({ state: tableState, batchSize: 
 let toastTimer;
 let isDemo;
 let presence, stopUpdateCountdown, usingCachedData = false;
+let nativeStorage, nativePush;
 let checkPwaUpdate = async () => false;
 let touchInteraction = false;
 const pendingSymbols = new Set();
 
-function readPreferences() { loadPreferences(state, preferenceStorage()); }
-function savePreferences() { persistPreferences(state, toast, preferenceStorage()); }
-function saveResearch() { return persistResearchStore(preferenceStorage(), researchStore); }
+const appStorage = () => nativeMode ? nativeStorage : preferenceStorage();
+function readPreferences() { loadPreferences(state, appStorage()); }
+function savePreferences() { persistPreferences(state, toast, appStorage()); }
+function saveResearch() { return persistResearchStore(appStorage(), researchStore); }
 
 async function loadResearchReview(symbol) {
   const key = `${dataset.info.generation ?? "demo"}:${symbol}`;
@@ -299,7 +302,8 @@ async function finishAppSplashBeforeLoading() {
 function shell() {
   document.querySelector("#app").innerHTML = shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc });
   presence?.stop();
-  presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
+  if (nativeMode) document.querySelector("#online-count").hidden = true;
+  else presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
 }
 
 function refreshData() {
@@ -408,6 +412,10 @@ function renderConnectionState(online = navigator.onLine) {
 }
 
 function enablePwa() {
+  if (nativeMode) {
+    void enableNativeApp().catch((error) => console.error("Native lifecycle setup failed", error));
+    return;
+  }
   const checkUpdate = startPwa({
     onConnection: (online) => renderConnectionState(online),
     getDataVersion: () => dataset?.info?.generation,
@@ -441,6 +449,55 @@ function enablePwa() {
   stopUpdateCountdown = startUpdateCountdown(document.querySelector("#update-countdown"));
 }
 
+async function enableNativeApp() {
+  const { startNativeApp, enableNativePush } = await import("./native/bootstrap.js");
+  const notifications = document.querySelector("#settings-notifications");
+  notifications.querySelector(".settings-version-title").textContent = "資料更新";
+  notifications.querySelector("#check-update").textContent = "檢查資料";
+  const native = await startNativeApp({
+    getDataVersion: () => dataset?.info?.generation,
+    onDataUpdate: async () => { await nativeStorage?.flush?.(); window.location.reload(); },
+    onPause: async () => {
+      savePreferences();
+      if (researchStore) saveResearch();
+      rememberPage(state.page, nativeStorage);
+      await nativeStorage?.flush?.();
+    },
+    beforeResume: () => nativePush?.refresh(),
+    onBack: () => {
+      const dialog = document.querySelector("#info-dialog[open]") ?? document.querySelector("dialog[open]");
+      if (dialog) { dialog.close(); return true; }
+      if (state.page !== "market") {
+        document.querySelector('.sidebar [data-page="market"]').click();
+        return true;
+      }
+      return false;
+    },
+    onHistoryBack: () => window.history.back(),
+    onError: (error) => console.warn("Native lifecycle action failed", error),
+  });
+  checkPwaUpdate = native.checkForUpdates;
+  window.addEventListener("pagehide", () => { void native.stop(); void nativePush?.stop(); }, { once: true });
+  nativePush = await enableNativePush({ storage: nativeStorage, onMessage: toast,
+    onOpen: () => {
+      document.querySelector('.sidebar [data-page="market"]').click();
+      void checkPwaUpdate(true).catch(() => toast("資料更新檢查失敗，請稍後重試"));
+    },
+    onStatus: ({ enabled, subscribed, busy, message }) => {
+      const button = notifications.querySelector("#push-notifications");
+      button.disabled = !enabled || busy;
+      button.setAttribute("aria-pressed", String(subscribed));
+      button.setAttribute("aria-label", subscribed ? "關閉每日資料更新通知" : "開啟每日資料更新通知");
+      button.querySelector("span").textContent = subscribed ? "關閉更新通知" : "開啟更新通知";
+      notifications.querySelector("div > span").textContent = message;
+    } });
+  notifications.querySelector("#push-notifications").addEventListener("click", () => {
+    void nativePush?.toggle().catch((error) => toast(error.message));
+  });
+  stopUpdateCountdown?.();
+  stopUpdateCountdown = startUpdateCountdown(document.querySelector("#update-countdown"));
+}
+
 let refreshingApp = false;
 async function refreshWithVersionCheck() {
   if (refreshingApp) return;
@@ -448,6 +505,7 @@ async function refreshWithVersionCheck() {
   try {
     const updated = await checkPwaUpdate(true);
     if (!updated) { window.location.reload(); return; }
+    if (nativeMode) return;
     // A new service worker reloads the page on controllerchange. Allow its
     // activation to finish before falling back to a normal reload.
     if (!("serviceWorker" in navigator)) { window.location.reload(); return; }
@@ -464,7 +522,7 @@ async function refreshWithVersionCheck() {
 
 function renderPage() {
   renderPageView({ state, dataset, renderLoadState, updateSegmentedControls });
-  rememberPage(state.page);
+  rememberPage(state.page, nativeMode ? nativeStorage : undefined);
 }
 
 const updateSegmentedControl = controls.updateSegmented;
@@ -849,7 +907,8 @@ function bindEvents() {
       button.disabled = true;
       button.textContent = "檢查中…";
       checkPwaUpdate(true).then((updated) => {
-        status.textContent = updated ? "發現新版本，正在更新…" : "已是最新版本";
+        status.textContent = updated ? nativeMode ? "發現新資料，正在更新…" : "發現新版本，正在更新…"
+          : nativeMode ? "已是最新資料" : "已是最新版本";
       }).catch((error) => { status.textContent = error.message || "無法檢查更新"; })
         .finally(() => { button.disabled = false; button.textContent = "檢查更新"; });
       return;
@@ -1020,14 +1079,19 @@ function bindEvents() {
 }
 
 async function init() {
+  if (nativeMode) {
+    const { prepareNativeStorage } = await import("./native/bootstrap.js");
+    nativeStorage = await prepareNativeStorage({ fallback: preferenceStorage(),
+      onError: () => toast("設定暫時無法儲存，請稍後重試") });
+  }
   await finishAppSplashBeforeLoading();
   readPreferences();
-  restorePage(state);
+  restorePage(state, nativeMode ? nativeStorage : undefined);
   applyTheme();
   const prepare = () => {
     state.date = dataset.info.asOf;
     state.favorites = [...new Set(state.favorites)].filter((symbol) => dataset.stocks.some((stock) => stock.symbol === symbol));
-    researchStore = loadResearchStore(preferenceStorage(), state.favorites);
+    researchStore = loadResearchStore(appStorage(), state.favorites);
     for (const period of researchStore.periods) if (!period.market)
       period.market = dataset.stocks.find((stock) => stock.symbol === period.symbol)?.market ?? null;
     saveResearch();

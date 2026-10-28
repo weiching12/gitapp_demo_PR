@@ -99,3 +99,9 @@ tests/                     計算與瀏覽器測試
 一般 `npm run build` 產出示範模式；`npm run dev:cloudflare` 在 `http://localhost:8787` 預覽正式模式。新環境可用 `npm run seed` 下載最近 90 個交易日，再依 Cloudflare 文件匯入 KV；既有正式站的 ETF 只補初次加入的最新資料，之後每日累積至最多 260 筆。完整回補請求至少間隔 10 秒，正常約 30 分鐘以上，成功下載立即快取，中斷後重跑可續接。每輪正常四個整批 TWSE 請求（法人、公司名錄、ETF 名錄、行情），週五每輪另四個請求複查近期修正，不需行情 API Token。`npm run deploy` 建置正式模式並部署。
 
 正式資料串接契約與算法約定請見 [docs/data-contract.md](docs/data-contract.md)。
+
+## iPhone 原生版本
+
+Capacitor 原生建置與網頁／PWA 分開，已整合 App 生命週期、Preferences 自選／設定儲存及 APNs 通知程式介面。
+執行 `npm run native:sync` 產生並同步原生資產，Mac 上用 `npm run native:ios` 開啟 Xcode。
+Apple 簽章、推播設定與實機驗證尚待完成；建置與啟用步驟見 [docs/native-ios.md](docs/native-ios.md)。

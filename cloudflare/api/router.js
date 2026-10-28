@@ -23,6 +23,8 @@ export async function routeApi(request, env, injected) {
       : createApplicationServices(env);
     if (route.name === "pushConfig" || route.name === "pushSubscriptions")
       return await pushController(request, route, services.push);
+    if (route.name === "nativePushConfig" || route.name === "nativePushSubscriptions")
+      return await pushController(request, route, services.nativePush);
     const body = await marketController(route, url, services);
     return json(request, body, 200, route.name === "snapshot"
       ? "public, max-age=86400, immutable" : "public, max-age=60");

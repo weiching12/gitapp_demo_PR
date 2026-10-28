@@ -1,0 +1,8 @@
+{
+  "appId": "dev.workers.stockinsighttw.app",
+  "appName": "株研",
+  "webDir": "dist-native",
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  }
+}

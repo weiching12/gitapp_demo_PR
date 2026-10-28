@@ -1,3 +1,7 @@
+import { apiRequestUrl } from "./url.js";
+
+const API_ORIGIN = typeof __STOCKAPPS_API_ORIGIN__ === "string" ? __STOCKAPPS_API_ORIGIN__ : "";
+
 export class ApiError extends Error {
   constructor(message, { status = 0, code = "API_ERROR", cause } = {}) {
     super(message, { cause });
@@ -12,7 +16,7 @@ export class HttpClient {
 
   async json(path, options = {}) {
     let response;
-    try { response = await this.fetcher(path, options); }
+    try { response = await this.fetcher(apiRequestUrl(path, API_ORIGIN), options); }
     catch (cause) { throw new ApiError("無法連線至資料服務", { cause }); }
     if (!response.ok) {
       let body;

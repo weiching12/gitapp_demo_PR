@@ -128,9 +128,21 @@ self.addEventListener("fetch", (event) => {
 `;
 }
 
-export default defineConfig(({ mode }) => ({
-  plugins: [pwaServiceWorker()],
-  define: {
-    "import.meta.env.VITE_DATA_MODE": JSON.stringify(mode === "cloudflare" ? "api" : "demo"),
-  },
-}));
+export default defineConfig(({ mode }) => {
+  const native = mode === "native";
+  const apiOrigin = native ? process.env.STOCKAPPS_NATIVE_API_ORIGIN || "https://stock-insight-tw.stock-insight-tw.workers.dev" : "";
+  if (native) {
+    const url = new URL(apiOrigin);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/")
+      throw new Error("STOCKAPPS_NATIVE_API_ORIGIN must be an HTTPS origin");
+  }
+  return {
+    plugins: native ? [] : [pwaServiceWorker()],
+    build: { outDir: native ? "dist-native" : "dist" },
+    define: {
+      "import.meta.env.VITE_DATA_MODE": JSON.stringify(native || mode === "cloudflare" ? "api" : "demo"),
+      "import.meta.env.VITE_APP_TARGET": JSON.stringify(native ? "native" : "web"),
+      __STOCKAPPS_API_ORIGIN__: JSON.stringify(apiOrigin),
+    },
+  };
+});

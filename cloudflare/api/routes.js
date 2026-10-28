@@ -5,6 +5,8 @@ export function resolveApiRoute(path) {
   const route = (name, params = {}, methods = ["GET", "HEAD"]) => ({ name, params, methods, versioned });
   if (path === "/api/presence" || path === "/api/v1/presence") return route("presence", {}, ["GET", "POST"]);
   if (path === "/api/v1/push/config") return route("pushConfig");
+  if (path === "/api/v1/push/native/config") return route("nativePushConfig");
+  if (path === "/api/v1/push/native/subscriptions") return route("nativePushSubscriptions", {}, ["POST", "DELETE"]);
   if (path === "/api/v1/push/subscriptions") return route("pushSubscriptions", {}, ["POST", "DELETE"]);
   const resource = versioned ? path.slice(7) : path.slice(4);
   if (resource === "/market") return route("market");

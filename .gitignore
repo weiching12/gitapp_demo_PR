@@ -23,6 +23,10 @@
 # Frontend build and local files
 node_modules/
 dist/
+dist-native/
+*.p8
+*.p12
+*.mobileprovision
 .env
 .env.*
 !.env.example

@@ -982,6 +982,21 @@
         }
       }
     },
+    "/api/v1/push/native/config": {
+      "get": { "operationId": "getNativePushConfig", "summary": "Native iOS notification availability; never returns APNs credentials",
+        "responses": { "200": { "description": "APNs availability and environment", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NativePushConfig" } } } } } },
+      "head": { "operationId": "headNativePushConfig", "responses": { "200": { "description": "Same headers without a body" } } }
+    },
+    "/api/v1/push/native/subscriptions": {
+      "post": { "operationId": "registerNativePushSubscription", "summary": "Register an iOS token after explicit notification consent",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NativePushSubscription" } } } },
+        "responses": { "200": { "description": "Registration accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PushSubscriptionState" } } } },
+          "400": { "description": "Invalid token, ownership secret or environment" }, "403": { "description": "Unexpected origin" }, "503": { "description": "Native push is not configured" } } },
+      "delete": { "operationId": "removeNativePushSubscription", "summary": "Remove the token using its per-installation ownership secret",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NativePushSubscription" } } } },
+        "responses": { "200": { "description": "Unsubscribed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PushSubscriptionState" } } } },
+          "400": { "description": "Invalid token, ownership secret or environment" }, "403": { "description": "Unexpected origin" } } }
+    },
     "/api/v1/push/config": {
       "get": {
         "operationId": "getPushConfig",
@@ -1548,6 +1563,11 @@
           }
         }
       },
+      "NativePushConfig": { "type": "object", "required": ["enabled", "provider", "environment"], "properties": {
+        "enabled": { "type": "boolean" }, "provider": { "const": "apns" }, "environment": { "enum": ["sandbox", "production"] } } },
+      "NativePushSubscription": { "type": "object", "required": ["token", "environment", "secret"], "properties": {
+        "token": { "type": "string", "pattern": "^[a-fA-F0-9]{32,512}$" },
+        "environment": { "enum": ["sandbox", "production"] }, "secret": { "type": "string", "pattern": "^[a-f0-9]{64}$" } } },
       "PushConfig": {
         "type": "object",
         "required": [
