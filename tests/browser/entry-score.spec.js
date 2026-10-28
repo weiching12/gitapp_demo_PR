@@ -150,6 +150,8 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
     await expect(excluded.first().locator(".entry-category-values > span")).toContainText("計入分數 0.00");
     await expect(page.locator(".entry-summary-head span")).toHaveText("核心條件不通過");
   }
+  await expect(page.locator(".entry-summary .entry-core-panel > .entry-more:last-child > details")).toHaveCount(2);
+  await expect(page.locator(".entry-more > details[open]")).toHaveCount(0);
   await page.locator(".entry-more > details").first().locator("summary").click();
   await expect(page.locator(".entry-more .entry-guide-item").first()).toBeVisible();
   await page.locator(".entry-metrics summary").click();

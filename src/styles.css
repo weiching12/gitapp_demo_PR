@@ -3329,6 +3329,7 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
   #info-dialog .entry-price-chart + .entry-summary::before { display: none; }
   #info-dialog .entry-summary .entry-core-panel { margin-top: 10px; padding-top: 10px; }
   #info-dialog .entry-summary .entry-condition-list { padding-inline: 8px; }
+  #info-dialog .entry-summary .entry-more { margin-inline: 8px; }
   #info-dialog .entry-summary .entry-condition-detail { padding-left: 0; }
   #info-dialog .entry-summary .entry-category { grid-column: 1 / -1; }
 }

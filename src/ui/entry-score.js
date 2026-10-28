@@ -164,8 +164,8 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
       const iconPath = tone === "pass" ? "M4.5 10.25 8.5 14.25 15.5 6.5" :
         tone === "fail" ? "M5.5 5.5 14.5 14.5 M14.5 5.5 5.5 14.5" : "M5 10 15 10";
       return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span>${scoreDetail}</summary><div class="entry-condition-detail">${key === "momentum" ? kdChartMarkup(chartSeries, esc, number, item?.data) : data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>"}</div></details>`;
-    }).join("")}</div></section></section>
-    ${valid ? `<section class="entry-evidence entry-more"><details><summary>支持條件、風險與後續觀察</summary>
+    }).join("")}</div>
+    ${valid ? `<div class="entry-more"><details><summary>支持條件、風險與後續觀察</summary>
       ${guideItem("01", "支持條件", list(score.supportingEvidence, esc, "目前沒有符合的支持條件。"))}
       ${guideItem("02", "疑慮與風險", list(score.conflictingEvidence, esc, "目前沒有額外風險提示。"))}
       ${guideItem("03", "後續觀察", list(score.pendingConditions, esc, "核心趨勢條件已齊備，仍須自行評估風險。"))}</details>
@@ -173,7 +173,7 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
       ${guideItem("01", "趨勢與均線", `<p>月線 MA20：${number(metrics.ma20, 2)}（前日 ${number(metrics.previousMa20, 2)}）</p><p>季線 MA60：${number(metrics.ma60, 2)}（前日 ${number(metrics.previousMa60, 2)}）</p><code>近五日站上月線：${metrics.fiveAboveMa20} 日</code>`)}
       ${guideItem("02", "KD 與今日量價", `<p>K／D：${number(metrics.k, 2)}／${number(metrics.d, 2)}（前日 ${number(metrics.previousK, 2)}／${number(metrics.previousD, 2)}）</p><code>${esc(metrics.priceVolume)} · ${number(metrics.rvol20, 2)} 倍均量</code>`)}
       ${guideItem("03", "法人籌碼", `<p>近五個交易日三大法人合計淨買賣超 ${number(metrics.institutionNet5)} 股；同期個股成交量 ${number(metrics.institutionVolume5)} 股。</p><p>法人淨額占比 = 淨買賣超 ÷ 成交量 = ${percent(metrics.netRatio * 100)}。</p><p>占比分數 = 50 + 50 × 占比 ÷ 5%，限制在 0～100 分；此筆為 ${number(institutionParts.ratioScore, 2)} 分，計入 ${number(institutionParts.ratioContribution, 2)} 分（占 60%）。</p><p>法人合計買超 ${metrics.institutionBuyDays} 日 × 5 = ${number(institutionParts.dayContribution, 2)} 分；累計買超 ${metrics.institutionPositiveCategories} 類 × 5 = ${number(institutionParts.categoryContribution, 2)} 分。</p><code>法人籌碼分數 = ${number(institutionParts.ratioContribution, 2)} + ${number(institutionParts.dayContribution, 2)} + ${number(institutionParts.categoryContribution, 2)} = ${number(institutionParts.score, 2)} 分；通過法人核心條件時，依此構面的 20% 權重計入總分。</code>`)}
-      ${guideItem("04", "進場位置與波動", `<p>月線乖離 ${percent(metrics.deviation20)} · 近十日前低點 ${number(metrics.previous10Low, 2)} · 距離 ${percent(metrics.riskDistance)}</p><code>ATR14 ${number(metrics.atr14, 2)}（${percent(metrics.atrPercent)}）</code>`)}</details></section>` :
-      `<section class="entry-evidence"><h3>無法評分的原因</h3>${list(score.missingData, esc, "必要資料尚未齊備。")}</section>`}
+      ${guideItem("04", "進場位置與波動", `<p>月線乖離 ${percent(metrics.deviation20)} · 近十日前低點 ${number(metrics.previous10Low, 2)} · 距離 ${percent(metrics.riskDistance)}</p><code>ATR14 ${number(metrics.atr14, 2)}（${percent(metrics.atrPercent)}）</code>`)}</details></div>` : ""}</section></section>
+    ${!valid ? `<section class="entry-evidence"><h3>無法評分的原因</h3>${list(score.missingData, esc, "必要資料尚未齊備。")}</section>` : ""}
     ${trackingHtml}<p class="helper-text entry-disclaimer">此分數僅表示固定研究策略的條件符合程度，不代表上漲機率、預期報酬率或買賣指令。法人完整明細請至法人買賣頁面查看。<br>模型版本：${esc(score.modelVersion)}</p></div>`;
 }
