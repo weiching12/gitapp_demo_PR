@@ -36,8 +36,7 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(page.locator(".entry-summary-reason")).toHaveCount(0);
   await expect(page.locator(".entry-summary-head strong")).toContainText(firstListScore);
   await expect(page.locator(".entry-summary-head strong")).toHaveAttribute("data-score-target", String(Number(firstListScore)));
-  await expect(page.locator(".entry-summary-facts")).not.toContainText("基礎分數");
-  await expect(page.locator(".entry-summary-facts")).not.toContainText("最終分數");
+  await expect(page.locator(".entry-summary-facts")).toHaveCount(0);
   const chart = page.locator(".entry-price-chart");
   const plot = chart.locator(".entry-chart-plot");
   await expect(chart.locator("h3")).toBeVisible();
@@ -180,6 +179,35 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   const chartBounds = await page.locator(".entry-price-chart").evaluate((element) =>
     ({ width: element.clientWidth, scroll: element.scrollWidth }));
   expect(chartBounds.scroll).toBeLessThanOrEqual(chartBounds.width);
+  for (const width of [320, 414, 471, 510]) {
+    await page.setViewportSize({ width, height: 956 });
+    const layout = await page.locator(".entry-summary").evaluate((element) => {
+      const dialog = element.closest("dialog");
+      const core = element.querySelector(".entry-core-panel");
+      const card = element.querySelector(".entry-category");
+      const bounds = element.getBoundingClientRect();
+      const dialogBounds = dialog.getBoundingClientRect();
+      const coreBounds = core.getBoundingClientRect();
+      const cardBounds = card.getBoundingClientRect();
+      const headBounds = element.querySelector(".entry-summary-head").getBoundingClientRect();
+      const dateBounds = element.querySelector(".entry-summary-date").getBoundingClientRect();
+      return {
+        left: bounds.left - dialogBounds.left,
+        right: dialogBounds.right - bounds.right,
+        coreLeft: coreBounds.left - bounds.left,
+        cardLeft: cardBounds.left - coreBounds.left,
+        dateGap: headBounds.top - dateBounds.bottom,
+        overflow: element.scrollWidth - element.clientWidth,
+      };
+    });
+    expect(layout.left).toBeLessThanOrEqual(1);
+    expect(layout.right).toBeLessThanOrEqual(1);
+    expect(layout.coreLeft).toBe(0);
+    expect(layout.cardLeft).toBe(0);
+    expect(layout.dateGap).toBeLessThanOrEqual(2);
+    expect(layout.overflow).toBe(0);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".info-dialog-handle").click();
   await expect(page.locator("#info-dialog")).toBeHidden();
   await rows.last().locator(".entry-score-button").scrollIntoViewIfNeeded();

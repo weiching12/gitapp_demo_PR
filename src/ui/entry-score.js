@@ -153,9 +153,6 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
     <p class="entry-dialog-meta">波段順勢進場 · ${esc(score.asOf)}</p>
     ${priceChartMarkup(stock, esc, number, chartSeries)}
     <section class="entry-summary" data-conditions-passed="${Boolean(score.coreConditionsPassed)}"><time class="entry-summary-date" datetime="${esc(score.asOf ?? "")}">${esc(score.asOf?.replaceAll("-", "/") ?? "—")}</time><div class="entry-summary-head"><strong${valid ? ` data-score-target="${score.finalScore}"` : ""}>${valid ? `${number(score.finalScore, 2)} / 100` : "—"}</strong><span>${esc(score.status)}</span></div>
-      <dl class="entry-summary-facts"><div><dt>核心條件</dt><dd>${score.passedCount ?? 0} / ${score.totalConditions ?? 5} 通過</dd></div>
-      <div><dt>收盤／漲跌</dt><dd>${stock.latest ? number(stock.latest.close, 2) : "—"}／${stock.latest ? percent(stock.latest.changePercent) : "—"}</dd></div>
-      </dl>
     <section class="entry-evidence entry-core-panel"><h3>核心條件檢查</h3><div class="entry-condition-list">${Object.entries(CORE_LABELS).map(([key, label]) => {
       const item = score.coreConditions?.[key];
       const status = item?.status === "PASS" ? "通過" : item?.status === "FAIL" ? "未通過" : "資料不足";
