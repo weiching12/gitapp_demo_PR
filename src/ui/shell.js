@@ -29,7 +29,7 @@ export function shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc }) 
           )
           .join(
             "",
-          )}</select><div class="date-status"><button class="date-notification-button" type="button" data-dialog="settings" aria-label="開啟更新通知" aria-haspopup="dialog" hidden>${icon("bell")}</button><span id="update-countdown" class="update-countdown" role="timer">計算下次更新時間</span></div></div></section>
+          )}</select><div class="date-status"><button class="date-notification-button" type="button" data-dialog="settings" aria-label="開啟更新通知" aria-haspopup="dialog" hidden>${icon("bell")}</button><span id="update-countdown" class="update-countdown" role="timer" hidden></span></div></div></section>
         <div id="pull-refresh" class="pull-refresh" aria-hidden="true"><span></span>下拉重新整理</div>
         <div id="app-status" class="app-status" role="status" hidden><span></span></div>
         <div id="load-status" class="load-status" role="status" hidden><span></span><button class="text-button" id="reload-data" hidden>重新載入</button></div>

@@ -25,6 +25,7 @@ export function nextMarketUpdate(now = new Date()) {
 
 export function countdownText(now = new Date()) {
   const next = nextMarketUpdate(now);
+  if (next.label === "20:30") return "";
   const seconds = Math.max(0, Math.floor((next.at.getTime() - now.getTime()) / 1000));
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor(seconds % 3600 / 60);
@@ -35,7 +36,11 @@ export function countdownText(now = new Date()) {
 
 export function startUpdateCountdown(node, now = () => new Date()) {
   if (!node) return () => {};
-  const render = () => { node.textContent = countdownText(now()); };
+  const render = () => {
+    const text = countdownText(now());
+    node.textContent = text;
+    node.hidden = !text;
+  };
   render();
   const timer = setInterval(render, 1000);
   return () => clearInterval(timer);
