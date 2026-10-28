@@ -41,7 +41,7 @@ export function renderSectorOverviewView(context) {
 }
 
 export function renderSectorDialogView(name, context) {
-  const { state, dataset, latestSnapshots, sectorDetail, isDemo, esc, number, direction, percent, institutionSparkline, institutionalFigures } = context;
+  const { dataset, latestSnapshots, sectorDetail, isDemo, esc, number, direction, percent, institutionSparkline, institutionalFigures } = context;
   const detail = sectorDetail ?? (isDemo ? getSectorDetail(latestSnapshots, name, { tradingDates: dataset.dates, asOf: dataset.info.asOf }) : null);
   if (!detail) return;
   const { members, tradingDates } = detail;

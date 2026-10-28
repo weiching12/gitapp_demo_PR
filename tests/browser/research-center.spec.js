@@ -104,6 +104,16 @@ test("phone research cards fit the viewport and remain operable", async ({ page 
     }));
     expect(bounds.left).toBeGreaterThanOrEqual(0);
     expect(bounds.right).toBeLessThanOrEqual(bounds.width + 1);
+    const scoreAlignment = await page.locator('.research-card').first().evaluate(row => {
+      const table = row.closest('table');
+      const textRight = node => { const range = document.createRange(); range.selectNodeContents(node); return range.getBoundingClientRect().right; };
+      return { header: textRight(table.querySelector('thead th:nth-child(2)')),
+        score: textRight(row.querySelector('.research-score strong')),
+        scoreTop: row.querySelector('.research-score strong').getBoundingClientRect().top,
+        deltaTop: row.querySelector('.research-delta strong').getBoundingClientRect().top };
+    });
+    expect(Math.abs(scoreAlignment.header - scoreAlignment.score)).toBeLessThanOrEqual(1);
+    expect(Math.abs(scoreAlignment.scoreTop - scoreAlignment.deltaTop)).toBeLessThanOrEqual(1);
   }
   await page.locator("#research-filter").selectOption("important");
   await page.locator("#research-filter").selectOption("all");

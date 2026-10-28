@@ -9,6 +9,28 @@ const dateTime = (value) => value ? new Date(value).toLocaleString("zh-TW", { ti
 const important = (row) => (row?.comparison?.events ?? []).some((event) => event.type !== "base-score-change");
 const categoryLabels = { trend: "趨勢", momentum: "KD", priceVolume: "量價", institutional: "法人", entryRisk: "進場風險" };
 
+function directionalChanges(initial, latest, change) {
+  const direction = Math.abs(change) < .005 ? 0 : Math.sign(change);
+  if (!direction) return [{ key: "unchanged", label: "分數持平", tone: "neutral" }];
+  const changes = Object.entries(categoryLabels).flatMap(([key, name]) => {
+    const before = initial.conditions?.[key]?.status, after = latest.conditions?.[key]?.status;
+    if (before === "FAIL" && after === "PASS" && direction > 0)
+      return [{ key, label: `${name}條件改善`, tone: "up", priority: 0, amount: 0 }];
+    if (before === "PASS" && after === "FAIL" && direction < 0)
+      return [{ key, label: `${name}條件失效`, tone: "down", priority: 0, amount: 0 }];
+    const previous = initial.categories?.[key]?.creditedContribution, current = latest.categories?.[key]?.creditedContribution;
+    const contribution = Number.isFinite(previous) && Number.isFinite(current) ? current - previous : null;
+    return Number.isFinite(contribution) && Math.abs(contribution) >= .005 && Math.sign(contribution) === direction
+      ? [{ key, label: `${name}條件${direction > 0 ? "提高" : "下降"}`, tone: tone(direction), priority: 1, amount: Math.abs(contribution) }] : [];
+  });
+  const beforeCap = initial.cap?.enabled, afterCap = latest.cap?.enabled;
+  const capDirection = beforeCap && !afterCap ? 1 : !beforeCap && afterCap ? -1 : beforeCap && afterCap
+    ? Math.sign(latest.cap.value - initial.cap.value) : 0;
+  if (capDirection === direction) changes.push({ key: "cap", label: afterCap ? `分數上限${!beforeCap ? "啟用" : direction > 0 ? "提高" : "下修"}` : "分數上限解除", tone: tone(direction), priority: 0, amount: 0 });
+  return changes.length ? changes.sort((a, b) => a.priority - b.priority || b.amount - a.amount)
+    : [{ key: "score", label: `分數${direction > 0 ? "提高" : "下降"}`, tone: tone(direction) }];
+}
+
 export function researchCardTrend(period, row) {
   const latest = row?.latest;
   const result = reviewInitialScore(period, latest);
@@ -18,21 +40,10 @@ export function researchCardTrend(period, row) {
   if (!latest?.valid) return { status: "missing-latest", label };
   if (!["comparable", "same-snapshot"].includes(result.status))
     return { status: result.status, label, reason: result.status === "incompatible" ? "設定不同，暫不比較" : "資料不足，暫不比較" };
-  const conditionChange = Object.entries(categoryLabels).find(([key]) =>
-    initial.conditions?.[key]?.status !== latest.conditions?.[key]?.status &&
-    [initial.conditions?.[key]?.status, latest.conditions?.[key]?.status].every((status) => ["PASS", "FAIL"].includes(status)));
-  let reason;
-  if (result.status === "same-snapshot" || initial.asOf === latest.asOf) reason = "等待後續交易日評分";
-  else if (conditionChange) reason = `${conditionChange[1]}條件${latest.conditions[conditionChange[0]].status === "PASS" ? "改善" : "失效"}`;
-  else if (Boolean(initial.cap?.enabled) !== Boolean(latest.cap?.enabled)) reason = latest.cap?.enabled ? "分數上限啟用" : "分數上限解除";
-  else {
-    const category = Object.entries(categoryLabels).map(([key, name]) => ({ name,
-      change: Number.isFinite(latest.categories?.[key]?.creditedContribution) && Number.isFinite(initial.categories?.[key]?.creditedContribution)
-        ? latest.categories[key].creditedContribution - initial.categories[key].creditedContribution : null }))
-      .filter((item) => Number.isFinite(item.change)).sort((a, b) => Math.abs(b.change) - Math.abs(a.change))[0];
-    reason = category && Math.abs(category.change) >= .005 ? `${category.name}貢獻${category.change > 0 ? "提高" : "下降"}` : "分數持平";
-  }
-  return { status: result.status, label, initial, latest, delta: result.finalDelta, reason };
+  const badges = result.status === "same-snapshot" || initial.asOf === latest.asOf
+    ? [{ key: "waiting", label: "等待後續交易日評分", tone: "neutral" }]
+    : directionalChanges(initial, latest, result.finalDelta);
+  return { status: result.status, label, initial, latest, delta: result.finalDelta, reason: badges[0].label, badges };
 }
 
 function scoreChart(history) {
@@ -96,8 +107,10 @@ export function renderResearchCenter({ favorites, stocks, rows, store, date, sor
     const changeDetail = `${trend.label}：${baseline} → ${snap?.asOf ?? "—"} ${fmt(snap?.finalScore)} 分；${trend.reason ?? ""}`;
     const dateLabel = comparableTrend ? `${trend.label} · ${trend.initial.asOf.slice(5).replace("-", "/")} → ${snap.asOf.slice(5).replace("-", "/")}` : trend.label;
     const reason = row?.loading ? "讀取研究快照中" : trend.reason ?? "缺少當日評分快照";
+    const badges = row?.loading ? [{ label: reason, tone: "neutral" }] : trend.badges ?? [{ label: reason, tone: "neutral" }];
+    const badgesMarkup = `<span class="research-change-badges">${badges.map(badge => `<span class="research-change-badge ${badge.tone}">${esc(badge.label)}</span>`).join("")}</span>`;
     const conditionText = `${condition}${snap?.cap?.enabled ? ` · 上限 ${fmt(snap.cap.value)}` : ""}`;
-    return `<tr class="research-card" data-research-symbol="${esc(symbol)}" data-entry-score="${esc(symbol)}"><th scope="row"><button type="button" class="research-card-main" data-entry-score="${esc(symbol)}" aria-label="查看 ${esc(symbol)} ${esc(label)} 株研評分"><span class="research-stock"><span class="research-stock-head"><span class="research-code">${esc(symbol)}</span><strong>${esc(label)}</strong></span>${row?.source === "historical-recalculation" ? "<small>模擬重算</small>" : ""}</span></button></th><td class="research-score"><strong>${fmt(snap?.finalScore)}</strong></td><td class="research-delta ${tone(comparableTrend ? trend.delta : null)}" title="${esc(changeDetail)}"><strong>${changeValue}</strong><small>${esc(dateLabel)}</small></td><td class="research-condition ${snap?.valid ? "" : "insufficient"}">${esc(conditionText)}</td><td class="research-summary">${esc(reason)}</td></tr><tr class="research-mobile-detail" aria-hidden="true"><td colspan="5"><span>${esc(conditionText)}</span><span>${esc(reason)}</span></td></tr>`;
+    return `<tr class="research-card" data-research-symbol="${esc(symbol)}" data-entry-score="${esc(symbol)}"><th scope="row"><button type="button" class="research-card-main" data-entry-score="${esc(symbol)}" aria-label="查看 ${esc(symbol)} ${esc(label)} 株研評分"><span class="research-stock"><span class="research-stock-head"><span class="research-code">${esc(symbol)}</span><strong>${esc(label)}</strong></span>${row?.source === "historical-recalculation" ? "<small>模擬重算</small>" : ""}</span></button></th><td class="research-score"><strong>${fmt(snap?.finalScore)}</strong></td><td class="research-delta ${tone(comparableTrend ? trend.delta : null)}" title="${esc(changeDetail)}"><strong>${changeValue}</strong><small>${esc(dateLabel)}</small></td><td class="research-condition ${snap?.valid ? "" : "insufficient"}">${esc(conditionText)}</td><td class="research-summary">${badgesMarkup}</td></tr><tr class="research-mobile-detail"><td colspan="3">${badgesMarkup}</td></tr>`;
   }).join("");
   return { stats: `<div><strong>${favorites.length}</strong><span>追蹤股票</span></div><div><strong>${increased}<small> / ${comparable.length}</small></strong><span>收藏後提高／可比較</span></div><div><strong>${changed}<small> / ${favorites.length}</small></strong><span>重要異動／追蹤</span></div>`,
     cards: entries ? `<table class="research-table"><thead><tr><th scope="col">股票</th><th scope="col">分數</th><th scope="col">分數變化</th><th scope="col">必要條件</th><th scope="col">最新異動</th></tr></thead><tbody>${entries}</tbody></table>`

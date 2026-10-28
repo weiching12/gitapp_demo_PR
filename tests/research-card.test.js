@@ -49,3 +49,44 @@ test("different score settings and same-day join do not claim a score change", (
   assert.equal(researchCardTrend({ addedSnapshot: initial }, { latest: changedSettings }).status, "incompatible");
   assert.equal(researchCardTrend({ addedSnapshot: initial }, { latest: initial }).status, "same-snapshot");
 });
+
+test("falling scores show only disadvantages from the join baseline, even when all conditions pass", () => {
+  const initial = snapshot("2026-10-27", 90.65);
+  const latest = structuredClone(initial);
+  Object.assign(latest, { id: "latest", asOf: "2026-10-28", finalScore: 83.5, baseScore: 83.5 });
+  latest.categories.priceVolume.creditedContribution -= 10.5;
+  latest.categories.entryRisk.creditedContribution += 3.35;
+  const result = researchCardTrend({ addedSnapshot: initial }, { latest });
+  assert.deepEqual(result.badges.map(badge => badge.label), ["量價條件下降"]);
+  assert(result.badges.every(badge => badge.tone === "down"));
+});
+
+test("rising scores omit opposing declines and condition failures", () => {
+  const initial = snapshot("2026-10-27", 70);
+  const latest = structuredClone(initial);
+  Object.assign(latest, { id: "latest", asOf: "2026-10-28", finalScore: 73, baseScore: 73 });
+  latest.categories.trend.creditedContribution += 5;
+  latest.categories.momentum.creditedContribution -= 2;
+  latest.conditions.momentum.status = "FAIL";
+  const result = researchCardTrend({ addedSnapshot: initial }, { latest });
+  assert.deepEqual(result.badges.map(badge => badge.label), ["趨勢條件提高"]);
+  assert(result.badges.every(badge => badge.tone === "up"));
+});
+
+test("missing contribution evidence does not invent a category cause and unchanged scores remain neutral", () => {
+  const initial = snapshot("2026-10-27", 70);
+  const latest = structuredClone(initial);
+  Object.assign(latest, { id: "latest", asOf: "2026-10-28", finalScore: 65, baseScore: 65 });
+  for (const category of Object.values(latest.categories)) category.creditedContribution = null;
+  assert.equal(researchCardTrend({ addedSnapshot: initial }, { latest }).badges[0].label, "分數下降");
+  latest.finalScore = 70;
+  assert.equal(researchCardTrend({ addedSnapshot: initial }, { latest }).badges[0].label, "分數持平");
+});
+
+test("score caps explain a directional change without listing unrelated improvements", () => {
+  const initial = snapshot("2026-10-27", 80);
+  const latest = structuredClone(initial);
+  Object.assign(latest, { id: "latest", asOf: "2026-10-28", finalScore: 60, baseScore: 80,
+    cap: { enabled: true, value: 60 } });
+  assert.deepEqual(researchCardTrend({ addedSnapshot: initial }, { latest }).badges.map(badge => badge.label), ["分數上限啟用"]);
+});
