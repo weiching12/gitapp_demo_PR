@@ -741,6 +741,7 @@ h1 {
   max-width: 100%; text-align: right; color: var(--ink); }
 .entry-score-button strong { font-size: 14px; white-space: nowrap; }
 .entry-score-change { display: block; margin-top: 3px; font-size: 11px; line-height: 1.25; color: var(--muted); white-space: nowrap; }
+.entry-score-delta { display: block; }
 .entry-score-change.up { color: var(--up); }
 .entry-score-change.down { color: var(--down); }
 .entry-dialog { color: var(--ink); overflow-wrap: anywhere; }
@@ -772,10 +773,10 @@ h1 {
   }
   @keyframes entry-drawer-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
 }
-.entry-dialog-sector { margin: 0 0 4px; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; }
-.entry-dialog-title { display: flex; align-items: center; gap: 8px; }
-.entry-dialog h2 { flex: 1; min-width: 0; margin: 6px 0 4px; font-size: 20px; line-height: 1.4; }
-.entry-dialog-title .favorite-button { flex: none; }
+.entry-dialog-sector { grid-column: 2; margin: 0; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; }
+.entry-dialog-title { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 8px; }
+.entry-dialog h2 { grid-column: 2; grid-row: 2; min-width: 0; margin: 6px 0 4px; font-size: 20px; line-height: 1.4; }
+.entry-dialog-title .favorite-button { grid-column: 1; grid-row: 2; }
 .entry-dialog-meta { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .entry-summary { padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: #f1f5f9; }
 .entry-price-chart + .entry-summary { position: relative; margin-top: 36px; }
@@ -993,18 +994,12 @@ html:is([data-input-mode="touch"], [data-input-mode="pointer"]) .table-scroll tb
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.stock-close,
-.stock-volume {
+.stock-close {
   display: block;
 }
 .close-label-mobile,
 .mobile-change {
   display: none;
-}
-.stock-volume {
-  margin-top: 4px;
-  color: var(--muted);
-  white-space: nowrap;
 }
 .institution-net,
 .institution-leader {
@@ -2345,7 +2340,6 @@ dialog.institution-dialog {
     white-space: normal;
     overflow-wrap: anywhere;
   }
-  .stock-volume { white-space: normal; }
   .net-cell-mobile .institution-net { font-weight: 500; }
   .net-cell-mobile .institution-volume-share { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
   .net-cell-mobile .institution-net,
@@ -2627,7 +2621,7 @@ dialog.institution-dialog {
   :is(.stock-name strong, .sector-stock-name > strong, .stock-close,
     .watch-card-heading h3, .institution-overview-row h4, .sector-identity h3,
     .sector-detail-heading h3, .source-details dd, dialog h2) { color: var(--ink); }
-  :is(.stock-name > span, .sector-inline, .stock-volume, .institution-leader,
+  :is(.stock-name > span, .sector-inline, .institution-leader,
     .watch-symbol > span, .overview-stock-code, .overview-metric dt,
     .metric-label, .metric-label > span, .metric-description,
     .page-heading p, .date-control label, .dialog-intro, .helper-text,

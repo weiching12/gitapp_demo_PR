@@ -178,7 +178,6 @@ thead th button,
 .metric-value small,
 .watch-symbol > span,
 .stock-name > span,
-.stock-volume,
 .institution-volume-share,
 .signal-reason,
 .institution-leader,
@@ -280,9 +279,11 @@ thead th button,
     font-size: var(--text-secondary);
   }
   .filter-tabs button,
-  #sector-filter,
-  .search-box input {
+  #sector-filter {
     font-size: var(--text-secondary);
+  }
+  .search-box input {
+    font-size: max(16px, 1rem);
   }
   .filter-tabs button.active,
   .overview-tabs [aria-selected="true"] {
