@@ -3324,7 +3324,7 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
   #info-dialog .entry-dialog-title { grid-template-columns: minmax(0, 1fr) 44px; }
   #info-dialog .entry-dialog-sector, #info-dialog .entry-dialog h2 { grid-column: 1; }
   #info-dialog .entry-dialog-title .favorite-button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
-  #info-dialog .entry-summary { margin-inline: -20px; padding: 8px 0 0; border-right: 0; border-left: 0; border-radius: 0; box-shadow: none; }
+  #info-dialog .entry-summary { margin-inline: -20px; padding: 8px 12px 0; border-right: 0; border-left: 0; border-radius: 0; box-shadow: none; }
   #info-dialog .entry-price-chart + .entry-summary { margin-top: 16px; }
   #info-dialog .entry-price-chart + .entry-summary::before { display: none; }
   #info-dialog .entry-summary .entry-core-panel { margin-top: 10px; padding-top: 10px; }

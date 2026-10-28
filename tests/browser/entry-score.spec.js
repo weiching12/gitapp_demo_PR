@@ -202,7 +202,7 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
     });
     expect(layout.left).toBeLessThanOrEqual(1);
     expect(layout.right).toBeLessThanOrEqual(1);
-    expect(layout.coreLeft).toBe(0);
+    expect(layout.coreLeft).toBe(12);
     expect(layout.cardLeft).toBe(0);
     expect(layout.dateGap).toBeLessThanOrEqual(2);
     expect(layout.overflow).toBe(0);
