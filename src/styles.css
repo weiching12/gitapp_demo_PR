@@ -2266,7 +2266,7 @@ dialog.institution-dialog {
     --table-favorite-width: 28px;
     --table-stock-width: clamp(52px, 16cqw, 72px);
     --table-price-width: clamp(90px, 28cqw, 110px);
-    --table-entry-width: 78px;
+    --table-entry-width: 96px;
     --table-signal-width: 132px;
     --table-insight-width: max(82px, calc((100cqw - var(--table-favorite-width) - var(--table-stock-width) - var(--table-entry-width) - var(--table-price-width)) / 2));
     --table-net-mobile-width: 120px;
@@ -2279,6 +2279,16 @@ dialog.institution-dialog {
   }
   .stock-column { width: var(--table-stock-width); }
   .entry-column { width: var(--table-entry-width); }
+  .table-scroll .entry-score-button {
+    width: 100%;
+    min-height: 44px;
+    padding: 0;
+  }
+  .table-scroll .entry-score-change {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .price-column { width: var(--table-price-width); }
   .price-volume-column,
   .trend-column { width: var(--table-insight-width); }
