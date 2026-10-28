@@ -136,8 +136,10 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await expect(kdChart.locator(".entry-chart-k")).toBeVisible();
   await expect(page.locator(".entry-dialog-meta")).not.toContainText("未還原價格");
   await expect(page.locator(".entry-category")).toHaveCount(5);
+  await expect(page.locator(".entry-categories")).toHaveCount(0);
+  await expect(page.locator(".entry-condition .entry-category")).toHaveCount(5);
   await expect(page.locator(".entry-category").first().locator("div span")).toContainText("權重 25% · 計入分數");
-  await expect(page.locator(".entry-category").first().locator("small")).toHaveText(/^\d+\.\d{2} 分$/);
+  await expect(page.locator(".entry-category").first().locator("strong")).toHaveText(/^\d+\.\d{2} 分$/);
   const excluded = page.locator(".entry-category.excluded");
   if (await excluded.count()) {
     await expect(excluded.first().locator("div span")).toContainText("計入分數 0.00");

@@ -787,6 +787,11 @@ function syncTableFavorite(symbol) {
 }
 
 function bindEvents() {
+  document.addEventListener("click", (event) => {
+    document.querySelectorAll(".research-chart-info[open]").forEach((hint) => {
+      if (!hint.contains(event.target)) hint.open = false;
+    });
+  });
   const chartIndexAt = (plot, clientX) => {
     const rect = plot.querySelector("svg").getBoundingClientRect();
     const position = ((clientX - rect.left) / rect.width * 600 - 8) / 584;

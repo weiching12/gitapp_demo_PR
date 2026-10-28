@@ -30,12 +30,15 @@ with versioned API routes added only when those capabilities exist.
 | GET / HEAD | `/api/v1/stocks/{symbol}` | Stock metadata and available history, existing snapshot format |
 | GET / HEAD | `/api/v1/stocks/{symbol}/history` | `{data: [...], meta: {symbol, asOf, updatedAt, tradingDates}}` |
 | GET / HEAD | `/api/v1/stocks/{symbol}/analysis` | Shared indicator rules, latest bar, signal, institutional summary, and up to 30 daily closes through `asOf` |
+| GET / HEAD | `/api/v1/favorites/research` | Saved snapshots and sparse history through `asOf`, covering up to 120 market sessions; `asOf` remains limited to the latest 30 sessions |
 | GET / POST | `/api/v1/presence` | Taipei-day cumulative browser count / record one browser visit; same-origin protection retained |
 
 The stocks collection supports `offset` (default 0), `limit` (default 100, 1–200),
 `type=stock|etf`, exact `sector`, and case-insensitive `q` matching code/name.
 It reads only the manifest and returns `{data, meta: {asOf, updatedAt, total, offset, limit}}`.
 No filter fetches upstream data. History contains available sessions, not fabricated bars.
+
+Research tracking compares each adjacent market-session pair from the saved join-date or first reliable baseline. Small changes are included; missing snapshots and incompatible settings remain explicit and are not bridged. The personal join date stays in local storage and is applied by the UI to the shared history.
 
 Analysis accepts `asOf` (a saved market session), `period` (1–60), `kSmooth` and
 `dSmooth` (1–20). It shares `shared/indicators.js` with the frontend, reports rule

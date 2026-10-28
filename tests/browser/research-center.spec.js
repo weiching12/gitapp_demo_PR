@@ -189,6 +189,9 @@ test("phone history review opens on demand and chart responds to touch and keybo
   expect(series.every((point) => Object.hasOwn(point, "priceChange") && Object.hasOwn(point, "scoreChange"))).toBe(true);
   expect(series.some((point) => Number.isFinite(point.score))).toBe(true);
   await chart.press("Home");
+  await expect(chart.locator(".research-selected-date text")).toHaveText(series[0].date.slice(5).replace("-", "/"));
+  await expect(page.locator(".research-chart-readout strong")).toHaveCount(2);
+  await expect(page.locator(".research-chart-readout strong").first()).toHaveCSS("font-weight", "700");
   await expect(page.locator(".research-chart-readout")).toContainText(series[0].priceChange);
   await expect(page.locator(".research-chart-readout")).toContainText(series[0].scoreChange);
   await page.locator('[data-review-range="20"]').click();

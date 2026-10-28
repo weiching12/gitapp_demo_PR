@@ -42,7 +42,7 @@
           { "name": "kSmooth", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20 } },
           { "name": "dSmooth", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20 } }
         ],
-        "responses": { "200": { "description": "Saved snapshots, exact previous-session comparison, events and sparse history", "content": { "application/json": { "schema": { "type": "object", "required": ["data", "meta"], "properties": { "data": { "type": "array", "items": { "type": "object" } }, "meta": { "type": "object" } } } } } }, "400": { "description": "Invalid symbols or date outside the latest 30 sessions" } }
+        "responses": { "200": { "description": "Saved snapshots, exact previous-session comparison, events and sparse history up to 120 market sessions", "content": { "application/json": { "schema": { "type": "object", "required": ["data", "meta"], "properties": { "data": { "type": "array", "items": { "type": "object" } }, "meta": { "type": "object" } } } } } }, "400": { "description": "Invalid symbols or date outside the latest 30 sessions" } }
       },
       "head": { "responses": { "200": { "description": "Same status and headers without a body" } } }
     },

@@ -1,16 +1,11 @@
 import { activeResearchPeriod } from "./research-store.js";
-import { reviewInitialScore } from "../../shared/research-review.js";
+import { reviewInitialScore, reviewTrackingTimeline } from "../../shared/research-review.js";
 import { researchPriceChart } from "./research-review.js";
 
 const fmt = (value) => Number.isFinite(value) ? value.toFixed(2) : "—";
 const delta = (value) => Number.isFinite(value) ? `${value > 0 ? "+" : ""}${fmt(value)}` : "—";
 const tone = (value) => value > 0 ? "up" : value < 0 ? "down" : "neutral";
 const dateTime = (value) => value ? new Date(value).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }) : "原始加入時間未知";
-const visibleEvents = (row) => (row?.timeline ?? row?.events ?? [])
-  .filter((event) => event.type !== "base-score-change")
-  .map((event) => event.type === "final-score-change"
-    ? { ...event, reason: event.reason?.replace(/^最終分數/, "分數") }
-    : event);
 const important = (row) => (row?.comparison?.events ?? []).some((event) => event.type !== "base-score-change");
 const categoryLabels = { trend: "趨勢", momentum: "KD", priceVolume: "量價", institutional: "法人", entryRisk: "進場風險" };
 
@@ -117,16 +112,24 @@ function researchDetailMarkupV2({ symbol, row, store, esc }) {
   const comparison = row?.comparison;
   const comparisonNotice = ["missing-current", "missing-previous"].includes(comparison?.status)
     ? `<p class="research-muted">${esc(comparison.summary)}</p>` : "";
-  const events = visibleEvents(row);
+  const timeline = reviewTrackingTimeline(period, row);
   const categoryNames = { trend: "趨勢結構", momentum: "KD 動能", priceVolume: "量價表現",
     institutional: "法人籌碼", entryRisk: "進場位置與風險" };
-  const categoryMarkup = snap?.valid ? `<details class="research-breakdown"><summary>構面變化與快照版本</summary><dl class="research-facts">${Object.entries(categoryNames).map(([key, name]) =>
-    `<div><dt>${name}</dt><dd>${fmt(snap.categories?.[key]?.score)} 分 · 加權計入 ${fmt(snap.categories?.[key]?.creditedContribution)}${Number.isFinite(comparison?.categoryDeltas?.[key]) ? ` · 變化 ${delta(comparison.categoryDeltas[key])}` : ""}</dd></div>`).join("")}
-    <div><dt>上限</dt><dd>${snap.cap?.enabled ? `${fmt(snap.cap.value)} 分 · ${esc(snap.cap.reason ?? "")}` : "未啟用"}</dd></div><div><dt>模型／設定</dt><dd>${esc(snap.modelVersion ?? "—")} · ${esc(snap.configId ?? "—")}</dd></div><div><dt>價格基準／版本</dt><dd>${esc(snap.priceBasis ?? "—")} · ${esc(snap.revisionId ?? "—")}</dd></div><div><dt>資料取得時間</dt><dd>${esc(dateTime(snap.capturedAt))}</dd></div></dl></details>` : "";
+  const changes = comparison?.categoryDeltas;
+  const settings = snap?.settings;
+  const priceBasis = { unadjusted: "未還原", "reference-adjusted": "除息參考價調整", adjusted: "已還原" }[snap?.priceBasis] ?? snap?.priceBasis ?? "—";
+  const categoryMarkup = snap?.valid ? `<details class="research-breakdown research-category-changes"><summary>構面較前期變化</summary><p class="research-muted">${comparison?.dates?.length === 2 ? `${esc(comparison.dates[0])} → ${esc(comparison.dates[1])}` : esc(comparison?.summary ?? "尚無可比較的前期快照")}</p><dl class="research-category-deltas">${Object.entries(categoryNames).map(([key, name]) =>
+    `<div><dt>${name}</dt><dd class="${tone(changes?.[key])}">${Number.isFinite(changes?.[key]) ? `${delta(changes[key])} 分` : "—"}</dd></div>`).join("")}</dl></details>
+    <details class="research-breakdown research-version"><summary>模型與資料版本</summary><dl class="research-facts"><div><dt>模型</dt><dd>${esc(snap.modelVersion ?? "—")}</dd></div><div><dt>KD 設定</dt><dd>${settings ? [settings.period, settings.kSmooth, settings.dSmooth].map(value => esc(value ?? "—")).join(" / ") : "—"}</dd></div><div><dt>價格基準</dt><dd>${esc(priceBasis)}</dd></div><div><dt>資料取得時間</dt><dd>${esc(dateTime(snap.capturedAt))}</dd></div>${snap.cap?.enabled ? `<div><dt>分數上限</dt><dd>${fmt(snap.cap.value)} 分 · ${esc(snap.cap.reason ?? "")}</dd></div>` : ""}<div class="research-version-id"><dt>版本識別</dt><dd><code>${esc(snap.revisionId ?? "—")}</code></dd></div></dl></details>` : "";
+  const timelineMarkup = timeline.comparisons.length ? `<ol class="research-events">${timeline.comparisons.map(item => {
+    const summary = item.status === "comparable" ? item.finalDelta === 0 ? "分數持平" : `分數${item.finalDelta > 0 ? "提高" : "下降"} ${fmt(Math.abs(item.finalDelta))} 分` : item.summary;
+    const reasons = item.events.filter(event => !["final-score-change", "base-score-change"].includes(event.type));
+    return `<li><time>${esc(item.fromDate)} → ${esc(item.toDate)}</time><span>${esc(summary)}</span>${reasons.length ? `<ul>${reasons.map(event => `<li>${esc(event.reason)}</li>`).join("")}</ul>` : ""}</li>`;
+  }).join("")}</ol>` : `<p class="research-muted">${timeline.start ? "等待收藏後下一個交易日的評分快照。" : "缺少收藏時或首次有效基準，暫無可比較的時間軸。"}</p>`;
   const trackingScore = period.addedSnapshot?.valid && Number.isFinite(period.addedSnapshot.finalScore)
     ? `${esc(period.addedSnapshot.asOf)} · ${fmt(period.addedSnapshot.finalScore)} 分`
     : period.addedSnapshot ? "追蹤時資料不足" : "追蹤時評分未保存";
-  return `<section class="entry-evidence research-detail"><h3>研究追蹤</h3>${comparisonNotice}<dl class="research-facts research-tracking-facts"><div><dt>追蹤時間</dt><dd>${period.startedAt ? esc(dateTime(period.startedAt)) : "追蹤時間未知"}</dd></div><div><dt>追蹤時評分</dt><dd>${trackingScore}</dd></div></dl>${scoreChart(row?.history ?? [])}${categoryMarkup}<h4>研究事件時間軸</h4>${events.length ? `<ol class="research-events">${events.map((event) => `<li><time>${esc(event.fromDate)} → ${esc(event.toDate)}</time><span>${esc(event.reason)}</span></li>`).join("")}</ol>` : '<p class="research-muted">尚無可判定的研究異動。</p>'}<p class="research-muted">明顯變化提示門檻為 10 分，未經策略回測驗證；歷史覆蓋以已保存快照為準。</p></section>`;
+  return `<section class="entry-evidence research-detail"><h3>研究追蹤</h3>${comparisonNotice}<dl class="research-facts research-tracking-facts"><div><dt>追蹤時間</dt><dd>${period.startedAt ? esc(dateTime(period.startedAt)) : "追蹤時間未知"}</dd></div><div><dt>追蹤時評分</dt><dd>${trackingScore}</dd></div></dl>${scoreChart(row?.history ?? [])}${categoryMarkup}<h4>研究事件時間軸</h4>${timelineMarkup}<p class="research-muted">從收藏基準起，依相鄰交易日逐段比較；歷史以可取得的快照為準，資料不足時不推算。</p></section>`;
 }
 
 export function researchDetailMarkup({ symbol, row, store, esc }) {

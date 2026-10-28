@@ -5,7 +5,7 @@ import { calculateMarketSentiment } from "../../shared/sentiment.js";
 import { entryScoreDayChange, entryScoreSummary, getEntryScore } from "../../shared/entry-score.js";
 import { DEFAULT_SETTINGS } from "../../shared/indicators.js";
 import { compareResearchSnapshots, researchConfigId, researchSnapshot } from "../../shared/research-tracking.js";
-import { reviewEventTimeline } from "../../shared/research-review.js";
+import { REVIEW_HISTORY_LIMIT, reviewEventTimeline } from "../../shared/research-review.js";
 import { getSectorDetail, getSectorOverview } from "../../shared/sectors.js";
 import { DomainError } from "../../shared/domain-error.js";
 
@@ -108,7 +108,7 @@ export class MarketSummaryService {
     if (symbols.some((symbol) => !known.has(symbol))) throw new DomainError("INVALID_QUERY", "股票不在上市清單");
     const previousDate = manifest.dates[index - 1] ?? null;
     const configId = researchConfigId(settings);
-    const historyDates = manifest.dates.slice(Math.max(0, index - 29), index + 1);
+    const historyDates = manifest.dates.slice(Math.max(0, index - REVIEW_HISTORY_LIMIT + 1), index + 1);
     const [sessions, revisions] = await Promise.all([
       this.researchStore.sessions(historyDates, configId, symbols),
       this.researchStore.revisions(asOf, configId),

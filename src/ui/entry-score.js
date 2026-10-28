@@ -161,14 +161,14 @@ export function entryScoreDialogMarkup(stock, esc, number, percent, favorite = f
       const status = item?.status === "PASS" ? "通過" : item?.status === "FAIL" ? "未通過" : "資料不足";
       const tone = item?.status === "PASS" ? "pass" : item?.status === "FAIL" ? "fail" : "missing";
       const data = coreData(item?.data, esc, number);
+      const category = score.categories?.[key];
+      const scoreDetail = valid && Number.isFinite(category?.score)
+        ? `<div class="entry-category ${tone === "pass" ? "" : "excluded"}"><div><strong>${number(category.score, 2)} 分</strong><span>權重 ${category.weight}% · 計入分數 ${number(category.creditedContribution ?? (tone === "pass" ? category.contribution : 0), 2)}</span></div><progress value="${category.score}" max="100" aria-label="${esc(label)}評分"></progress>${tone === "pass" ? "" : "<small>條件未通過，計入 0.00</small>"}</div>` : "";
       const iconPath = tone === "pass" ? "M4.5 10.25 8.5 14.25 15.5 6.5" :
         tone === "fail" ? "M5.5 5.5 14.5 14.5 M14.5 5.5 5.5 14.5" : "M5 10 15 10";
-      return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span></summary><div class="entry-condition-detail">${key === "momentum" ? kdChartMarkup(chartSeries, esc, number, item?.data) : data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>"}</div></details>`;
+      return `<details class="entry-condition ${tone}"><summary><span class="entry-condition-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="${iconPath}"/></svg></span><span class="entry-condition-copy"><strong>${label}</strong><small>${esc(item?.reason ?? "尚無判斷資料")}</small></span><span class="entry-condition-status ${tone}">${status}</span></summary><div class="entry-condition-detail">${scoreDetail}${key === "momentum" ? kdChartMarkup(chartSeries, esc, number, item?.data) : data ? `<dl class="entry-condition-data">${data}</dl>` : "<p>尚無條件數據。</p>"}</div></details>`;
     }).join("")}</div></section>
-    ${valid ? `<section class="entry-categories"><h3>五項評分明細</h3>${Object.entries(score.categories).map(([key, item]) =>
-      `<div class="entry-category ${score.coreConditions?.[key]?.status === "PASS" ? "" : "excluded"}"><div><strong>${esc(item.label)}</strong><span>權重 ${item.weight}% · 計入分數 ${number(item.creditedContribution ?? (score.coreConditions?.[key]?.status === "PASS" ? item.contribution : 0), 2)}</span></div><small>${number(item.score, 2)} 分${score.coreConditions?.[key]?.status === "PASS" ? "" : " · 條件未通過，計入 0.00"}</small><progress value="${item.score}" max="100" aria-label="${esc(item.label)}"></progress></div>`).join("")}
-      <p>未通過核心條件的構面貢獻不計入分數。</p></section>
-      <section class="entry-evidence entry-more"><details><summary>支持條件、風險與後續觀察</summary>
+    ${valid ? `<section class="entry-evidence entry-more"><details><summary>支持條件、風險與後續觀察</summary>
       ${guideItem("01", "支持條件", list(score.supportingEvidence, esc, "目前沒有符合的支持條件。"))}
       ${guideItem("02", "疑慮與風險", list(score.conflictingEvidence, esc, "目前沒有額外風險提示。"))}
       ${guideItem("03", "後續觀察", list(score.pendingConditions, esc, "核心趨勢條件已齊備，仍須自行評估風險。"))}</details>

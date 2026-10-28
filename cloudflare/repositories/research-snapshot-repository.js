@@ -26,7 +26,7 @@ export class ResearchSnapshotRepository {
   }
 
   // Read each day's latest published revision once for the entire symbol set.
-  // JSON arrays keep the query below D1's bound-parameter limit for 30 dates/50 symbols.
+  // JSON arrays keep the query below D1's bound-parameter limit for 120 dates/50 symbols.
   async sessions(dates, configId, symbols) {
     const sessions = new Map();
     if (!dates.length || !symbols.length) return sessions;

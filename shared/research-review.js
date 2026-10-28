@@ -58,6 +58,24 @@ export function reviewInitialScore(period, latest) {
   return { ...comparison, initial };
 }
 
+export function reviewTrackingTimeline(period, row) {
+  const start = period?.addedSnapshot?.asOf ?? period?.baseline?.asOf ??
+    period?.firstValidSnapshot?.asOf ?? period?.firstValidPriceBaseline?.asOf;
+  if (!start) return { start: null, comparisons: [] };
+  const snapshots = new Map((row?.history ?? []).filter(snapshot => snapshot?.asOf).map(snapshot => [snapshot.asOf, snapshot]));
+  if (period.addedSnapshot?.id && !snapshots.get(start)?.id) snapshots.set(start, period.addedSnapshot);
+  if (row?.latest?.asOf) snapshots.set(row.latest.asOf, row.latest);
+  const end = row?.latest?.asOf ?? [...snapshots.keys()].sort().at(-1);
+  const dates = [...new Set([...(row?.review?.dates ?? []), ...snapshots.keys()])]
+    .filter(date => date >= start && date <= end).sort();
+  const comparisons = dates.slice(1).map((date, index) => {
+    const previousDate = dates[index], current = snapshots.get(date), previous = snapshots.get(previousDate);
+    return { fromDate: previousDate, toDate: date,
+      ...compareResearchSnapshots(current?.id ? current : null, previous?.id ? previous : null, previousDate) };
+  });
+  return { start, comparisons };
+}
+
 export function reviewEventTimeline(history = [], dates = []) {
   const result = [];
   let previous = null;

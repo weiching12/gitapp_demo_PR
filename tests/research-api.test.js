@@ -36,10 +36,20 @@ test("research response compares only exact previous session and has no private 
   const response = await marketController(resolveApiRoute(url.pathname), url, { summary });
   assert.equal(response.data[0].comparison.finalDelta, 12);
   assert.equal(response.data[0].comparison.events.some((event) => event.type === "final-score-change"), true);
-  assert.equal(response.data[0].history.length, 30);
+  assert.equal(response.data[0].history.length, dates.length);
   assert.equal(response.data[0].history[0].valid, false);
   assert.equal(JSON.stringify(response).includes("privateNote"), false);
-  assert.deepEqual(calls, [[dates.slice(-30), researchConfigId(settings), ["2330"]]]);
+  assert.deepEqual(calls, [[dates, researchConfigId(settings), ["2330"]]]);
   await assert.rejects(summary.research(Array.from({ length: 51 }, (_, index) => String(index).padStart(4, "0")), asOf, settings),
     /自選股票代號無效/);
+});
+
+test("research includes older tracking history in one bounded batch of up to 120 sessions", async () => {
+  const calendar = Array.from({ length: 130 }, (_, index) => new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10));
+  let requested;
+  const summary = new MarketSummaryService({ market: async () => ({ asOf: calendar.at(-1), dates: calendar, stocks: [{ symbol: "2330" }] }) },
+    null, { sessions: async dates => { requested = dates; return new Map(); }, revisions: async () => [] });
+  const response = await summary.research(["2330"], calendar.at(-1), settings);
+  assert.deepEqual(requested, calendar.slice(-120));
+  assert.equal(response.data[0].history.length, 120);
 });
