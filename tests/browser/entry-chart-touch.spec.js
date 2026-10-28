@@ -65,7 +65,7 @@ test("touching a market row does not leave a blue focus outline", async ({ page 
   const row = page.locator("#stock-rows tr[data-symbol]").first();
   await row.tap();
   await expect(page.locator("#info-dialog")).toBeVisible();
-  await page.locator("#close-dialog").tap();
+  await page.locator(".info-dialog-handle").tap();
   await expect(page.locator("#info-dialog")).toBeHidden();
   await row.focus();
   expect(await row.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");

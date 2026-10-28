@@ -2261,7 +2261,7 @@ dialog.institution-dialog {
     --table-favorite-width: 28px;
     --table-stock-width: clamp(52px, 16cqw, 72px);
     --table-price-width: clamp(90px, 28cqw, 110px);
-    --table-entry-width: 76px;
+    --table-entry-width: 64px;
     --table-signal-width: 132px;
     --table-insight-width: max(82px, calc((100cqw - var(--table-favorite-width) - var(--table-stock-width) - var(--table-entry-width) - var(--table-price-width)) / 2));
     --table-net-mobile-width: 120px;
@@ -2274,6 +2274,7 @@ dialog.institution-dialog {
   }
   .stock-column { width: var(--table-stock-width); }
   .entry-column { width: var(--table-entry-width); }
+  .table-scroll [data-sort-heading="entryScore"] button > span { max-width: 2em; white-space: normal; }
   .table-scroll .entry-score-button {
     width: 100%;
     min-height: 44px;
@@ -3260,6 +3261,7 @@ dialog.sector-dialog {
 .research-chart-controls span { flex: 1; }
 .research-chart-controls button { border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--muted); padding: .25rem .4rem; font-size: .75rem; cursor: pointer; }
 .research-chart-controls button[aria-pressed="true"] { color: var(--accent); background: var(--surface-soft, #e9f1ff); }
+.research-chart-controls .research-series-key { flex: 0 0 auto; white-space: nowrap; }
 .research-series-key { display: inline-flex; align-items: center; gap: .25rem; color: var(--muted); font-size: .72rem; }
 .research-series-key i { display: inline-block; width: .9rem; border-top: 2px solid; }
 .research-series-key .price-key { border-color: #e19971; }
@@ -3281,6 +3283,23 @@ dialog.sector-dialog {
 .research-score-plot .cursor { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
 .research-score-readout { min-height: 1.4em; margin: .6rem 0; font-size: .8rem; }
 .research-chart-dates { display: flex; justify-content: space-between; color: var(--muted); font-size: .75rem; }
+
+#required-update-dialog { width: min(360px, calc(100vw - 32px)); padding: 24px; color: var(--ink); background: var(--surface, #fff); border: 1px solid var(--border); border-radius: 14px; }
+#required-update-dialog h2 { margin: 0 0 12px; font-size: 20px; }
+#required-update-dialog p { margin: 0 0 20px; line-height: 1.6; color: var(--muted); }
+#required-update-dialog button { width: 100%; min-height: 44px; }
+#required-update-dialog::backdrop { background: rgb(10 25 45 / 55%); }
+.info-dialog-handle { display: none; }
+@media (max-width: 520px) {
+  #info-dialog:has(.entry-dialog) #close-dialog { display: none; }
+  #info-dialog:has(.entry-dialog) .info-dialog-handle { display: flex; align-items: center; justify-content: center; height: 28px; width: 100%; margin: -6px 0 10px; touch-action: none; }
+  .info-dialog-handle::before { content: ""; width: 40px; height: 5px; border-radius: 999px; background: #cbd5e1; }
+  #info-dialog { transform: translateY(var(--mobile-drag-y, 0px)); transition: transform 180ms ease-out; }
+  #info-dialog.is-dragging { transition: none; user-select: none; }
+  #info-dialog .entry-dialog-title { grid-template-columns: minmax(0, 1fr) 44px; }
+  #info-dialog .entry-dialog-sector, #info-dialog .entry-dialog h2 { grid-column: 1; }
+  #info-dialog .entry-dialog-title .favorite-button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+}
 @media (min-width: 701px) {
   .page-heading:not(.favorites-heading) .date-control { display: flex; align-items: center; gap: .5rem; min-width: 0; max-width: none; }
   .page-heading:not(.favorites-heading) .date-control select { width: 145px; }

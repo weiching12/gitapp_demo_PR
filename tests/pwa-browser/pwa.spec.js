@@ -65,6 +65,10 @@ test("installed shell starts offline and identifies saved data", async ({ page, 
 test("page buttons check on interaction and settings can check immediately", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await page.getByRole("button", { name: "檢查更新" }).click();
+  await expect(page.locator("#update-check-status")).toHaveText("已是最新版本");
+  await page.locator("#close-dialog").click();
 
   const canObserveRegistration = await page.evaluate(async () => {
     const registration = await navigator.serviceWorker.ready;
@@ -73,7 +77,7 @@ test("page buttons check on interaction and settings can check immediately", asy
       const observeUpdate = async () => {
         window.__pwaUpdateChecks += 1;
       };
-      registration.update = observeUpdate;
+      Object.getPrototypeOf(registration).update = observeUpdate;
       return registration.update === observeUpdate;
     } catch {
       return false;
@@ -83,6 +87,8 @@ test("page buttons check on interaction and settings can check immediately", asy
 
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
   await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(0);
+  await page.clock.install();
+  await page.clock.fastForward(61_000);
   await page.getByRole("button", { name: "株研追蹤" }).click();
   await expect.poll(() => page.evaluate(() => window.__pwaUpdateChecks)).toBe(1);
   await page.getByRole("button", { name: "法人買株" }).click();
@@ -97,18 +103,21 @@ test("refresh checks the app version before reloading and keeps the current page
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  await page.getByRole("button", { name: "株研追蹤" }).click();
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await page.getByRole("button", { name: "檢查更新" }).click();
+  await expect(page.locator("#update-check-status")).toHaveText("已是最新版本");
+  await page.locator("#close-dialog").click();
   const canObserveRegistration = await page.evaluate(async () => {
     const registration = await navigator.serviceWorker.ready;
     try {
-      registration.update = async () => {
+      Object.getPrototypeOf(registration).update = async () => {
         localStorage.setItem("pwa-refresh-update-checked", "yes");
       };
       return true;
     } catch { return false; }
   });
   test.skip(!canObserveRegistration, "Browser does not allow observing ServiceWorkerRegistration.update");
-  await page.getByRole("button", { name: "株研追蹤" }).click();
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("pwa-refresh-update-checked"))).toBe("yes");
   await page.evaluate(() => localStorage.removeItem("pwa-refresh-update-checked"));
   await Promise.all([
     page.waitForEvent("load"),

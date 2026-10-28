@@ -51,27 +51,54 @@ export function bindMobileDragDismiss(dialog, handle) {
   let drag = null;
   let suppressClickUntil = 0;
   const reset = () => { drag = null; dialog.classList.remove("is-dragging"); dialog.style.removeProperty("--mobile-drag-y"); };
-  handle.addEventListener("pointerdown", (event) => {
-    if (!dialog.open || !matchMedia("(max-width: 520px)").matches || event.button !== 0) return;
-    drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  const canStart = (target) => {
+    if (!dialog.open || dialog.hasAttribute("data-mandatory-update") || !matchMedia("(max-width: 520px)").matches) return false;
+    if (!handle.contains(target) && target.closest("button,a,input,select,textarea,summary,[role=slider],.table-scroll")) return false;
+    for (let node = target; node && dialog.contains(node); node = node.parentElement)
+      if (node.scrollTop > 0 && node.scrollHeight > node.clientHeight + 1) return false;
+    return true;
+  };
+  const move = (x, y, event) => {
+    if (!drag) return;
+    const distance = y - drag.y, horizontal = Math.abs(x - drag.x);
+    if (distance < -8 || horizontal > Math.max(8, distance)) { reset(); return; }
+    if (distance <= 8) return;
+    event.preventDefault();
+    drag.distance = distance;
     dialog.classList.add("is-dragging");
-    handle.setPointerCapture(event.pointerId);
-  });
-  handle.addEventListener("pointermove", (event) => {
-    if (event.pointerId !== drag?.id) return;
-    const distance = event.clientY - drag.y;
-    const horizontal = Math.abs(event.clientX - drag.x);
-    dialog.style.setProperty("--mobile-drag-y", `${distance > horizontal ? Math.max(0, distance) : 0}px`);
-  });
-  handle.addEventListener("pointerup", (event) => {
-    if (event.pointerId !== drag?.id) return;
-    const distance = event.clientY - drag.y;
-    const horizontal = Math.abs(event.clientX - drag.x);
-    if (Math.hypot(distance, horizontal) > 8) suppressClickUntil = performance.now() + 350;
+    dialog.style.setProperty("--mobile-drag-y", `${distance}px`);
+  };
+  const finish = () => {
+    if (!drag) return;
+    const distance = drag.distance ?? 0;
+    if (distance > 8) suppressClickUntil = performance.now() + 350;
     reset();
-    if (distance >= 90 && distance > horizontal) dialog.close();
+    if (distance >= 90) dialog.close();
+  };
+  dialog.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "touch" || event.button !== 0 || !canStart(event.target)) return;
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    event.target.setPointerCapture(event.pointerId);
   });
-  handle.addEventListener("pointercancel", reset);
+  dialog.addEventListener("pointermove", (event) => {
+    if (event.pointerId === drag?.id) move(event.clientX, event.clientY, event);
+  });
+  dialog.addEventListener("pointerup", (event) => { if (event.pointerId === drag?.id) finish(); });
+  dialog.addEventListener("pointercancel", reset);
+  dialog.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 1 || !canStart(event.target)) { reset(); return; }
+    const touch = event.touches[0];
+    drag = { x: touch.clientX, y: touch.clientY };
+  }, { passive: true });
+  dialog.addEventListener("touchmove", (event) => {
+    if (event.touches.length !== 1) { reset(); return; }
+    move(event.touches[0].clientX, event.touches[0].clientY, event);
+  }, { passive: false });
+  dialog.addEventListener("touchend", finish);
+  dialog.addEventListener("touchcancel", reset);
+  dialog.addEventListener("click", (event) => {
+    if (performance.now() < suppressClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); }
+  }, true);
   handle.addEventListener("click", () => { if (dialog.open && performance.now() >= suppressClickUntil) dialog.close(); });
   handle.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;

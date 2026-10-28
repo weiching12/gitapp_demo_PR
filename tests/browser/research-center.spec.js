@@ -41,7 +41,7 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(page.locator(".research-review-summary")).toHaveCount(0);
   await expect(page.locator(".research-chart-readout")).toContainText("收盤");
   await expect(page.locator(".research-chart-readout")).toContainText("評分");
-  await expect(page.locator("#dialog-heading")).toContainText("株研評分");
+  await expect(page.locator("#dialog-heading")).not.toContainText("株研評分");
 });
 
 test("research table rows open score details across the row", async ({ page }) => {
@@ -60,7 +60,7 @@ test("a saved stock shows research history only when opened from research tracki
   await page.locator(`#stock-rows tr[data-symbol="${symbol}"]`).click();
   await expect(page.locator("#info-dialog")).toBeVisible();
   await expect(page.locator(".research-detail")).toHaveCount(0);
-  await page.locator("#close-dialog").click();
+  await page.locator(".info-dialog-handle").click();
   await page.getByRole("button", { name: "株研追蹤" }).first().click();
   await page.locator(`.research-card[data-research-symbol="${symbol}"] .research-card-main`).click();
   await expect(page.locator(".research-detail")).toContainText("研究追蹤");
@@ -71,7 +71,7 @@ test("pointer clicks do not leave a focus ring but keyboard focus remains visibl
   await page.getByRole("button", { name: "株研追蹤" }).first().click();
   const card = page.locator(".research-card-main").first();
   await card.click();
-  await page.locator("#close-dialog").click();
+  await page.locator(".info-dialog-handle").click();
   await expect(page.locator("#info-dialog")).toBeHidden();
   await card.focus();
   await expect(card).toBeFocused();

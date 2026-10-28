@@ -28,7 +28,7 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   await rows.first().locator(".entry-score-button").click();
   await expect(page.locator("#info-dialog")).toBeVisible();
   await expect(page.locator(".entry-dialog-sector")).not.toBeEmpty();
-  await expect(page.locator("#dialog-heading")).toHaveText(new RegExp(`^${firstSymbol} .+｜株研評分$`));
+  await expect(page.locator("#dialog-heading")).toHaveText(new RegExp(`^${firstSymbol} .+$`));
   await expect(page.locator("#dialog-content")).toContainText("波段順勢進場");
   await expect(page.locator("#dialog-content")).toContainText("進場位置與風險");
   await expect(page.locator(".entry-summary-reason")).toHaveCount(0);
@@ -172,18 +172,18 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
   const chartBounds = await page.locator(".entry-price-chart").evaluate((element) =>
     ({ width: element.clientWidth, scroll: element.scrollWidth }));
   expect(chartBounds.scroll).toBeLessThanOrEqual(chartBounds.width);
-  await page.locator("#close-dialog").click();
+  await page.locator(".info-dialog-handle").click();
   await expect(page.locator("#info-dialog")).toBeHidden();
   await rows.last().locator(".entry-score-button").scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await rows.last().locator(".entry-score-button").click();
   await expect(page.locator(".entry-dialog")).toBeVisible();
   const dialogBounds = await page.locator("#info-dialog").boundingBox();
-  const closeBounds = await page.locator("#close-dialog").boundingBox();
+  const closeBounds = await page.locator(".info-dialog-handle").boundingBox();
   expect(dialogBounds.y).toBeGreaterThanOrEqual(0);
   expect(dialogBounds.y + dialogBounds.height).toBeLessThanOrEqual(844);
   expect(closeBounds.y).toBeGreaterThanOrEqual(dialogBounds.y);
   expect(closeBounds.y + closeBounds.height).toBeLessThanOrEqual(dialogBounds.y + dialogBounds.height);
-  await page.locator("#close-dialog").click();
+  await page.locator(".info-dialog-handle").click();
   await expect(page.locator("#info-dialog")).toBeHidden();
 });

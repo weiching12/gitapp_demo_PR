@@ -91,8 +91,14 @@ test("iPhone return refreshes a changed generation and restores the selected pag
   server.changeGeneration();
   await page.evaluate(() => window.__nativeRuntime.checkForUpdates(true));
   expect(server.calls.filter((path) => path === "/api/v1/market")).toHaveLength(reads);
-  await Promise.all([page.waitForEvent("load"), page.evaluate(() => { void window.__nativeListeners.get('appStateChange')({isActive:true}); })]);
+  await page.evaluate(() => { void window.__nativeListeners.get('appStateChange')({isActive:true}); });
+  await expect(page.locator("#required-update-dialog")).toBeVisible();
+  await expect(page.locator("#page-title")).toContainText("株研追蹤");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#required-update-dialog")).toBeVisible();
+  await Promise.all([page.waitForEvent("load"), page.locator("#apply-app-update").click()]);
   await expect(page.locator(".stocks-panel")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator("#required-update-dialog")).toBeHidden();
   await expect(page.locator("#page-title")).toContainText("株研追蹤");
   expect(server.calls.filter((path) => path === "/api/v1/market/summary")).toHaveLength(2);
 });

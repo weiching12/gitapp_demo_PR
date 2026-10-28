@@ -6,6 +6,8 @@ import { MarketApiClient } from "./api/market-client.js";
 import { RequestCache } from "./api/request-cache.js";
 import { startPresence } from "./presence.js";
 import { startPwa } from "./pwa.js";
+import { createUpdateFlow } from "./update-flow.js";
+import { createUpdateDialog } from "./ui/update-dialog.js";
 import { startPushNotifications } from "./push.js";
 import { startUpdateCountdown } from "./update-countdown.js";
 import { sourceAbout } from "./about.js";
@@ -131,20 +133,34 @@ let isDemo;
 let presence, stopUpdateCountdown, usingCachedData = false;
 let nativeStorage, nativePush;
 let checkPwaUpdate = async () => false;
+let startupVersionCheck = Promise.resolve(false);
 let touchInteraction = false;
 const pendingSymbols = new Set();
+let updateFlow;
+const showUpdateState = createUpdateDialog({ onUpdate: () => updateFlow.apply(), isBlocking: () => updateFlow?.isBlocking() ?? true });
+let updateSession;
+try { updateSession = sessionStorage; } catch {}
+updateFlow = createUpdateFlow({ storage: updateSession, onState: showUpdateState,
+  beforeReload: async () => {
+    rememberPage(state.page, nativeMode ? nativeStorage : undefined);
+    savePreferences();
+    if (researchStore) saveResearch();
+    await nativeStorage?.flush?.();
+  }, reload: () => window.location.reload() });
 
 const appStorage = () => nativeMode ? nativeStorage : preferenceStorage();
 function readPreferences() { loadPreferences(state, appStorage()); }
 function savePreferences() { persistPreferences(state, toast, appStorage()); }
 function saveResearch() { return persistResearchStore(appStorage(), researchStore); }
 
-async function loadResearchReview(symbol) {
+async function loadResearchReview(symbol, { force = false } = {}) {
   const key = `${dataset.info.generation ?? "demo"}:${symbol}`;
+  const previous = researchReviewCache.get(key);
+  if (force) researchReviewCache.delete(key);
   return researchReviewCache.load(key, async () => {
     let review;
     if (apiMode) {
-      const response = await marketClient.review(symbol);
+      const response = await marketClient.review(symbol, { cache: "no-store" });
       if (response.data.meta?.asOf !== dataset.info.asOf || response.data.data?.symbol !== symbol)
         throw new Error("價格回顧資料版本與清單不一致");
       review = response.data.data;
@@ -168,15 +184,37 @@ async function loadResearchReview(symbol) {
     }
     const row = researchRows.get(symbol);
     if (row) row.review = review;
+    if (previous?.corporateActions?.revisionId === review.corporateActions?.revisionId) return review;
     renderResearch();
     const dialog = document.querySelector("#info-dialog");
     if (dialog?.open && dialog.dataset.entrySymbol === symbol && dialog.dataset.showResearch === "true") {
       const existing = dialog.querySelector(".research-detail");
-      if (existing) existing.outerHTML = researchDetailMarkup({ symbol, row: researchRows.get(symbol),
-        store: researchStore, esc });
+      if (existing) {
+        const scrollTop = dialog.scrollTop, chart = existing.querySelector(".research-price-chart"), plot = chart?.querySelector(".research-chart-plot");
+        const selectedDate = plot ? JSON.parse(plot.dataset.points)[Number(plot.getAttribute("aria-valuenow")) - 1]?.date : null;
+        const range = Number(chart?.dataset.range) || 60;
+        existing.outerHTML = researchDetailMarkup({ symbol, row: researchRows.get(symbol), store: researchStore, esc });
+        const next = dialog.querySelector(".research-price-chart");
+        if (next && range !== 60) next.outerHTML = researchPriceChart(activeResearchPeriod(researchStore, symbol), row, esc, range);
+        const nextPlot = dialog.querySelector(".research-chart-plot");
+        if (nextPlot && selectedDate) {
+          const index = JSON.parse(nextPlot.dataset.points).findIndex(point => point.date === selectedDate);
+          if (index >= 0) selectResearchPricePoint(nextPlot, index);
+        }
+        dialog.scrollTop = scrollTop;
+      }
     }
     return review;
   });
+}
+
+function refreshOpenResearchReview() {
+  const dialog = document.querySelector('#info-dialog[open][data-show-research="true"]');
+  if (!apiMode || !dialog || document.hidden || updateFlow.isBlocking()) return;
+  const symbol = dialog.dataset.entrySymbol, review = researchRows.get(symbol)?.review;
+  const covered = new Set(review?.corporateActions?.coveredDates ?? []);
+  if (review?.dates.slice(1).some(date => !covered.has(date)))
+    void loadResearchReview(symbol, { force: true }).catch(error => console.warn("Research coverage refresh failed", error));
 }
 
 function renderResearch() {
@@ -292,7 +330,7 @@ async function finishAppSplashBeforeLoading() {
   const splash = document.querySelector("#app-splash");
   if (!splash || !document.documentElement.classList.contains("is-standalone") ||
       document.documentElement.classList.contains("app-splash-seen")) return;
-  await new Promise((resolve) => window.setTimeout(resolve, 1800));
+  await Promise.all([new Promise((resolve) => window.setTimeout(resolve, 1800)), startupVersionCheck]);
   splash.classList.add("is-leaving");
   await new Promise((resolve) => window.setTimeout(resolve, 320));
   document.documentElement.classList.add("app-splash-seen");
@@ -411,20 +449,28 @@ function renderConnectionState(online = navigator.onLine) {
   status.hidden = !message;
 }
 
-function enablePwa() {
-  if (nativeMode) {
-    void enableNativeApp().catch((error) => console.error("Native lifecycle setup failed", error));
-    return;
-  }
+function startVersionChecks() {
+  if (nativeMode) return;
   const checkUpdate = startPwa({
     onConnection: (online) => renderConnectionState(online),
     getDataVersion: () => dataset?.info?.generation,
-    onDataUpdate: () => window.location.reload(),
+    onUpdateRequired: (update) => updateFlow.offer(update),
   });
   checkPwaUpdate = (force = false) => {
     void presence?.refresh?.(force);
     return checkUpdate(force);
   };
+  startupVersionCheck = Promise.race([
+    checkPwaUpdate(true).catch((error) => { console.warn("Startup version check failed", error); return false; }),
+    new Promise((resolve) => setTimeout(() => resolve(false), 4000)),
+  ]);
+}
+
+function enablePwa() {
+  if (nativeMode) {
+    void enableNativeApp().catch((error) => console.error("Native lifecycle setup failed", error));
+    return;
+  }
   const reminder = document.querySelector(".date-notification-button");
   const notificationStatus = document.querySelector("#settings-notifications > div > span");
   notificationStatus.setAttribute("role", "status");
@@ -456,7 +502,7 @@ async function enableNativeApp() {
   notifications.querySelector("#check-update").textContent = "檢查資料";
   const native = await startNativeApp({
     getDataVersion: () => dataset?.info?.generation,
-    onDataUpdate: async () => { await nativeStorage?.flush?.(); window.location.reload(); },
+    onDataUpdate: (latest) => updateFlow.offer({ kind: "data", generation: latest.generation }),
     onPause: async () => {
       savePreferences();
       if (researchStore) saveResearch();
@@ -465,6 +511,7 @@ async function enableNativeApp() {
     },
     beforeResume: () => nativePush?.refresh(),
     onBack: () => {
+      if (updateFlow.isBlocking()) return true;
       const dialog = document.querySelector("#info-dialog[open]") ?? document.querySelector("dialog[open]");
       if (dialog) { dialog.close(); return true; }
       if (state.page !== "market") {
@@ -480,7 +527,6 @@ async function enableNativeApp() {
   window.addEventListener("pagehide", () => { void native.stop(); void nativePush?.stop(); }, { once: true });
   nativePush = await enableNativePush({ storage: nativeStorage, onMessage: toast,
     onOpen: () => {
-      document.querySelector('.sidebar [data-page="market"]').click();
       void checkPwaUpdate(true).catch(() => toast("資料更新檢查失敗，請稍後重試"));
     },
     onStatus: ({ enabled, subscribed, busy, message }) => {
@@ -504,20 +550,12 @@ async function refreshWithVersionCheck() {
   refreshingApp = true;
   try {
     const updated = await checkPwaUpdate(true);
-    if (!updated) { window.location.reload(); return; }
-    if (nativeMode) return;
-    // A new service worker reloads the page on controllerchange. Allow its
-    // activation to finish before falling back to a normal reload.
-    if (!("serviceWorker" in navigator)) { window.location.reload(); return; }
-    const activated = await Promise.race([
-      new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", () => resolve(true), { once: true })),
-      new Promise((resolve) => setTimeout(() => resolve(false), 5000)),
-    ]);
-    if (!activated) window.location.reload();
+    if (!updated) await updateFlow.reloadCurrent();
   } catch (error) {
     console.warn("Version check before refresh failed", error);
-    window.location.reload();
+    await updateFlow.reloadCurrent();
   }
+  finally { refreshingApp = false; }
 }
 
 function renderPage() {
@@ -650,7 +688,8 @@ function openDialog(type, focusClose = true, showResearch = false) {
   dialog.scrollTop = 0;
   content.scrollTop = 0;
   if (type.startsWith("entry:")) animateEntryScore(dialog);
-  const close = dialog.querySelector("#close-dialog");
+  const close = dialog.querySelector(matchMedia("(max-width: 520px)").matches && dialog.querySelector(".entry-dialog")
+    ? ".info-dialog-handle" : "#close-dialog");
   if (focusClose) close.focus({ preventScroll: true });
   else if (dialog.contains(document.activeElement)) document.activeElement.blur();
 }
@@ -664,7 +703,7 @@ async function openEntryScoreDialog(symbol, focusClose = true, showResearch = fa
   const date = state.date, key = `${summaryKey(date)}:${symbol}`;
   const dialog = document.querySelector("#info-dialog");
   openDialog(`entry:${symbol}`, focusClose, showResearch);
-  if (showResearch && state.favorites.includes(symbol)) void loadResearchReview(symbol)
+  if (showResearch && state.favorites.includes(symbol)) void loadResearchReview(symbol, { force: apiMode })
     .catch((error) => console.warn("Research price review unavailable", error));
   const request = dialog.dataset.request;
   const isCurrent = () => dialog.open && dialog.dataset.request === request &&
@@ -883,6 +922,7 @@ function bindEvents() {
     }
     const button = event.target.closest("button");
     if (!button) return;
+    if (button.closest("#required-update-dialog")) return;
     if (button.dataset.reviewRange) {
       const chart = button.closest(".research-price-chart");
       const symbol = chart?.dataset.reviewSymbol;
@@ -907,7 +947,7 @@ function bindEvents() {
       button.disabled = true;
       button.textContent = "檢查中…";
       checkPwaUpdate(true).then((updated) => {
-        status.textContent = updated ? nativeMode ? "發現新資料，正在更新…" : "發現新版本，正在更新…"
+        status.textContent = updated ? "發現更新，請點選更新視窗上的更新"
           : nativeMode ? "已是最新資料" : "已是最新版本";
       }).catch((error) => { status.textContent = error.message || "無法檢查更新"; })
         .finally(() => { button.disabled = false; button.textContent = "檢查更新"; });
@@ -1065,6 +1105,9 @@ function bindEvents() {
     toast("設定已儲存");
   });
   dialogs.bindBackdropDismiss();
+  dialogs.bindMobileDismiss(document.querySelector("#info-dialog"), ".info-dialog-handle");
+  setInterval(refreshOpenResearchReview, 60_000);
+  document.addEventListener("visibilitychange", refreshOpenResearchReview);
   const sectorDialog = document.querySelector("#sector-dialog");
   dialogs.bindMobileDismiss(sectorDialog, ".sector-dialog-handle");
   sectorDialog.addEventListener("close", () => {
@@ -1084,10 +1127,11 @@ async function init() {
     nativeStorage = await prepareNativeStorage({ fallback: preferenceStorage(),
       onError: () => toast("設定暫時無法儲存，請稍後重試") });
   }
-  await finishAppSplashBeforeLoading();
   readPreferences();
   restorePage(state, nativeMode ? nativeStorage : undefined);
   applyTheme();
+  startVersionChecks();
+  await finishAppSplashBeforeLoading();
   const prepare = () => {
     state.date = dataset.info.asOf;
     state.favorites = [...new Set(state.favorites)].filter((symbol) => dataset.stocks.some((stock) => stock.symbol === symbol));
@@ -1117,6 +1161,7 @@ async function init() {
       [...new Set(dataset.stocks.map((stock) => stock.sector))].map((sector) => `<option>${esc(sector)}</option>`).join("");
     loading = false;
     refreshData(); renderConnectionState(); savePreferences();
+    updateFlow.finishStartup({ fresh: !usingCachedData });
     return;
   }
   dataset = await loadDataset();
@@ -1125,9 +1170,11 @@ async function init() {
   refreshData();
   renderConnectionState();
   savePreferences();
+  updateFlow.finishStartup();
 }
 
 init().catch((error) => {
+  updateFlow.failStartup();
   console.error("Unable to initialize stock dashboard", error);
   if (document.querySelector("#load-status")) {
     loading = false; loadFailed = true;

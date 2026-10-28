@@ -53,7 +53,7 @@ export function researchPriceChart(period, row, esc, range = 60) {
       } else current.push(`${x(index).toFixed(1)},${y(point[key]).toFixed(1)}`);
     }
     if (current.length > 1) result.push(current);
-    return result.map((segment) => `<polyline points="${segment.join(" ")}" class="${key}-line"/>`).join("");
+    return result.map((segment) => `<polyline points="${segment.join(" ")}" class="${key === "close" ? "price" : key}-line" fill="none"/>`).join("");
   };
   const milestoneDates = points.filter((point) => point.milestone).map((point) => point.date);
   const eventDates = new Set((row.timeline ?? []).map((event) => event.toDate));
@@ -62,7 +62,7 @@ export function researchPriceChart(period, row, esc, range = 60) {
   const scoreMarkers = points.map((point, index) => Number.isFinite(point.score)
     ? `<circle cx="${x(index).toFixed(1)}" cy="${scoreY(point.score).toFixed(1)}" r="2.5" class="score-marker"><title>${esc(point.date)} 評分 ${fmt(point.score)}</title></circle>` : "").join("");
   const last = points.at(-1);
-  return `<div class="research-price-chart" data-range="${range}" data-review-symbol="${esc(period.symbol)}"><div class="research-chart-heading"><details class="research-chart-info"><summary aria-label="追蹤價格與評分說明"><span aria-hidden="true">ⓘ</span></summary><p>同時顯示收藏後各交易日的實際收盤價與株研評分。選取同一日期，可比較價格相對追蹤價格基準的變化率，以及評分相對追蹤時或首次有效評分的變化點數。兩者基準日期可能不同；公司行動未查核、缺少評分或設定不相容時不推算變化。價格不代表實際投資報酬。</p></details><h5>追蹤價格與評分</h5></div><div class="research-chart-controls"><span class="research-series-key"><i class="price-key"></i>收盤價</span><span class="research-series-key"><i class="score-key"></i>株研評分</span><span></span>${[20, 60, 120].map((days) => `<button type="button" data-review-range="${days}" aria-pressed="${range === days}">${days} 日</button>`).join("")}</div>
+  return `<div class="research-price-chart" data-range="${range}" data-review-symbol="${esc(period.symbol)}"><div class="research-chart-heading"><details class="research-chart-info"><summary aria-label="追蹤價格與評分說明"><span aria-hidden="true">ⓘ</span></summary><p>價格顯示變化率，評分顯示變化點數；點選日期查看。資料不足時不比較，價格變化不代表實際投資報酬。</p></details><h5>追蹤價格與評分</h5></div><div class="research-chart-controls"><span class="research-series-key"><i class="price-key"></i>收盤價</span><span class="research-series-key"><i class="score-key"></i>株研評分</span><span></span>${[20, 60, 120].map((days) => `<button type="button" data-review-range="${days}" aria-pressed="${range === days}">${days} 日</button>`).join("")}</div>
     <p class="research-chart-readout" aria-live="polite">${esc(pointReadout(last))}</p>
     <div class="research-chart-axis"><span>價格 ${fmt(hi)}<br>${fmt(lo)}</span><span>評分 100<br>0</span></div><div class="research-chart-plot" role="slider" tabindex="0" aria-label="追蹤價格與評分；點選或水平拖曳查看交易日" aria-valuemin="1" aria-valuemax="${points.length}" aria-valuenow="${points.length}" data-points="${esc(JSON.stringify(points))}"><svg viewBox="0 0 320 124" preserveAspectRatio="none" aria-hidden="true"><path d="M12 18H308M12 63H308M12 108H308" class="grid"/>${segments("close", priceY)}${segments("score", scoreY)}${markers}${scoreMarkers}<line class="cursor" x1="${x(points.length - 1)}" x2="${x(points.length - 1)}" y1="18" y2="108"/></svg></div><div class="research-chart-dates"><span>${esc(points[0].date)}</span><span>${esc(points.at(-1).date)}</span></div><p class="research-muted">${esc(baseline.asOf)} 為${period.baseline ? "加入時" : "首次有效"}價格基準 · 收盤價未還原，未計入股息 · 公司行動版本 ${esc(review.corporateActions?.revisionId ?? "待查核")}</p></div>`;
 }

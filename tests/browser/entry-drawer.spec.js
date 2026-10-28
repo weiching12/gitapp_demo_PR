@@ -37,6 +37,6 @@ test("phone entry score remains a modal dialog", async ({ page }) => {
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveAttribute("data-entry-drawer", "false");
   expect(await dialog.evaluate((element) => element.matches(":modal"))).toBe(true);
-  await page.locator("#close-dialog").click();
+  await page.locator(".info-dialog-handle").click();
   await expect(dialog).toBeHidden();
 });

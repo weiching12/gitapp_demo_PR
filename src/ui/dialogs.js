@@ -11,7 +11,7 @@ export function createDialogController() {
   };
 
   const bindBackdropDismiss = () => {
-    document.querySelectorAll("dialog").forEach((dialog) => dialog.addEventListener("click", (event) => {
+    document.querySelectorAll("dialog:not([data-mandatory-update])").forEach((dialog) => dialog.addEventListener("click", (event) => {
       if (event.target !== event.currentTarget) return;
       const rect = dialog.getBoundingClientRect();
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)
