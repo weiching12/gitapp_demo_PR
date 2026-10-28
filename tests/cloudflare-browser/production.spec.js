@@ -21,9 +21,10 @@ test("2031 comparison follows the selected market date", async ({ page, request 
       `較前期 ${stock.entryScoreChange.delta > 0 ? "+" : ""}${stock.entryScoreChange.delta.toFixed(2)}`);
     await expect(row.locator(".entry-score-change")).toHaveAttribute("title", new RegExp(stock.entryScoreChange.previousDate));
   }
-  const previousDate = manifest.dates.at(-2);
-  const research = await (await request.get(`/api/v1/favorites/research?symbols=2031&asOf=${previousDate}&${settings}`)).json();
+  // Research navigation intentionally returns to the latest session.
+  const research = await (await request.get(`/api/v1/favorites/research?symbols=2031&asOf=${manifest.asOf}&${settings}`)).json();
   await page.locator('.sidebar [data-page="favorites"]').click();
+  await expect(page.locator("#research-date")).toContainText(manifest.asOf);
   await expect(page.locator('#research-list [data-research-symbol="2031"] .research-score strong'))
     .toHaveText(research.data[0].latest.finalScore.toFixed(2));
   await page.locator('#research-list [data-research-symbol="2031"] .research-card-main').click();
