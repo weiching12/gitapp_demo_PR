@@ -2261,7 +2261,7 @@ dialog.institution-dialog {
     --table-favorite-width: 28px;
     --table-stock-width: clamp(52px, 16cqw, 72px);
     --table-price-width: clamp(90px, 28cqw, 110px);
-    --table-entry-width: 96px;
+    --table-entry-width: 76px;
     --table-signal-width: 132px;
     --table-insight-width: max(82px, calc((100cqw - var(--table-favorite-width) - var(--table-stock-width) - var(--table-entry-width) - var(--table-price-width)) / 2));
     --table-net-mobile-width: 120px;
