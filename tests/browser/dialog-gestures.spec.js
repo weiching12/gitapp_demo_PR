@@ -28,6 +28,10 @@ test('phone entry pulls down to a chart preview, expands upward and closes only 
   await expect(dialog).toBeVisible();
   await expect(page.locator('.entry-price-chart')).toBeVisible();
   await expect(page.locator('.entry-summary')).toBeHidden();
+  await expect.poll(async () => {
+    const bounds = await dialog.boundingBox();
+    return Math.round(bounds.y + bounds.height);
+  }).toBe(956);
   const previewBounds = await dialog.boundingBox();
   const chartBounds = await page.locator('.entry-price-chart').boundingBox();
   expect(chartBounds.y + chartBounds.height).toBeLessThanOrEqual(previewBounds.y + previewBounds.height);

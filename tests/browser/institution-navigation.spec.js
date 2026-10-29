@@ -17,6 +17,8 @@ for (const width of [390, 1440]) {
       const sectorBounds = await page.locator('#sector-dialog').boundingBox();
       expect(entryBounds.width).toBe(sectorBounds.width);
       expect(entryBounds.x).toBe(sectorBounds.x);
+      expect(entryBounds.y + entryBounds.height).toBe(sectorBounds.y + sectorBounds.height);
+      expect(entryBounds.y + entryBounds.height).toBe(956);
       expect(entryInset).toBe(Number.parseFloat(await page.locator('#sector-dialog-content').evaluate(node => getComputedStyle(node).paddingLeft)));
     }
     await expect(page.locator('#sector-dialog-heading')).toHaveText(sector);
