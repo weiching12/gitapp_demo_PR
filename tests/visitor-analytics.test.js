@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { authDatabase } from './helpers/auth-db.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -13,11 +15,14 @@ function fixture() {
   const presence = new OnlinePresence({ storage: { sql } });
   let now = Date.UTC(2026, 9, 22, 15, 50);
   presence.now = () => now;
-  const env = { ADMIN_ANALYTICS_TOKEN: 'a'.repeat(40), ONLINE_PRESENCE: { getByName: () => presence } };
+  const accountDb = authDatabase();
+  accountDb.sqlite.prepare('INSERT INTO app_users VALUES (?, ?, ?, ?, 0, ?)').run('admin', 'admin', 'unused', 'admin', Date.now());
+  accountDb.sqlite.prepare('INSERT INTO auth_sessions VALUES (?, ?, ?)').run(createHash('sha256').update('a'.repeat(64)).digest('hex'), 'admin', Date.now() + 3600000);
+  const env = { T86_DB: accountDb, ONLINE_PRESENCE: { getByName: () => presence } };
   const request = (path = '', options = {}) => presenceResponse(new Request(`https://stock.test/api/v1/presence${path}`, options), env);
-  const get = (query = '') => request(query, { headers: { Authorization: `Bearer ${env.ADMIN_ANALYTICS_TOKEN}` } });
+  const get = (query = '') => request(query, { headers: { Cookie: '__Host-stock_session=' + 'a'.repeat(64) } });
   const post = (id, nationality) => request('', { method: 'POST', body: JSON.stringify({ id, nationality }), headers: { 'CF-Connecting-IP': '203.0.113.7', 'CF-IPCountry': 'TW' } });
-  return { db, env, presence, request, get, post, advance: ms => { now += ms; } };
+  return { db, accountDb, env, presence, request, get, post, advance: ms => { now += ms; } };
 }
 test('anonymous writes disclose no counts; every public GET requires administrator authentication', async () => {
   const f = fixture();
@@ -27,9 +32,9 @@ test('anonymous writes disclose no counts; every public GET requires administrat
     assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.equal((await f.request()).status, 401);
     assert.equal((await f.request('', { headers: { Authorization: 'Bearer wrong' } })).status, 401);
-    delete f.env.ADMIN_ANALYTICS_TOKEN;
-    assert.equal((await f.request()).status, 503);
-  } finally { f.db.close(); }
+    delete f.env.T86_DB;
+    assert.equal((await f.get()).status, 503);
+  } finally { f.db.close(); f.accountDb.sqlite.close(); }
 });
 test('history survives midnight and restart, deduplicates browsers, stores submitted name and trusted-edge IP', async () => {
   const f = fixture(), id = crypto.randomUUID();
@@ -55,7 +60,7 @@ test('history survives midnight and restart, deduplicates browsers, stores submi
     assert.equal((await f.post(id, 'x'.repeat(81))).status, 400);
     assert.equal((await f.request('', { method: 'POST', body: 'x'.repeat(513) })).status, 413);
     assert.equal((await f.request('', { method: 'POST', headers: { Origin: 'https://other.test' } })).status, 403);
-  } finally { f.db.close(); }
+  } finally { f.db.close(); f.accountDb.sqlite.close(); }
 });
 
 test('trend preserves date order and unknown gaps without inventing historical zeroes', async () => {
@@ -76,5 +81,5 @@ test('monthly and whole-history trends count distinct browsers across days and m
     const { trendSeries } = await import('../public/visitor-trend.js');
     assert.deepEqual(trendSeries('2026-10-22', '2026-11-23', data.daily, 'month').map(p => p.value), [1, 1]);
     assert.equal((await f.get('?start=2020-01-01&end=2026-10-23')).status, 400);
-  } finally { f.db.close(); }
+  } finally { f.db.close(); f.accountDb.sqlite.close(); }
 });

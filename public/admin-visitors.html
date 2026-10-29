@@ -2,7 +2,7 @@
 <html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>訪客統計｜株研管理員</title>
 <style>body{font:16px/1.7 system-ui;background:#f8fafc;color:#14243b;margin:0}main{max-width:1000px;margin:auto;padding:24px}input,button{font:inherit;padding:8px;margin:4px}table{border-collapse:collapse;width:100%;background:white}th,td{text-align:left;padding:10px;border-bottom:1px solid #ddd}section{margin:24px 0}.scroll{overflow:auto}#status{min-height:2em}button{cursor:pointer}input[type=password]{width:min(85%,420px)}</style>
 <main><a href="/">返回研究工作台</a><h1>訪客統計</h1><p>僅限管理員。以台灣時間計算，每個匿名瀏覽器每天計一次；不同裝置或清除儲存空間會分別計數。</p>
-<form id="login"><label>管理員密鑰 <input id="token" type="password" required autocomplete="off"></label><button>登入</button></form>
+<p id="login"><a href="/login.html">使用帳號密碼登入</a></p>
 <p id="status" role="status"></p>
 <section id="report" hidden><button id="logout">登出</button><h2 id="today"></h2>
 <form id="filters"><label>趨勢檢視 <select id="view"><option value="day">每日</option><option value="month">每月</option><option value="history">全部歷史（按月）</option></select></label><label>開始日期 <input type="date" id="start" required></label><label>結束日期 <input type="date" id="end" required></label><button>查詢</button></form>

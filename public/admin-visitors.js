@@ -1,6 +1,6 @@
 import { trendSeries } from "./visitor-trend.js";
 const node = id => document.getElementById(id);
-let token = '', offset = 0, pending = false, generation = 0, controller;
+let offset = 0, pending = false, generation = 0, controller;
 const day = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
 node('end').value = day;
 node('start').value = new Date(Date.now() + 8 * 3600000 - 29 * 86400000).toISOString().slice(0, 10);
@@ -12,11 +12,21 @@ function rows(id, values) {
     return tr;
   }));
 }
-function logout() {
+function clearReport() {
   generation++; controller?.abort(); pending = false;
-  token = ''; node('token').value = ''; node('report').hidden = true; node('login').hidden = false;
-  rows('daily', []); rows('visitors', []); node('trend').replaceChildren(); node('today').textContent = ''; node('status').textContent = '已登出';
+  node('report').hidden = true; node('login').hidden = false;
+  rows('daily', []); rows('visitors', []); node('trend').replaceChildren(); node('today').textContent = '';
 }
+async function logout() {
+  clearReport();
+  try {
+    const response = await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) throw new Error();
+    const channel = new BroadcastChannel('stock-insight-auth'); channel.postMessage('changed'); channel.close();
+    location.replace('/login.html');
+  } catch { node('status').textContent = '登出失敗，請重新登入後重試'; }
+}
+
 async function load() {
   if (pending) return;
   const currentGeneration = generation;
@@ -28,9 +38,10 @@ async function load() {
     const view = node('view').value;
     const params = new URLSearchParams({ start: node('start').value, end: node('end').value, offset, period: view === 'day' ? 'day' : 'month', scope: view === 'history' ? 'history' : 'range' });
     const response = await fetch(`/api/v1/presence?${params}`, {
-      headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
+      credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
     });
-    if (!response.ok) throw new Error(response.status === 401 ? '管理員密鑰錯誤' : response.status === 503 ? '統計服務尚未設定或暫時無法使用' : '查詢失敗，請確認日期範圍');
+    if (response.status === 401) { clearReport(); location.replace('/login.html'); return; }
+    if (!response.ok) throw new Error(response.status === 403 ? '僅管理員可查看造訪紀錄' : response.status === 503 ? '統計服務尚未設定或暫時無法使用' : '查詢失敗，請確認日期範圍');
     const data = await response.json();
     if (currentGeneration !== generation) return;
     node('today').textContent = `今日 ${data.today.asOf}：${data.today.today} 位瀏覽者`;
@@ -46,12 +57,15 @@ async function load() {
   } catch (error) { if (currentGeneration !== generation) return; node('status').textContent = error.message; node('login').hidden = false; }
   finally { if (currentGeneration === generation) pending = false; }
 }
-node('login').addEventListener('submit', event => { event.preventDefault(); token = node('token').value; node('token').value = ''; offset = 0; void load(); });
 node('filters').addEventListener('submit', event => { event.preventDefault(); offset = 0; void load(); });
 node('previous').onclick = () => { offset = Math.max(0, offset - 100); void load(); };
 node('next').onclick = () => { offset += 100; void load(); };
 node('logout').onclick = logout;
-window.addEventListener('pagehide', logout);
+window.addEventListener('pagehide', clearReport);
+window.addEventListener('pageshow', () => void load());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) void load(); });
+const channel = new BroadcastChannel('stock-insight-auth');
+channel.onmessage = () => { clearReport(); void load(); };
 
 function renderTrend(start, end, daily, period) {
   const series = trendSeries(start, end, daily, period);

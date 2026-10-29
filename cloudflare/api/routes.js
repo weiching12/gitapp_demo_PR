@@ -3,6 +3,8 @@ import { SHARD_COUNT, validSymbol } from "../../shared/market-codec.js";
 export function resolveApiRoute(path) {
   const versioned = path === "/api/v1" || path.startsWith("/api/v1/");
   const route = (name, params = {}, methods = ["GET", "HEAD"]) => ({ name, params, methods, versioned });
+  const auth = path.match(/^\/api\/v1\/auth\/(login|logout|me)$/);
+  if (auth) return route("auth", { action: auth[1] }, auth[1] === "me" ? ["GET"] : ["POST"]);
   if (path === "/api/presence" || path === "/api/v1/presence") return route("presence", {}, ["GET", "POST"]);
   if (path === "/api/v1/push/config") return route("pushConfig");
   if (path === "/api/v1/push/native/config") return route("nativePushConfig");

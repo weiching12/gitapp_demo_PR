@@ -1,10 +1,10 @@
 # 管理員訪客統計
 
-部署後開啟 `/admin-visitors.html`。以 Cloudflare Worker secret 設定至少 32 字元的隨機 `ADMIN_ANALYTICS_TOKEN`（例如使用 `npx wrangler secret put ADMIN_ANALYTICS_TOKEN`），再以此密鑰登入。密鑰只留在管理頁記憶體，登出或重新載入即清除；請勿放入原始碼或前端環境變數。透過 HTTPS 使用。
+部署後開啟 `/login.html`，輸入管理員帳號密碼。管理員會進入 `/admin-visitors.html`；一般使用者無法查閱統計。建置帳號、migration 與維護指令見 [帳號與管理員權限](accounts.md)。
 
-GET `/api/presence` 與 `/api/v1/presence` 均需要 `Authorization: Bearer <密鑰>`，未設定密鑰回應 503，驗證失敗回應 401。POST 僅回傳寫入成功，不公開數量。支援 `start`、`end`（YYYY-MM-DD）、`offset`，每頁最多 100 筆。回應禁止快取。
+GET `/api/presence` 與 `/api/v1/presence` 均需要有效的管理員登入 Cookie，沒有登入回應 401，一般使用者回應 403。POST 僅回傳寫入成功，不公開數量。支援 `start`、`end`（YYYY-MM-DD）、`offset`，每頁最多 100 筆。回應禁止快取。舊版 `ADMIN_ANALYTICS_TOKEN` 已停用。
 
-統計沿用既有 SQLite Durable Object，不需新增 D1 migration。啟動時匯入尚未刪除的舊瀏覽器紀錄；原始時間未知則為空值。之後依台北日期永久保留每日匿名識別碼、首次及最近紀錄時間，同時保留 Cloudflare 提供的來源 IP 與訪客選填國籍，不收集完整瀏覽路徑。國籍為自述資料，未驗證身分；IP 可能由多位使用者共用，不可當成唯一人數。正式 Worker 以 Cloudflare 覆寫的 CF-Connecting-IP 為來源，請勿在繞過 Cloudflare 的代理環境信任自訂標頭。最近時間是瀏覽器每日回報的時間，不代表精確離站或持續在線時間。需要容量及保留期限時應另外規劃清理政策。
+統計沿用既有 SQLite Durable Object，訪客紀錄本身不需新增 D1 migration；帳號登入需先套用 `0007_auth.sql`。啟動時匯入尚未刪除的舊瀏覽器紀錄；原始時間未知則為空值。之後依台北日期永久保留每日匿名識別碼、首次及最近紀錄時間，同時保留 Cloudflare 提供的來源 IP 與訪客選填國籍，不收集完整瀏覽路徑。國籍為自述資料，未驗證身分；IP 可能由多位使用者共用，不可當成唯一人數。正式 Worker 以 Cloudflare 覆寫的 CF-Connecting-IP 為來源，請勿在繞過 Cloudflare 的代理環境信任自訂標頭。最近時間是瀏覽器每日回報的時間，不代表精確離站或持續在線時間。需要容量及保留期限時應另外規劃清理政策。
 
 不同裝置、瀏覽器或清除 localStorage 會視為不同訪客；這是匿名瀏覽器估計，不能辨識真實個人，也不保證排除機器流量。啟用前已刪除的歷史資料無法回補，無紀錄日期不等於零訪客。
 

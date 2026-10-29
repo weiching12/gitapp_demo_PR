@@ -47,7 +47,7 @@ test("documented market, stock, history and analysis responses match the publish
   db.sqlite.exec(readFileSync(new URL("../cloudflare/migrations/0005_research_snapshots.sql", import.meta.url), "utf8"));
   const env = { MARKET_DATA: { get: async (key) => structuredClone(data.get(key) ?? null) }, T86_DB: db };
   for (const [path, definition] of Object.entries(spec.paths)) {
-    if (path.endsWith("presence") || path.includes("/push/")) continue;
+    if (path.endsWith("presence") || path.includes("/push/") || path.includes("/auth/")) continue;
     const concrete = path.replace("{symbol}", "2330").replace("{generation}", "contract")
       .replace("{index}", String(shardOf("2330"))).replace("{name}", encodeURIComponent(catalog[0].sector)) +
       (path === "/api/v1/favorites/summary" || path === "/api/v1/favorites/research" ? "?symbols=2330" : "");
@@ -60,4 +60,33 @@ test("documented market, stock, history and analysis responses match the publish
   const invalid = await worker.fetch(new Request("https://example.test/api/v1/stocks?limit=201"), env);
   assert.equal(invalid.status, 400); check(spec.components.schemas.Error, await invalid.json());
   db.sqlite.close();
+});
+
+
+test("documented account operations use their declared methods and cookie-based responses", async () => {
+  const { authDatabase } = await import("./helpers/auth-db.js");
+  const { hashPassword } = await import("../cloudflare/auth/password.js");
+  const db = authDatabase();
+  try {
+    db.sqlite.prepare("INSERT INTO app_users VALUES (?, ?, ?, ?, 0, ?)")
+      .run("contract-user", "contract-user", await hashPassword("contract-test-password"), "user", Date.now());
+    const env = { T86_DB: db };
+    const response = await worker.fetch(new Request("https://example.test/api/v1/auth/login", {
+      method: "POST", headers: { Origin: "https://example.test" },
+      body: JSON.stringify({ username: "contract-user", password: "contract-test-password" }),
+    }), env);
+    assert.equal(response.status, 200);
+    check(spec.paths["/api/v1/auth/login"].post.responses[200].content["application/json"].schema, await response.json());
+    const cookie = response.headers.get("set-cookie");
+    const me = await worker.fetch(new Request("https://example.test/api/v1/auth/me", { headers: { Cookie: cookie } }), env);
+    assert.equal(me.status, 200);
+    check(spec.paths["/api/v1/auth/me"].get.responses[200].content["application/json"].schema, await me.json());
+    const logout = await worker.fetch(new Request("https://example.test/api/v1/auth/logout", { method: "POST", headers: { Cookie: cookie, Origin: "https://example.test" } }), env);
+    assert.equal(logout.status, 200);
+    const anonymous = await worker.fetch(new Request("https://example.test/api/v1/auth/me", { headers: { Cookie: cookie } }), env);
+    const body = await anonymous.json();
+    assert.deepEqual(body, { user: null });
+    check(spec.paths["/api/v1/auth/me"].get.responses[200].content["application/json"].schema, body);
+    assert.equal(spec.components.securitySchemes.AccountSession.name, "__Host-stock_session");
+  } finally { db.sqlite.close(); }
 });

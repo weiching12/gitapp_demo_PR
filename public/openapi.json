@@ -870,6 +870,158 @@
         }
       }
     },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "loginAccount",
+        "description": "Same-origin account/password login. Sets a 12-hour HttpOnly, Secure, SameSite=Strict session cookie. Client-supplied roles are ignored. No caching.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "password": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated; session cookie set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "username",
+                        "role"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "admin"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Incorrect username or password"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          },
+          "429": {
+            "description": "Login throttled for up to 15 minutes"
+          },
+          "503": {
+            "description": "Account database unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "getCurrentAccount",
+        "description": "Current account, or user:null when unauthenticated; no caching.",
+        "responses": {
+          "200": {
+            "description": "Current session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "username",
+                            "role"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "admin"
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Account database unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logoutAccount",
+        "description": "Same-origin only. Revokes the server session and clears the cookie.",
+        "responses": {
+          "200": {
+            "description": "Logged out"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          },
+          "503": {
+            "description": "Account database unavailable"
+          }
+        }
+      }
+    },
     "/api/v1/presence": {
       "get": {
         "operationId": "getPresence",
@@ -975,7 +1127,7 @@
             }
           },
           "403": {
-            "description": "Cross-origin request",
+            "description": "Cross-origin request or account lacks administrator role",
             "content": {
               "application/json": {
                 "schema": {
@@ -995,16 +1147,16 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required"
+            "description": "Account login required"
           },
           "400": {
             "description": "Invalid date range, period or offset"
           }
         },
-        "description": "Administrator-only daily, monthly and whole-history visitor analytics. All dates use Asia/Taipei. No public counts.",
+        "description": "Administrator-only daily, monthly and whole-history visitor analytics. Requires an authenticated session whose current server-side role is admin. All dates use Asia/Taipei. No public counts.",
         "security": [
           {
-            "VisitorAdminBearer": []
+            "AccountSession": []
           }
         ],
         "parameters": [
@@ -1249,7 +1401,7 @@
     }
   },
   "components": {
-    "securitySchemes": { "VisitorAdminBearer": { "type": "http", "scheme": "bearer" } },
+    "securitySchemes": { "AccountSession": { "type": "apiKey", "in": "cookie", "name": "__Host-stock_session" } },
     "schemas": {
       "Error": {
         "type": "object",

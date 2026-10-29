@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
 
-test('administrator views daily, monthly and full history trends with private details and can log out', async ({ page }) => {
+test('administrator session views daily, monthly and full history trends and can log out', async ({ page }) => {
+  await page.route('**/api/v1/auth/me', route => route.fulfill({ json: { user: null } }));
+  await page.route('**/api/v1/auth/logout', route => { expect(route.request().method()).toBe('POST'); return route.fulfill({ json: { loggedOut: true } }); });
   const queries = [];
   await page.route('**/api/v1/presence?**', route => {
-    expect(route.request().headers().authorization).toBe('Bearer admin-test-secret');
+    expect(route.request().headers().authorization).toBeUndefined();
     const url = new URL(route.request().url()); queries.push(url.searchParams);
     const monthly = url.searchParams.get('period') === 'month';
     return route.fulfill({ json: {
@@ -14,8 +16,6 @@ test('administrator views daily, monthly and full history trends with private de
     } });
   });
   await page.goto('/admin-visitors.html');
-  await expect(page.locator('#report')).toBeHidden();
-  await page.locator('#token').fill('admin-test-secret'); await page.locator('#login button').click();
   await expect(page.locator('#today')).toHaveText('今日 2026-10-29：2 位瀏覽者');
   await expect(page.locator('#visitors')).toContainText('台灣'); await expect(page.locator('#visitors')).toContainText('203.0.113.7');
   await expect(page.locator('#trend svg circle')).toHaveCount(2);
@@ -28,14 +28,24 @@ test('administrator views daily, monthly and full history trends with private de
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.locator('#logout').click();
-  await expect(page.locator('#report')).toBeHidden(); await expect(page.locator('#visitors')).toBeEmpty();
-  await expect(page.locator('#trend')).toBeEmpty();
+  await expect(page).toHaveURL(/\/login(?:\.html)?$/);
+  await expect(page.locator('#login-form')).toBeVisible();
+  await expect(page.locator('#visitors')).toHaveCount(0);
 });
 
-test('rejected credentials never reveal analytics or visitor details', async ({ page }) => {
-  await page.route('**/api/v1/presence?**', route => route.fulfill({ status: 401, json: { error: 'Unauthorized' } }));
+test('anonymous visitor access redirects to account login', async ({ page }) => {
+  await page.route('**/api/v1/auth/me', route => route.fulfill({ json: { user: null } }));
+  await page.route('**/api/v1/presence?**', route => route.fulfill({ status: 401, json: { error: '請先登入' } }));
   await page.goto('/admin-visitors.html');
-  await page.locator('#token').fill('wrong'); await page.locator('#login button').click();
-  await expect(page.locator('#status')).toHaveText('管理員密鑰錯誤');
-  await expect(page.locator('#report')).toBeHidden(); await expect(page.locator('#visitors')).toBeEmpty();
+  await expect(page).toHaveURL(/\/login(?:\.html)?$/);
+  await expect(page.locator('#login-form')).toBeVisible();
+});
+
+test('ordinary user cannot view visitor details or trends', async ({ page }) => {
+  await page.route('**/api/v1/presence?**', route => route.fulfill({ status: 403, json: { error: '僅管理員可查看造訪紀錄' } }));
+  await page.goto('/admin-visitors.html');
+  await expect(page.locator('#status')).toHaveText('僅管理員可查看造訪紀錄');
+  await expect(page.locator('#report')).toBeHidden();
+  await expect(page.locator('#visitors')).toBeEmpty();
+  await expect(page.locator('#trend')).toBeEmpty();
 });

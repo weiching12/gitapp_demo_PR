@@ -3011,3 +3011,8 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
 .visitor-info-panel form { display: grid; gap: 8px; }
 .visitor-info input, .visitor-info button { font: inherit; padding: 8px; max-width: 100%; box-sizing: border-box; }
 .visitor-info label { display: grid; gap: 4px; }
+
+.account-menu { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: .8rem; }
+.account-menu a { color: inherit; }
+.account-menu button { font: inherit; cursor: pointer; }
+.account-menu > span { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,3 +1,4 @@
+import { currentUser } from "./auth/session.js";
 import { PresenceRepository } from "./repositories/presence-repository.js";
 import { PresenceService, InvalidPresenceIdentifier } from "./services/presence-service.js";
 const reply = (body, status = 200) => Response.json(body, {
@@ -69,15 +70,11 @@ export async function presenceResponse(request, env) {
   if ((origin && origin !== url.origin) || request.headers.get("Sec-Fetch-Site") === "cross-site")
     return reply({ error: "Same-origin requests required" }, 403);
   if (request.method === "GET") {
-    if (!env.ADMIN_ANALYTICS_TOKEN || env.ADMIN_ANALYTICS_TOKEN.length < 32)
-      return reply({ error: "Admin analytics is not configured" }, 503);
-    const supplied = request.headers.get("Authorization") || "";
-    // Hash both sides before comparing so token content does not affect comparison length.
-    const digest = async value => new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
-    const [a, b] = await Promise.all([digest(supplied), digest(`Bearer ${env.ADMIN_ANALYTICS_TOKEN}`)]);
-    let mismatch = 0;
-    for (let i = 0; i < a.length; i++) mismatch |= a[i] ^ b[i];
-    if (mismatch) return reply({ error: "Administrator authentication required" }, 401);
+    let user;
+    try { user = await currentUser(request, env); }
+    catch { return reply({ error: "帳號服務暫時無法使用" }, 503); }
+    if (!user) return reply({ error: "請先登入" }, 401);
+    if (user.role !== "admin") return reply({ error: "僅管理員可查看造訪紀錄" }, 403);
   }
   if (!env.ONLINE_PRESENCE) return reply({ error: "Daily visitor count unavailable" }, 503);
   try {

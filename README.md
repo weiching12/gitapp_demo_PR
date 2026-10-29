@@ -105,3 +105,5 @@ tests/                     計算與瀏覽器測試
 Capacitor 原生建置與網頁／PWA 分開，已整合 App 生命週期、Preferences 自選／設定儲存及 APNs 通知程式介面。
 執行 `npm run native:sync` 產生並同步原生資產，Mac 上用 `npm run native:ios` 開啟 Xcode。
 Apple 簽章、推播設定與實機驗證尚待完成；建置與啟用步驟見 [docs/native-ios.md](docs/native-ios.md)。
+
+帳號登入與管理員設定見 [帳號與權限](docs/accounts.md)。

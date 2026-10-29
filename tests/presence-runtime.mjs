@@ -41,7 +41,7 @@ try {
   assert.equal(stats.unique, 2); assert.equal(stats.total, 3);
   assert.deepEqual(stats.daily, [{ day: "2026-10", visitors: 2 }]);
   const unauthorized = await mf.dispatchFetch("https://example.test/api/v1/presence");
-  assert.equal(unauthorized.status, 503);
+  assert.equal(unauthorized.status, 401);
   const forbidden = await mf.dispatchFetch("https://example.test/api/v1/presence", {
     method: "POST", headers: { Origin: "https://other.test" }, body: JSON.stringify({ id: first }),
   });

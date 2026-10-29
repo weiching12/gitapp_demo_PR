@@ -113,6 +113,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/api/v1/auth/")) return;
   if (url.pathname === "/api/v1/push/config") return;
   if (url.pathname === "/api/presence" || url.pathname === "/api/v1/presence") return;
   if (url.pathname === "/api/market" || url.pathname === "/api/v1/market" ||
@@ -142,6 +143,11 @@ export default defineConfig(({ mode }) => {
   }
   return {
     plugins: native ? [] : [pwaServiceWorker()],
+    server: { proxy: {
+      "/api/v1/auth": "http://127.0.0.1:8787",
+      "/api/v1/presence": "http://127.0.0.1:8787",
+      "/api/presence": "http://127.0.0.1:8787",
+    } },
     build: { outDir: native ? "dist-native" : "dist" },
     define: {
       "import.meta.env.VITE_DATA_MODE": JSON.stringify(native || mode === "cloudflare" ? "api" : "demo"),

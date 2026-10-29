@@ -1,3 +1,4 @@
+import { startAccountMenu } from "./account.js";
 import { renderMarketView } from "./ui/market.js";
 import "./styles.css";
 import "./typography.css";
@@ -343,8 +344,12 @@ function shell() {
   if (nativeMode) {
     document.querySelector("#online-count").hidden = true;
     document.querySelector(".visitor-info").hidden = true;
+    document.querySelector("#account-menu").hidden = true;
   }
-  else presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
+  else {
+    presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
+    void startAccountMenu(document.querySelector("#account-menu"));
+  }
 }
 
 function refreshData() {
