@@ -5,12 +5,20 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 956 });
     await page.goto('/');
     await page.locator('#stock-rows tr[data-symbol="2330"] .entry-score-button').click();
+    const entryBounds = await page.locator('#info-dialog').boundingBox();
+    const entryInset = await page.locator('.entry-dialog').evaluate(node => node.getBoundingClientRect().left - node.closest('dialog').getBoundingClientRect().left);
     const sector = await page.locator('.entry-dialog-sector').textContent();
     const condition = page.locator('.entry-condition').filter({ has: page.locator('.entry-condition-copy strong', { hasText: '法人籌碼' }) });
     await condition.locator('summary').click();
     await condition.locator('[data-institution-sector="2330"]').click();
     await expect(page.locator('#info-dialog')).toBeHidden();
     await expect(page.locator('#sector-dialog')).toBeVisible();
+    if (width <= 520) {
+      const sectorBounds = await page.locator('#sector-dialog').boundingBox();
+      expect(entryBounds.width).toBe(sectorBounds.width);
+      expect(entryBounds.x).toBe(sectorBounds.x);
+      expect(entryInset).toBe(Number.parseFloat(await page.locator('#sector-dialog-content').evaluate(node => getComputedStyle(node).paddingLeft)));
+    }
     await expect(page.locator('#sector-dialog-heading')).toHaveText(sector);
     await expect(page.locator('.sidebar [data-page="sectors"]')).toHaveAttribute('aria-current', 'page');
     await expect(page.locator('[data-sector-window="5"]')).toHaveAttribute('aria-pressed', 'true');

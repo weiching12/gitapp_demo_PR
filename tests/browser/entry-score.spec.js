@@ -202,8 +202,8 @@ test("entry score stays usable in the market list, detail dialog and phone scrol
         overflow: element.scrollWidth - element.clientWidth,
       };
     });
-    expect(layout.left).toBe(21);
-    expect(layout.right).toBe(21);
+    expect(layout.left).toBe(16);
+    expect(layout.right).toBe(16);
     expect(layout.coreLeft).toBe(13);
     expect(layout.cardLeft).toBe(8);
     expect(layout.dateGap).toBeLessThanOrEqual(2);
