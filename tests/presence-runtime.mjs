@@ -29,13 +29,19 @@ try {
   };
   const beforeMidnight = Date.UTC(2026, 9, 22, 15, 50);
   const duplicates = await Promise.all(Array.from({ length: 6 }, () => send(first, beforeMidnight)));
-  assert.ok(duplicates.every((value) => value.today === 1));
-  assert.equal((await send(second, beforeMidnight)).today, 2);
-  assert.equal((await send(first, beforeMidnight + 9 * 60_000)).today, 2);
+  assert.ok(duplicates.every((value) => value.recorded === true));
+  assert.deepEqual(await send(second, beforeMidnight), { recorded: true });
+  await send(first, beforeMidnight + 9 * 60_000);
   const midnight = beforeMidnight + 10 * 60_000;
   const expired = await object.fetch(`https://internal/presence?time=${midnight}`);
   assert.deepEqual(await expired.json(), { today: 0, asOf: "2026-10-23" });
-  assert.deepEqual(await send(first, midnight), { today: 1, asOf: "2026-10-23" });
+  assert.deepEqual(await send(first, midnight), { recorded: true });
+  const history = await object.fetch(`https://internal/internal/analytics?time=${midnight}&scope=history`);
+  const stats = await history.json();
+  assert.equal(stats.unique, 2); assert.equal(stats.total, 3);
+  assert.deepEqual(stats.daily, [{ day: "2026-10", visitors: 2 }]);
+  const unauthorized = await mf.dispatchFetch("https://example.test/api/v1/presence");
+  assert.equal(unauthorized.status, 503);
   const forbidden = await mf.dispatchFetch("https://example.test/api/v1/presence", {
     method: "POST", headers: { Origin: "https://other.test" }, body: JSON.stringify({ id: first }),
   });

@@ -879,7 +879,97 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Presence"
+                  "type": "object",
+                  "properties": {
+                    "today": {
+                      "$ref": "#/components/schemas/Presence"
+                    },
+                    "daily": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string"
+                          },
+                          "visitors": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "visitors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "nationality": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "ip": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "country": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "first_seen": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "last_seen": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "unique": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "start": {
+                      "type": "string"
+                    },
+                    "end": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "timezone": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -903,12 +993,75 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Administrator authentication required"
+          },
+          "400": {
+            "description": "Invalid date range, period or offset"
           }
-        }
+        },
+        "description": "Administrator-only daily, monthly and whole-history visitor analytics. All dates use Asia/Taipei. No public counts.",
+        "security": [
+          {
+            "VisitorAdminBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "month"
+              ],
+              "default": "day"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "range",
+                "history"
+              ],
+              "default": "range"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       },
       "post": {
         "operationId": "heartbeat",
-        "description": "Same-origin only. The id is a random browser UUID, not an account or IP.",
+        "description": "Same-origin visit registration. Browser UUID and optional self-reported nationality; source IP and connection country come from Cloudflare. Returns only a receipt.",
         "requestBody": {
           "required": true,
           "content": {
@@ -922,6 +1075,10 @@
                   "id": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "nationality": {
+                    "type": "string",
+                    "maxLength": 80
                   }
                 }
               }
@@ -934,7 +1091,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Presence"
+                  "type": "object",
+                  "required": [
+                    "recorded"
+                  ],
+                  "properties": {
+                    "recorded": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  }
                 }
               }
             }
@@ -960,7 +1126,7 @@
             }
           },
           "413": {
-            "description": "Body exceeds 128 bytes",
+            "description": "Body exceeds 512 bytes",
             "content": {
               "application/json": {
                 "schema": {
@@ -1083,6 +1249,7 @@
     }
   },
   "components": {
+    "securitySchemes": { "VisitorAdminBearer": { "type": "http", "scheme": "bearer" } },
     "schemas": {
       "Error": {
         "type": "object",

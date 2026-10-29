@@ -5,19 +5,35 @@ const reply = (body, status = 200) => Response.json(body, {
 });
 
 // A single SQLite-backed object deduplicates browsers across Worker regions.
-// Only a random browser identifier and its Taipei-day expiry are stored.
+// Store daily browser records and administrator-only visitor metadata.
 export class OnlinePresence {
   constructor(ctx) {
     this.sql = ctx.storage.sql;
     this.now = Date.now;
-    this.service = new PresenceService(new PresenceRepository(this.sql), { now: () => this.now() });
+    this.repository = new PresenceRepository(this.sql);
+    this.service = new PresenceService(this.repository, { now: () => this.now() });
   }
 
   async fetch(request) {
     if (!["GET", "POST"].includes(request.method)) return reply({ error: "Method not allowed" }, 405);
-    let id;
+    if (new URL(request.url).pathname === "/internal/analytics") {
+      const url = new URL(request.url), today = new Date(this.now() + 8 * 3600000).toISOString().slice(0, 10);
+      let period = url.searchParams.get("period") || "day";
+      const scope = url.searchParams.get("scope") || "range";
+      if (!["day", "month"].includes(period) || !["range", "history"].includes(scope)) return reply({ error: "Invalid period" }, 400);
+      if (scope === "history") period = "month";
+      const end = scope === "history" ? today : url.searchParams.get("end") || today;
+      const start = scope === "history" ? (this.repository.firstDay() || today) : url.searchParams.get("start") || new Date(this.now() + 8 * 3600000 - 29 * 86400000).toISOString().slice(0, 10);
+      const validDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+      const offset = Number(url.searchParams.get("offset") || 0);
+      if (!validDay(start) || !validDay(end) || start > end || (scope !== "history" && Date.parse(end) - Date.parse(start) > (period === "day" ? 365 : 3650) * 86400000) || !Number.isSafeInteger(offset) || offset < 0)
+        return reply({ error: "Invalid date range or offset" }, 400);
+      return reply({ ...this.repository.analytics(start, end, 100, offset, period),
+        today: this.service.count(), start, end, period, scope, timezone: "Asia/Taipei" });
+    }
+    let id, nationality = null;
     if (request.method === "POST") {
-      if (Number(request.headers.get("Content-Length")) > 128) return reply({ error: "Invalid heartbeat" }, 413);
+      if (Number(request.headers.get("Content-Length")) > 512) return reply({ error: "Invalid heartbeat" }, 413);
       // Bound streamed bodies too: Content-Length is optional and untrusted.
       const reader = request.body?.getReader();
       let raw = "", length = 0;
@@ -27,15 +43,18 @@ export class OnlinePresence {
           const { value, done } = await reader.read();
           if (done) break;
           length += value.byteLength;
-          if (length > 128) { await reader.cancel(); return reply({ error: "Invalid heartbeat" }, 413); }
+          if (length > 512) { await reader.cancel(); return reply({ error: "Invalid heartbeat" }, 413); }
           raw += decoder.decode(value, { stream: true });
         }
         raw += decoder.decode();
       }
-      try { id = JSON.parse(raw).id; } catch { return reply({ error: "Invalid heartbeat" }, 400); }
+      try { const body = JSON.parse(raw); id = body.id;
+        if (body.nationality != null && (typeof body.nationality !== "string" || body.nationality.length > 80)) return reply({ error: "Invalid nationality" }, 400);
+        nationality = body.nationality?.trim() || null; } catch { return reply({ error: "Invalid heartbeat" }, 400); }
     }
     try {
-      return reply(request.method === "POST" ? this.service.heartbeat(id) : this.service.count());
+      if (request.method === "POST") { this.service.heartbeat(id, { nationality, ip: request.headers.get("CF-Connecting-IP"), country: request.headers.get("CF-IPCountry") }); return reply({ recorded: true }); }
+      return reply(this.service.count());
     } catch (error) {
       if (error instanceof InvalidPresenceIdentifier) return reply({ error: error.message }, 400);
       throw error;
@@ -49,7 +68,22 @@ export async function presenceResponse(request, env) {
   const origin = request.headers.get("Origin");
   if ((origin && origin !== url.origin) || request.headers.get("Sec-Fetch-Site") === "cross-site")
     return reply({ error: "Same-origin requests required" }, 403);
+  if (request.method === "GET") {
+    if (!env.ADMIN_ANALYTICS_TOKEN || env.ADMIN_ANALYTICS_TOKEN.length < 32)
+      return reply({ error: "Admin analytics is not configured" }, 503);
+    const supplied = request.headers.get("Authorization") || "";
+    // Hash both sides before comparing so token content does not affect comparison length.
+    const digest = async value => new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
+    const [a, b] = await Promise.all([digest(supplied), digest(`Bearer ${env.ADMIN_ANALYTICS_TOKEN}`)]);
+    let mismatch = 0;
+    for (let i = 0; i < a.length; i++) mismatch |= a[i] ^ b[i];
+    if (mismatch) return reply({ error: "Administrator authentication required" }, 401);
+  }
   if (!env.ONLINE_PRESENCE) return reply({ error: "Daily visitor count unavailable" }, 503);
-  try { return await env.ONLINE_PRESENCE.getByName("stock-insight-online").fetch(request); }
+  try {
+    const forwarded = new URL(request.url);
+    if (request.method === "GET") forwarded.pathname = "/internal/analytics";
+    return await env.ONLINE_PRESENCE.getByName("stock-insight-online").fetch(new Request(forwarded, request));
+  }
   catch { return reply({ error: "Daily visitor count unavailable" }, 503); }
 }

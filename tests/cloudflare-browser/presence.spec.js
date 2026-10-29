@@ -1,46 +1,29 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from '@playwright/test';
 
-test("daily visitor API counts two browsers and deduplicates repeated visits", async ({ request }) => {
-  const id = crypto.randomUUID(), second = crypto.randomUUID();
-  const first = await request.post("/api/v1/presence", { data: { id } });
-  expect(first.ok()).toBeTruthy();
-  expect(first.headers()["cache-control"]).toBe("no-store");
-  const initial = (await first.json()).today;
-  expect(initial).toBeGreaterThanOrEqual(1);
-  expect((await (await request.post("/api/v1/presence", { data: { id } })).json()).today).toBe(initial);
-  expect((await (await request.post("/api/v1/presence", { data: { id: second } })).json()).today).toBe(initial + 1);
+test('public visit registration returns receipts and anonymous statistics access is rejected', async ({ request }) => {
+  const id = crypto.randomUUID();
+  for (let i = 0; i < 2; i++) {
+    const response = await request.post('/api/v1/presence', { data: { id, nationality: '台灣' } });
+    expect(response.ok()).toBeTruthy(); expect(response.headers()['cache-control']).toBe('no-store');
+    expect(await response.json()).toEqual({ recorded: true });
+  }
+  for (const path of ['/api/presence', '/api/v1/presence']) expect([401, 503]).toContain((await request.get(path)).status());
 });
 
-test("daily visitor badge records once per page load and reuses browser identity", async ({ page }) => {
-  const ids = [];
-  const reads = [];
-  let count = 3, fail = false;
-  await page.clock.install();
-  await page.route("**/api/v1/market", (route) => route.fulfill({ status: 503, body: "unavailable" }));
-  await page.route("**/api/v1/presence", async (route) => {
-    if (route.request().method() === "POST") ids.push(route.request().postDataJSON().id);
+test('public page hides counts and records visits with stable browser identity', async ({ page }) => {
+  const ids = [], reads = [];
+  await page.route('**/api/v1/presence', async route => {
+    if (route.request().method() === 'POST') ids.push(route.request().postDataJSON().id);
     else reads.push(route.request().method());
-    await route.fulfill(fail ? { status: 503, body: "unavailable" } : { json: { today: count, asOf: "2026-10-22" } });
+    await route.fulfill({ json: { recorded: true } });
   });
-  await page.setViewportSize({ width: 768, height: 844 });
-  await page.goto("/");
-  await expect(page.locator("#online-count")).toHaveText("今日造訪人數 3 人");
-  await expect(page.locator("#online-count")).toBeVisible();
-  count = 5;
-  await page.clock.runFor(60_000);
-  await expect(page.locator("#online-count")).toHaveText("今日造訪人數 3 人");
-  expect(ids).toHaveLength(1);
-  expect(reads).toHaveLength(0);
-  expect(new Set(ids).size).toBe(1);
-  await page.evaluate(() => document.querySelector("#check-update").click());
-  await expect(page.locator("#online-count")).toHaveText("今日造訪人數 5 人");
-  expect(ids).toHaveLength(1);
-  expect(reads).toEqual(["GET"]);
-  await page.reload();
-  await expect(page.locator("#online-count")).toHaveText("今日造訪人數 5 人");
-  expect(new Set(ids).size).toBe(1);
-  fail = true;
-  await page.reload();
-  await expect(page.locator("#online-count")).toHaveText("今日造訪人數暫無法取得");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(768);
+  await page.goto('/');
+  await expect.poll(() => ids.length).toBe(1);
+  await expect(page.locator('#online-count')).toBeHidden();
+  await page.getByText('訪客資料說明', { exact: true }).click();
+  await page.getByLabel('國籍（選填）').fill('台灣');
+  await page.getByRole('button', { name: '送出國籍' }).click();
+  await expect(page.locator('#visitor-nationality-form [role="status"]')).toHaveText('國籍已送出');
+  await page.reload(); await expect.poll(() => ids.length).toBe(3);
+  expect(new Set(ids).size).toBe(1); expect(reads).toHaveLength(0);
 });

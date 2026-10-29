@@ -340,7 +340,10 @@ async function finishAppSplashBeforeLoading() {
 function shell() {
   document.querySelector("#app").innerHTML = shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc });
   presence?.stop();
-  if (nativeMode) document.querySelector("#online-count").hidden = true;
+  if (nativeMode) {
+    document.querySelector("#online-count").hidden = true;
+    document.querySelector(".visitor-info").hidden = true;
+  }
   else presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
 }
 

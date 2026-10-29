@@ -31,7 +31,7 @@ with versioned API routes added only when those capabilities exist.
 | GET / HEAD | `/api/v1/stocks/{symbol}/history` | `{data: [...], meta: {symbol, asOf, updatedAt, tradingDates}}` |
 | GET / HEAD | `/api/v1/stocks/{symbol}/analysis` | Shared indicator rules, latest bar, signal, institutional summary, and up to 30 daily closes through `asOf` |
 | GET / HEAD | `/api/v1/favorites/research` | Saved snapshots and sparse history through `asOf`, covering up to 120 market sessions; `asOf` remains limited to the latest 30 sessions |
-| GET / POST | `/api/v1/presence` | Taipei-day cumulative browser count / record one browser visit; same-origin protection retained |
+| GET / POST | `/api/v1/presence` | Administrator-only daily/monthly/history analytics (Bearer token) / record one browser visit (receipt only); same-origin protection retained |
 
 The stocks collection supports `offset` (default 0), `limit` (default 100, 1–200),
 `type=stock|etf`, exact `sector`, and case-insensitive `q` matching code/name.

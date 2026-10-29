@@ -22,10 +22,10 @@ export class PresenceService {
     this.now = now;
   }
 
-  heartbeat(id) {
+  heartbeat(id, { nationality = null, ip = null, country = null } = {}) {
     if (typeof id !== "string" || !browserIdentifier.test(id)) throw new InvalidPresenceIdentifier();
     const now = this.now(), { asOf, expiresAt } = taipeiVisitDay(now);
-    return { today: this.repository.recordVisit({ id, now, expiresAt }), asOf };
+    return { today: this.repository.recordVisit({ id, now, expiresAt, nationality, ip, country }), asOf };
   }
 
   count() {
