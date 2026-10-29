@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { resolve } from "node:path";
+
+const scripts = (root) => readdirSync(root, { recursive: true }).filter((path) => path.endsWith(".js"))
+  .map((path) => readFileSync(resolve(root, path), "utf8")).join("\n");
+const web = scripts("dist"), native = scripts("dist-native");
+assert.doesNotMatch(web, /capacitorDidRegister|CapacitorHttp|registerPlugin|Native lifecycle setup|native-push-v1/);
+assert.match(native, /stock-insight-tw\.stock-insight-tw\.workers\.dev/);
+assert.match(native, /appStateChange/);
+assert.match(native, /stock-insight-native-v1/);
+assert.match(native, /pushNotificationActionPerformed/);
+assert.doesNotMatch(native, /APNS_PRIVATE_KEY|APNS_TEAM_ID|APNS_KEY_ID/);
+assert.equal(existsSync("dist-native/sw.js"), false);
+assert.equal(existsSync("dist/sw.js"), true);
+const config = JSON.parse(readFileSync("capacitor.config.json", "utf8"));
+assert.equal(config.webDir, "dist-native"); assert.equal(config.server?.url, undefined);
+assert.equal(config.plugins.CapacitorHttp.enabled, true);
+const cliRequire = createRequire(import.meta.resolve("@capacitor/cli/package.json"));
+const project = cliRequire("xcode").project(resolve("ios/App/App.xcodeproj/project.pbxproj"));
+project.parseSync();
+const plist = cliRequire("plist");
+const privacy = plist.parse(readFileSync("ios/App/App/PrivacyInfo.xcprivacy", "utf8"));
+assert.equal(privacy.NSPrivacyAccessedAPITypes[0].NSPrivacyAccessedAPITypeReasons[0], "CA92.1");
+const entitlements = plist.parse(readFileSync("ios/App/App/App.entitlements", "utf8"));
+assert.equal(entitlements["aps-environment"], "$(APS_ENVIRONMENT)");
+const delegate = readFileSync("ios/App/App/AppDelegate.swift", "utf8");
+assert.match(delegate, /capacitorDidRegisterForRemoteNotifications/);
+assert.match(delegate, /capacitorDidFailToRegisterForRemoteNotifications/);
+console.log("PASS: isolated web/native bundles, API origin, iOS project syntax, privacy declaration and APNs bridge");
