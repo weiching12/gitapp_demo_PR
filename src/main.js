@@ -19,7 +19,6 @@ import { shellMarkup } from "./ui/shell.js";
 import { renderPageView } from "./ui/navigation.js";
 import { renderSectorOverviewView, renderSectorDialogView } from "./ui/sectors.js";
 import { bindInputMode, bindPullToRefresh } from "./ui/gestures.js";
-import { createScoreAnimator, createScoreHaptics } from "./ui/score-feedback.js";
 import { createControlsController } from "./ui/controls.js";
 import { createDialogController } from "./ui/dialogs.js";
 import { bindResponsiveSearchOrder } from "./ui/responsive-layout.js";
@@ -136,8 +135,6 @@ let nativeStorage, nativePush;
 let checkPwaUpdate = async () => false;
 let startupVersionCheck = Promise.resolve(false);
 let touchInteraction = false;
-let pulseScore = createScoreHaptics();
-const scoreAnimator = createScoreAnimator({ pulse: kind => pulseScore(kind), canPulse: () => nativeMode || touchInteraction });
 const pendingSymbols = new Set();
 let updateFlow;
 const showUpdateState = createUpdateDialog({ onUpdate: () => updateFlow.apply(), isBlocking: () => updateFlow?.isBlocking() ?? true });
@@ -507,7 +504,6 @@ async function enableNativeApp() {
     getDataVersion: () => dataset?.info?.generation,
     onDataUpdate: (latest) => updateFlow.offer({ kind: "data", generation: latest.generation }),
     onPause: async () => {
-      scoreAnimator.stop();
       savePreferences();
       if (researchStore) saveResearch();
       rememberPage(state.page, nativeStorage);
@@ -641,7 +637,21 @@ function marketScope() {
 }
 
 function animateEntryScore(dialog) {
-  scoreAnimator.animate(dialog);
+  const value = dialog.querySelector(".entry-summary-head strong[data-score-target]");
+  if (!value || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const target = Number(value.dataset.scoreTarget);
+  if (!Number.isFinite(target)) return;
+  const duration = 750;
+  let startedAt;
+  value.textContent = "0.00 / 100";
+  const frame = (now) => {
+    if (!value.isConnected || !dialog.open) return;
+    startedAt ??= now;
+    const progress = Math.min((now - startedAt) / duration, 1);
+    value.textContent = `${(target * (1 - (1 - progress) ** 3)).toFixed(2)} / 100`;
+    if (progress < 1) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
 }
 
 function openDialog(type, focusClose = true, showResearch = false) {
@@ -789,8 +799,6 @@ function syncTableFavorite(symbol) {
 }
 
 function bindEvents() {
-  document.querySelector("#info-dialog").addEventListener("close", scoreAnimator.stop);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) scoreAnimator.stop(); });
   document.addEventListener("click", (event) => {
     document.querySelectorAll(".research-chart-info[open]").forEach((hint) => {
       if (!hint.contains(event.target)) hint.open = false;
@@ -1146,8 +1154,7 @@ function bindEvents() {
 
 async function init() {
   if (nativeMode) {
-    const { prepareNativeStorage, nativeScoreImpact } = await import("./native/bootstrap.js");
-    pulseScore = createScoreHaptics({ impact: nativeScoreImpact() });
+    const { prepareNativeStorage } = await import("./native/bootstrap.js");
     nativeStorage = await prepareNativeStorage({ fallback: preferenceStorage(),
       onError: () => toast("設定暫時無法儲存，請稍後重試") });
   }
