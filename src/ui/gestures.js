@@ -7,6 +7,15 @@ export function bindInputMode(onChange) {
 
 export function bindPullToRefresh(pullRefresh) {
   let gesture = null;
+  let suppressClickUntil = 0;
+  const canPull = (target) => {
+    if (window.scrollY > 1 || document.scrollingElement.scrollTop > 1 || document.querySelector("dialog[open]") || !matchMedia("(max-width: 700px)").matches) return false;
+    if (target.closest("input, select, textarea, [contenteditable]:not([contenteditable='false']), [role=slider]")) return false;
+    for (let node = target; node && node !== document.scrollingElement; node = node.parentElement) {
+      if (node.scrollTop > 1 && node.scrollHeight > node.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(node).overflowY)) return false;
+    }
+    return true;
+  };
   const reset = () => {
     gesture = null;
     pullRefresh.classList.remove("is-pulling", "is-ready", "is-refreshing");
@@ -14,28 +23,36 @@ export function bindPullToRefresh(pullRefresh) {
     pullRefresh.lastChild.textContent = "下拉重新整理";
   };
   document.addEventListener("touchstart", (event) => {
+    reset();
     const touch = event.touches[0];
-    const blocked = event.touches.length !== 1 || window.scrollY > 0 || document.querySelector("dialog[open]") || event.target.closest("button, a, input, select, .table-scroll");
-    if (blocked || !touch || !matchMedia("(max-width: 700px)").matches) return;
-    gesture = { x: touch.clientX, y: touch.clientY, distance: 0 };
-  }, { passive: true });
+    if (event.touches.length !== 1 || !touch || !canPull(event.target)) return;
+    gesture = { x: touch.clientX, y: touch.clientY, distance: 0, target: event.target, active: false };
+  }, { capture: true, passive: true });
   document.addEventListener("touchmove", (event) => {
-    if (!gesture || event.touches.length !== 1) return;
+    if (!gesture) return;
+    if (event.touches.length !== 1 || !canPull(gesture.target)) { reset(); return; }
     const touch = event.touches[0];
     const vertical = touch.clientY - gesture.y;
     const horizontal = Math.abs(touch.clientX - gesture.x);
-    if (vertical <= 0 || vertical <= horizontal) return;
+    if (!gesture.active) {
+      if (Math.max(Math.abs(vertical), horizontal) < 8) return;
+      if (vertical <= 0 || vertical <= horizontal) { reset(); return; }
+      gesture.active = true;
+    }
+    if (!event.cancelable) { reset(); return; }
     event.preventDefault();
-    gesture.distance = Math.min(104, vertical * 0.55);
+    suppressClickUntil = performance.now() + 400;
+    gesture.distance = Math.max(0, Math.min(104, vertical * 0.55));
     pullRefresh.style.setProperty("--pull-distance", `${gesture.distance}px`);
     pullRefresh.classList.add("is-pulling");
     const ready = gesture.distance >= 68;
     pullRefresh.classList.toggle("is-ready", ready);
     pullRefresh.lastChild.textContent = ready ? "放開即可更新" : "下拉重新整理";
-  }, { passive: false });
+  }, { capture: true, passive: false });
   document.addEventListener("touchend", () => {
     if (!gesture) return;
-    if (gesture.distance < 68) { reset(); return; }
+    if (gesture.active) suppressClickUntil = performance.now() + 400;
+    if (gesture.distance < 68 || !canPull(gesture.target)) { reset(); return; }
     pullRefresh.classList.remove("is-pulling", "is-ready");
     pullRefresh.classList.add("is-refreshing");
     pullRefresh.lastChild.textContent = "正在檢查版本並更新資料";
@@ -43,8 +60,11 @@ export function bindPullToRefresh(pullRefresh) {
     const refreshEvent = new CustomEvent("stockapps:refresh", { cancelable: true });
     if (window.dispatchEvent(refreshEvent)) window.location.reload();
     else reset();
-  }, { passive: true });
-  document.addEventListener("touchcancel", reset, { passive: true });
+  }, { capture: true, passive: true });
+  document.addEventListener("touchcancel", reset, { capture: true, passive: true });
+  document.addEventListener("click", (event) => {
+    if (performance.now() < suppressClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); }
+  }, true);
 }
 
 export function bindMobileDragDismiss(dialog, handle, { previewSelector } = {}) {

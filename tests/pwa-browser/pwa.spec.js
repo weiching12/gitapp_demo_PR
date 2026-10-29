@@ -119,10 +119,19 @@ test("refresh checks the app version before reloading and keeps the current page
   });
   test.skip(!canObserveRegistration, "Browser does not allow observing ServiceWorkerRegistration.update");
   await page.evaluate(() => localStorage.removeItem("pwa-refresh-update-checked"));
+  const heading = await page.locator(".page-heading").boundingBox();
+  const touch = await page.context().newCDPSession(page);
+  const x = heading.x + 24, y = heading.y + 16;
   await Promise.all([
     page.waitForEvent("load"),
-    page.evaluate(() => window.dispatchEvent(new CustomEvent("stockapps:refresh", { cancelable: true }))),
+    (async () => {
+      await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+      for (let step = 1; step <= 6; step++)
+        await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + step * 25 }] });
+      await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    })(),
   ]);
+  await touch.detach();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("pwa-refresh-update-checked"))).toBe("yes");
   await expect(page.locator("#page-title")).toContainText("株研追蹤");
 });
