@@ -9,7 +9,7 @@ function fixture() {
   const db = new DatabaseSync(':memory:');
   const sql = { exec(query, ...values) {
     const statement = db.prepare(query);
-    const rows = statement.columns().length ? statement.all(...values) : (statement.run(...values), []);
+    const rows = statement.all(...values);
     return { one: () => rows[0], [Symbol.iterator]: () => rows[Symbol.iterator]() };
   } };
   const presence = new OnlinePresence({ storage: { sql } });

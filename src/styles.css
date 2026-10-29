@@ -3016,3 +3016,9 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
 .account-menu a { color: inherit; }
 .account-menu button { font: inherit; cursor: pointer; }
 .account-menu > span { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-account { display: none; }
+@media (max-width: 700px) {
+  .settings-account { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 16px 0; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .settings-account h3 { margin: 0; font-size: 14px; }
+  .settings-account a { min-height: 44px; min-width: 88px; justify-content: center; text-decoration: none; }
+}

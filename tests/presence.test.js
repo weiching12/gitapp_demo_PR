@@ -5,7 +5,7 @@ import { OnlinePresence } from '../cloudflare/presence.js';
 import { PresenceService, InvalidPresenceIdentifier, taipeiVisitDay } from '../cloudflare/services/presence-service.js';
 const sqlFor = db => ({ exec(query, ...values) {
   const statement = db.prepare(query);
-  const rows = statement.columns().length ? statement.all(...values) : (statement.run(...values), []);
+  const rows = statement.all(...values);
   return { one: () => rows[0], [Symbol.iterator]: () => rows[Symbol.iterator]() };
 } });
 test('invalid browser identifiers and malformed or oversized stream bodies are rejected', async () => {

@@ -1,5 +1,33 @@
 import { test, expect } from '@playwright/test';
 
+for (const width of [320, 390, 700]) {
+  test(`mobile settings provides a login entry at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 956 });
+    await page.route('**/api/v1/auth/me', route => route.fulfill({ json: { user: null } }));
+    await page.goto('/');
+    await page.getByRole('button', { name: '設定', exact: true }).click();
+    const login = page.getByRole('dialog').getByRole('link', { name: '登入', exact: true });
+    await expect(login).toBeVisible();
+    await expect(login).toHaveAttribute('href', '/login.html');
+    const bounds = await login.boundingBox();
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await login.click();
+    await expect(page).toHaveURL(/\/login\.html$/);
+    await expect(page.getByLabel('帳號', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('密碼', { exact: true })).toBeVisible();
+  });
+}
+
+test('desktop keeps its existing account entry in the top bar', async ({ page }) => {
+  await page.route('**/api/v1/auth/me', route => route.fulfill({ json: { user: null } }));
+  await page.goto('/');
+  await expect(page.locator('#account-menu').getByRole('link', { name: '登入', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await expect(page.locator('.settings-account')).toBeHidden();
+});
+
 for (const role of ['user', 'admin']) {
   test(`${role} uses the shared login form and reaches the correct destination`, async ({ page }) => {
     await page.route('**/api/v1/auth/me', route => route.fulfill({ json: { user: null } }));
