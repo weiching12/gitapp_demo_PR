@@ -22,7 +22,8 @@ function pwaServiceWorker() {
 function serviceWorkerSource(files, bundle) {
   const version = createHash("sha256").update(Object.values(bundle).map((item) =>
     `${item.fileName}:${item.type === "asset" ? String(item.source) : item.code}`).join("|")).digest("hex").slice(0, 16);
-  return `const SHELL_CACHE = ${JSON.stringify(`stock-insight-shell-${version}`)};
+  // Separate this policy from older shells that cached research API responses.
+  return `const SHELL_CACHE = ${JSON.stringify(`stock-insight-shell-v2-${version}`)};
 const DATA_CACHE = "stock-insight-market-v2";
 const APP_SHELL = ${JSON.stringify(["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", ...files])};
 
@@ -82,7 +83,9 @@ const trimCache = async (cache, limit = 40) => {
 const networkFirst = async (request, cacheName) => {
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    const noStore = (response.headers.get("Cache-Control") || "").split(",")
+      .some((directive) => directive.trim().toLowerCase() === "no-store");
+    if (response.ok && !noStore) {
       const cache = await caches.open(cacheName);
       await cache.put(request, response.clone());
       if (cacheName === DATA_CACHE) await trimCache(cache);
@@ -114,6 +117,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname === "/api/presence" || url.pathname === "/api/v1/presence") return;
   if (url.pathname === "/api/market" || url.pathname === "/api/v1/market" ||
       url.pathname === "/api/v1/market/summary" || url.pathname === "/api/v1/favorites/summary" ||
+      url.pathname === "/api/v1/favorites/research" ||
       url.pathname.startsWith("/api/v1/sectors/") ||
       url.pathname.startsWith("/api/stocks/") || url.pathname.startsWith("/api/v1/stocks/")) {
     event.respondWith(networkFirst(request, DATA_CACHE));

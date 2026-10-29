@@ -12,6 +12,8 @@ import { MANIFEST_KEY, shardKey } from "../cloudflare/storage/market-keys.js";
 import { testDatabase } from "./helpers/t86-db.js";
 import { CorporateActionRepository } from "../cloudflare/corporate-actions/repository.js";
 import { entryScoreDayChange } from "../shared/entry-score.js";
+import { durableStorage } from "./helpers/durable-storage.js";
+import { ResearchSnapshotRepository } from "../cloudflare/repositories/research-snapshot-repository.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/twse-20261016.json", import.meta.url)));
 const catalog = normalizeCatalog(fixture.companies);
@@ -193,10 +195,7 @@ test("Free-plan coordinator computes once and stores large summaries in bounded 
   for (const shard of shards) marketData.set(shardKey(manifest.generation, shard.index), shard);
   let shardReads = 0;
   const storageData = new Map();
-  const coordinator = new MarketSummaryCoordinator({ storage: {
-    get: async (key) => storageData.get(key),
-    put: async (key, value) => { storageData.set(key, value); },
-  } }, { MARKET_DATA: { get: async (key) => {
+  const coordinator = new MarketSummaryCoordinator({ storage: durableStorage(storageData) }, { MARKET_DATA: { get: async (key) => {
     if (key.includes(":shard:")) shardReads++;
     return marketData.get(key) ?? null;
   } } });
@@ -229,14 +228,12 @@ test("corporate-action revision invalidates the cached market summary", async ()
   const db = testDatabase();
   try {
     db.sqlite.exec(readFileSync(new URL("../cloudflare/migrations/0004_corporate_actions.sql", import.meta.url), "utf8"));
+    db.sqlite.exec(readFileSync(new URL("../cloudflare/migrations/0005_research_snapshots.sql", import.meta.url), "utf8"));
     const marketData = new Map([[MANIFEST_KEY, manifest]]);
     for (const shard of shards) marketData.set(shardKey(manifest.generation, shard.index), shard);
     let shardReads = 0;
     const cache = new Map();
-    const coordinator = new MarketSummaryCoordinator({ storage: {
-      get: async (key) => cache.get(key),
-      put: async (key, value) => { cache.set(key, value); },
-    } }, { MARKET_DATA: { get: async (key) => {
+    const coordinator = new MarketSummaryCoordinator({ storage: durableStorage(cache) }, { MARKET_DATA: { get: async (key) => {
       if (key.includes(":shard:")) shardReads++;
       return marketData.get(key) ?? null;
     } }, T86_DB: db, CORPORATE_ACTIONS_ENABLED: "1" });
@@ -249,6 +246,73 @@ test("corporate-action revision invalidates the cached market summary", async ()
   } finally { db.sqlite.close(); }
 });
 
+test("effective query values share a summary cache despite ordering, defaults and ignored parameters", async () => {
+  const values = new Map([[MANIFEST_KEY, manifest], ...shards.map(shard => [shardKey(manifest.generation, shard.index), shard])]);
+  let shardReads = 0;
+  const coordinator = new MarketSummaryCoordinator({ storage: durableStorage() }, {
+    MARKET_DATA: { get: async key => { if (key.includes(":shard:")) shardReads++; return values.get(key) ?? null; } },
+  });
+  for (const query of ["", `dSmooth=03&asOf=${date}&period=09&kSmooth=3&unused=1`, `unused=2&kSmooth=3&period=9&dSmooth=3&asOf=${date}`])
+    assert.equal((await coordinator.fetch(new Request(`https://example.test/api/v1/market/summary?${query}`))).status, 200);
+  assert.equal(shardReads, SHARD_COUNT);
+});
+
+test("failed research persistence keeps the market available but retries before caching success", async t => {
+  t.mock.method(console, "error", () => {});
+  const db = testDatabase();
+  try {
+    db.sqlite.exec(readFileSync(new URL("../cloudflare/migrations/0005_research_snapshots.sql", import.meta.url), "utf8"));
+    let fail = true, saves = 0, shardReads = 0;
+    db.beforeStatement = sql => {
+      if (sql.includes("INSERT OR IGNORE INTO entry_score_snapshot_shards")) {
+        saves++;
+        if (fail) throw Error("temporary research storage failure");
+      }
+    };
+    const values = new Map([[MANIFEST_KEY, manifest], ...shards.map(shard => [shardKey(manifest.generation, shard.index), shard])]);
+    const cache = new Map();
+    const coordinator = new MarketSummaryCoordinator({ storage: durableStorage(cache) }, { T86_DB: db,
+      MARKET_DATA: { get: async key => { if (key.includes(":shard:")) shardReads++; return values.get(key) ?? null; } },
+    });
+    const request = () => new Request(`https://example.test/api/v1/market/summary?asOf=${date}`);
+    const failed = await coordinator.fetch(request());
+    assert.equal(failed.status, 200);
+    assert.equal(failed.headers.get("cache-control"), "no-store");
+    assert.equal((await failed.json()).meta.researchCapture, "failed");
+    assert.equal([...cache.keys()].filter(key => key.endsWith(":parts")).length, 0);
+    assert.equal(saves, 0, "public requests never persist research");
+    const capture = new MarketSummaryService(service.market, null, new ResearchSnapshotRepository(db));
+    assert.equal((await capture.summary(date, { period: 9, kSmooth: 3, dSmooth: 3 }, { persistResearch: true })).meta.researchCapture, "failed");
+    const pending = await coordinator.fetch(request());
+    assert.equal(pending.headers.get("cache-control"), "no-store");
+    fail = false;
+    assert.equal((await capture.summary(date, { period: 9, kSmooth: 3, dSmooth: 3 }, { persistResearch: true })).meta.researchCapture, "saved");
+    const retried = await coordinator.fetch(request());
+    assert.equal(retried.status, 200);
+    assert.equal((await retried.json()).meta.researchCapture, "saved");
+    const count = saves;
+    assert.equal(shardReads, SHARD_COUNT * 3);
+    assert.equal((await coordinator.fetch(request())).status, 200);
+    assert.equal(saves, count);
+    assert.equal(shardReads, SHARD_COUNT * 3);
+    // Recomputing an existing revision is a successful, cacheable no-op.
+    const alreadySaved = new MarketSummaryService(service.market, null, new ResearchSnapshotRepository(db));
+    assert.equal((await alreadySaved.summary(date, { period: 9, kSmooth: 3, dSmooth: 3 })).meta.researchCapture, "saved");
+  } finally { db.sqlite.close(); }
+});
+
+test("a corporate-action revision changing during a read cannot be attached to saved research", async () => {
+  let revisionReads = 0, saves = 0;
+  const actions = { revision: async () => ++revisionReads === 1 ? "before" : "after",
+    window: async () => ({ coveredDates: new Set(), eventsBySymbol: new Map() }) };
+  const summary = new MarketSummaryService(service.market, actions, { save: async () => { saves++; } });
+  const result = await summary.summary(date, { period: 9, kSmooth: 3, dSmooth: 3 }, { persistResearch: true });
+  assert.equal(result.meta.researchCapture, "failed");
+  assert.equal(saves, 0);
+  assert.equal((await summary.summary(date, { period: 9, kSmooth: 3, dSmooth: 3 }, { persistResearch: true })).meta.researchCapture, "saved");
+  assert.equal(saves, 1);
+});
+
 
 test("simultaneous HEAD then GET receives a complete shared summary body", async () => {
   const values = new Map([[MANIFEST_KEY, manifest], ...shards.map((shard) =>
@@ -257,9 +321,7 @@ test("simultaneous HEAD then GET receives a complete shared summary body", async
   let release, entered;
   const blocked = new Promise((resolve) => { release = resolve; });
   const started = new Promise((resolve) => { entered = resolve; });
-  const coordinator = new MarketSummaryCoordinator({ storage: {
-    get: async (key) => cache.get(key), put: async (key, value) => cache.set(key, value),
-  } }, { MARKET_DATA: { get: async (key) => {
+  const coordinator = new MarketSummaryCoordinator({ storage: durableStorage(cache) }, { MARKET_DATA: { get: async (key) => {
     if (key.includes(":shard:")) { entered(); await blocked; }
     return values.get(key) ?? null;
   } } });

@@ -1,9 +1,33 @@
 import { routeApi } from "./api/router.js";
-import { coordinateMarketSync } from "./sync/coordinator.js";
+import { coordinateMarketSync, coordinateResearchCapture } from "./sync/coordinator.js";
 import { syncDailyCorporateActions } from "./corporate-actions/sync.js";
 export { MarketSyncCoordinator } from "./sync/coordinator.js";
 export { MarketSummaryCoordinator } from "./summary-coordinator.js";
 export { OnlinePresence } from "./presence.js";
+
+export async function runScheduled(controller, env, {
+  sync = coordinateMarketSync, syncActions = syncDailyCorporateActions, capture = coordinateResearchCapture,
+} = {}) {
+  const state = await sync(env, controller.scheduledTime);
+  let actions;
+  try { actions = await syncActions(env, state, new Date(controller.scheduledTime)); }
+  catch (error) {
+    console.error(JSON.stringify({ event: "corporate-actions-delayed", message: error.message }));
+    actions = { status: "delayed" };
+  }
+  let research = { status: "not-required" };
+  if (state.phase === "done") {
+    try { research = await capture(env); }
+    catch (error) {
+      console.error(JSON.stringify({ event: "research-capture-delayed", message: error.message }));
+      research = { status: "failed" };
+    }
+  }
+  console.log(JSON.stringify({ event: "twse-sync", date: state.date, slot: state.slot, phase: state.phase,
+    t86Status: state.t86Status, nextShard: state.nextShard, failures: state.failures, error: state.error,
+    corporateActions: actions.status, corporateActionEvents: actions.events ?? null,
+    researchCapture: research.status }));
+}
 
 export default {
   async fetch(request, env) {
@@ -11,11 +35,5 @@ export default {
     return path === "/api" || path.startsWith("/api/")
       ? routeApi(request, env) : env.ASSETS.fetch(request);
   },
-  async scheduled(controller, env) {
-    const state = await coordinateMarketSync(env, controller.scheduledTime);
-    const actions = await syncDailyCorporateActions(env, state, new Date(controller.scheduledTime));
-    console.log(JSON.stringify({ event: "twse-sync", date: state.date, slot: state.slot, phase: state.phase,
-      t86Status: state.t86Status, nextShard: state.nextShard, failures: state.failures, error: state.error,
-      corporateActions: actions.status, corporateActionEvents: actions.events ?? null }));
-  },
+  scheduled: runScheduled,
 };

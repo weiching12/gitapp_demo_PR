@@ -1,18 +1,17 @@
 import { routeApi } from "./api/router.js";
 import { createApplicationServices } from "./composition.js";
+import { analysisOptions } from "./api/validators.js";
+import { SummaryCache } from "./summary-cache.js";
 
 const SUMMARY_ROUTES = ["/api/v1/market/summary", "/api/v1/favorites/summary"];
 // Bump when the response shape or derived rules change; old Durable Object entries persist across deploys.
-const CACHE_SCHEMA = "entry-score-v1.2-comparison-v3";
-// Durable Object storage values are limited to 2 MB. A market summary can be
-// larger, so store serialized responses in small parts.
-const CACHE_PART_CHARS = 400_000;
+const CACHE_SCHEMA = "entry-score-v1.2-capture-v4";
 
 export class MarketSummaryCoordinator {
-  constructor(ctx, env) {
-    this.storage = ctx.storage;
+  constructor(ctx, env, cacheOptions) {
     this.env = env;
     this.pending = new Map();
+    this.cache = new SummaryCache(ctx.storage, cacheOptions);
   }
 
   async fetch(request) {
@@ -24,6 +23,11 @@ export class MarketSummaryCoordinator {
 
     const services = createApplicationServices(this.env);
     const manifest = await services.market.market();
+    const { asOf, settings } = analysisOptions(url.searchParams);
+    // Key only on effective validated inputs; ignore ordering and unknown query parameters.
+    const canonical = new URLSearchParams({ asOf: asOf || manifest.asOf, ...settings });
+    if (url.pathname === "/api/v1/favorites/summary") canonical.set("symbols", url.searchParams.get("symbols") || "");
+    url.search = canonical.toString();
     const actionRevision = url.pathname === "/api/v1/market/summary" && services.actions
       ? await services.actions.revision() : "not-applicable";
     const key = `view:${CACHE_SCHEMA}:${manifest.generation}:${actionRevision}:${url.pathname}?${url.searchParams.toString()}`;
@@ -41,10 +45,11 @@ export class MarketSummaryCoordinator {
         const body = await response.json();
         if (body.meta?.generation !== manifest.generation)
           return Response.json({ error: { code: "DATA_UNAVAILABLE", message: "Market generation changed during calculation" } }, { status: 503 });
-        await this.writeCached(key, body);
+        const captureFailed = body.meta?.researchCapture === "failed";
+        if (!captureFailed) await this.writeCached(key, body);
         // In-flight work is shared by HEAD and GET. Always retain a GET body;
         // strip it only for the individual HEAD caller below.
-        return Response.json(body, { headers: { "Cache-Control": "public, max-age=60" } });
+        return Response.json(body, { headers: { "Cache-Control": captureFailed ? "no-store" : "public, max-age=60" } });
       });
       this.pending.set(key, task);
       task.finally(() => this.pending.delete(key)).catch(() => {});
@@ -53,21 +58,7 @@ export class MarketSummaryCoordinator {
     return request.method === "HEAD" ? new Response(null, { status: response.status, headers: response.headers }) : response.clone();
   }
 
-  async readCached(key) {
-    const count = await this.storage.get(`${key}:parts`);
-    if (!Number.isInteger(count) || count < 1) return null;
-    const keys = Array.from({ length: count }, (_, index) => `${key}:part:${index}`);
-    const parts = await Promise.all(keys.map((partKey) => this.storage.get(partKey)));
-    if (parts.some((part) => typeof part !== "string")) return null;
-    return JSON.parse(parts.join(""));
-  }
-
-  async writeCached(key, body) {
-    const serialized = JSON.stringify(body);
-    const parts = [];
-    for (let start = 0; start < serialized.length; start += CACHE_PART_CHARS)
-      parts.push(serialized.slice(start, start + CACHE_PART_CHARS));
-    await Promise.all(parts.map((part, index) => this.storage.put(`${key}:part:${index}`, part)));
-    await this.storage.put(`${key}:parts`, parts.length);
-  }
+  readCached(key) { return this.cache.read(key); }
+  writeCached(key, body) { return this.cache.write(key, body); }
+  alarm() { return this.cache.prune(); }
 }

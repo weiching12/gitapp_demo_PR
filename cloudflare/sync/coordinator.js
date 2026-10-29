@@ -2,6 +2,7 @@ import { syncMarket, syncSlot } from "../sync.js";
 import { SYNC_KEY } from "../storage/market-keys.js";
 import { CoordinatorStore } from "./coordinator-store.js";
 import { SyncMetrics, saveSyncMetrics } from "./metrics.js";
+import { captureLatestResearch } from "../research-capture.js";
 
 export class MarketSyncCoordinator {
   constructor(ctx, env) {
@@ -11,6 +12,7 @@ export class MarketSyncCoordinator {
     this.kv = new CoordinatorStore(ctx.storage, this.metrics.wrap(env.MARKET_DATA));
     this.tail = Promise.resolve();
     this.run = syncMarket;
+    this.capture = captureLatestResearch;
   }
   // External I/O yields execution in a DO. Serialize the full phase explicitly;
   // do not hold blockConcurrencyWhile across slow upstream fetches.
@@ -21,6 +23,10 @@ export class MarketSyncCoordinator {
   }
   async handle(request) {
     const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/capture-research") {
+      await this.kv.recoverPublication();
+      return Response.json(await this.capture({ ...this.env, MARKET_DATA: this.kv }));
+    }
     if (request.method !== "POST" || url.pathname !== "/tick") return new Response(null, { status: 404 });
     const time = Number(url.searchParams.get("time"));
     if (!url.searchParams.has("time") || !Number.isFinite(time) || !Number.isFinite(new Date(time).getTime()))
@@ -48,5 +54,13 @@ export async function coordinateMarketSync(env, scheduledTime) {
   const response = await env.MARKET_SYNC.getByName("stock-insight-market-sync").fetch(
     new Request(`https://market-sync.internal/tick?time=${scheduledTime}`, { method: "POST" }));
   if (!response.ok) throw new Error(`Market sync coordinator failed: ${response.status}`);
+  return response.json();
+}
+
+export async function coordinateResearchCapture(env) {
+  if (!env.MARKET_SYNC) throw new Error("MARKET_SYNC binding required for research capture");
+  const response = await env.MARKET_SYNC.getByName("stock-insight-market-sync").fetch(
+    new Request("https://market-sync.internal/capture-research", { method: "POST" }));
+  if (!response.ok) throw new Error(`Research capture coordinator failed: ${response.status}`);
   return response.json();
 }

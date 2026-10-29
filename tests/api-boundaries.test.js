@@ -5,6 +5,7 @@ import { MarketService } from "../cloudflare/services/market-service.js";
 import { routeApi } from "../cloudflare/api/router.js";
 import { resolveApiRoute } from "../cloudflare/api/routes.js";
 import { stockCollectionOptions } from "../cloudflare/api/validators.js";
+import worker from "../cloudflare/worker.js";
 
 test("application errors carry domain codes and acquire HTTP status only at the API boundary", async () => {
   const market = new MarketService({ manifest: async () => null });
@@ -60,4 +61,71 @@ test("unsupported methods and unknown paths do not access repositories; storage 
   assert.equal(failed.status, 503); assert.doesNotMatch(await failed.text(), /credentials/);
   const head = await routeApi(new Request("https://example.test/api/v1/market", { method: "HEAD" }), {}, service);
   assert.equal(head.status, 503); assert.equal(await head.text(), "");
+});
+
+test("worker converts synchronous and asynchronous summary DO failures into private API errors", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const paths = ["/api/v1/market/summary", "/api/v1/favorites/summary?symbols=2330", "/api/v1/sectors/ETF"];
+  for (const path of paths) {
+    for (const failure of ["throw", "reject"]) {
+      for (const method of ["GET", "HEAD"]) {
+        await t.test(`${method} ${path} ${failure}`, async () => {
+          const request = new Request(`https://example.test${path}`, { method });
+          const env = { MARKET_SUMMARY: { getByName(name) {
+            assert.equal(name, "stock-insight-market-summary");
+            return { fetch(forwarded) {
+              assert.equal(forwarded, request);
+              const cause = new Error("private summary storage credentials");
+              if (failure === "throw") throw cause;
+              return Promise.reject(cause);
+            } };
+          } } };
+          const response = await worker.fetch(request, env);
+          assert.equal(response.status, 503);
+          assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
+          assert.equal(response.headers.get("cache-control"), "no-store");
+          assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+          const raw = await response.text();
+          assert.doesNotMatch(raw, /private|credentials/);
+          if (method === "HEAD") assert.equal(raw, "");
+          else assert.deepEqual(JSON.parse(raw), { error: {
+            code: "DATA_UNAVAILABLE", message: "目前無法讀取股票資料，請稍後重試。",
+          } });
+        });
+      }
+    }
+  }
+});
+
+test("worker preserves summary DO response status, headers and HEAD representation", async () => {
+  for (const method of ["GET", "HEAD"]) {
+    const body = { error: { code: "DATA_UNAVAILABLE", message: "Summary is being prepared" } };
+    const expected = new Response(method === "HEAD" ? null : JSON.stringify(body), {
+      status: 503, headers: { "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store", "Retry-After": "60", "X-Content-Type-Options": "nosniff" },
+    });
+    const env = { MARKET_SUMMARY: { getByName: () => ({ fetch: async () => expected }) } };
+    const response = await worker.fetch(new Request("https://example.test/api/v1/market/summary", { method }), env);
+    assert.equal(response, expected);
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("retry-after"), "60");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(await response.text(), method === "HEAD" ? "" : JSON.stringify(body));
+  }
+});
+
+test("direct summary responses stay successful but bypass HTTP caches after research capture failure", async () => {
+  for (const researchCapture of ["failed", "saved", "not-requested"]) {
+    for (const method of ["GET", "HEAD"]) {
+      const body = { data: { stocks: [] }, meta: { generation: "test", researchCapture } };
+      const services = { market: {}, summary: { summary: async () => body } };
+      const response = await routeApi(new Request("https://example.test/api/v1/market/summary", { method }), {}, services);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("cache-control"), researchCapture === "failed" ? "no-store" : "public, max-age=60");
+      assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
+      assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+      assert.equal(await response.text(), method === "HEAD" ? "" : JSON.stringify(body));
+    }
+  }
 });

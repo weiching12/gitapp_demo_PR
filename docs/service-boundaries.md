@@ -23,6 +23,33 @@ HTTP status. The old internal MarketError export is a compatibility alias.
 as one application-service collection at the router boundary.
 Existing HTTP paths, response fields, cache headers and error envelopes remain.
 
+## Summary caching and research persistence
+
+The summary Durable Object keys only validated, effective query options. Parameter
+ordering and ignored query values cannot create additional cache entries. Derived
+responses have a six-hour TTL, a 64-entry LRU limit and a 16 MiB total payload budget;
+alarms remove expired parts even without another request. The versioned transactional
+index replaces the old unbounded cache on first use. Only the summary object's
+derived cache is cleared; published KV history, D1 research and sync checkpoints are
+not part of that storage. Oversized responses remain available without being cached.
+
+Summary DO failures pass through the same awaited API error boundary as other
+services. Research snapshot persistence is ancillary: failure keeps the market
+response available with `meta.researchCapture: "failed"` and `Cache-Control: no-store`,
+and prevents a persistent summary cache entry. Public summaries only check whether
+their exact revision exists; research writes are explicitly enabled only inside the
+serialized sync capture job. Later cron ticks retry persistence, and subsequent
+requests become cacheable once that revision is saved. An existing research
+revision counts as successfully saved. This prevents a delayed public request from
+publishing an older generation after a newer capture.
+
+Research API requests use the PWA data cache's network-first policy, not the shell
+cache. A cache-policy version change clears old shells that may contain API data;
+`no-store` responses do not overwrite the last cacheable response. Offline fallback
+retains the `X-PWA-Cache: fallback` marker. Regression coverage includes real Chrome
+Service Workers and `node tests/summary-cache-runtime.mjs` with isolated workerd and
+SQLite-backed Durable Object storage.
+
 ## Shared rules and source adapters
 
 `shared/sectors.js` owns sector grouping, ETF exclusion, complete-window summaries,

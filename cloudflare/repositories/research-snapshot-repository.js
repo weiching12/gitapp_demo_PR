@@ -3,11 +3,15 @@ import { shardOf, SHARD_COUNT } from "../../shared/market-codec.js";
 export class ResearchSnapshotRepository {
   constructor(db) { this.db = db.withSession ? db.withSession("first-primary") : db; }
 
-  async save({ asOf, modelVersion, configId, revisionId, capturedAt, snapshots }) {
+  async hasRevision({ asOf, modelVersion, configId, revisionId }) {
     const exists = await this.db.prepare(`SELECT 1 FROM entry_score_snapshot_revisions
       WHERE TradingDate=? AND ModelVersion=? AND ConfigId=? AND RevisionId=?`)
       .bind(asOf, modelVersion, configId, revisionId).first();
-    if (exists) return false;
+    return Boolean(exists);
+  }
+
+  async save({ asOf, modelVersion, configId, revisionId, capturedAt, snapshots }) {
+    if (await this.hasRevision({ asOf, modelVersion, configId, revisionId })) return false;
     const shards = Array.from({ length: SHARD_COUNT }, () => []);
     for (const snapshot of snapshots) shards[shardOf(snapshot.symbol)].push(snapshot);
     const statements = shards.map((rows, index) => this.db.prepare(`INSERT OR IGNORE INTO entry_score_snapshot_shards

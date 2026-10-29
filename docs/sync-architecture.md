@@ -13,6 +13,7 @@
 | `sync/common.js` | Fingerprints, temporary-key TTL, shard batch size |
 | `sync/coordinator.js` | Single named DO, serialized ticks, duplicate/out-of-order suppression |
 | `sync/coordinator-store.js` | Durable progress/head storage, legacy import and publication recovery |
+| `research-capture.js` | Idempotent capture of the latest default-settings research revision |
 
 ## Coordination
 
@@ -26,6 +27,20 @@ Progress is persisted in SQLite-backed DO storage rather than KV. Existing
 reads cannot subsequently roll the authoritative checkpoint back. The old KV sync
 key remains untouched and is no longer a current status source. Public APIs still
 read KV snapshots and never access the coordinator.
+
+After a completed publication and the corporate-action check, the existing cron
+invokes the internal research capture endpoint on that same sync queue. It reads
+the authoritative current manifest, checks the exact revision before calculating,
+and saves with default settings; no browser visit is required. Capture failures
+are logged independently and retried on later cron ticks without changing the
+published manifest, sync phase or failure ceiling. Company-action check failures
+do not suppress this retry. The queue prevents a later generation's cleanup from
+removing shards while capture is reading them. No D1 schema migration is required.
+
+The summary service checks company-action revision before and after its data read;
+a changing revision cannot label a saved research snapshot. Prolonged database
+outages across multiple publications still require the historical recovery process;
+this job retries the current publication rather than reading reclaimed generations.
 
 Successful ticks persist their scheduled timestamp. Equal/older timestamps are
 ignored, including after object reconstruction. An unhandled storage error does not

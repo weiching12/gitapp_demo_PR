@@ -17,7 +17,7 @@ export async function routeApi(request, env, injected) {
   try {
     if (route.name === "presence") return await presenceController(request, env, route.versioned);
     if (!injected && env.MARKET_SUMMARY && ["marketSummary", "favoriteSummary", "sectorDetail"].includes(route.name))
-      return env.MARKET_SUMMARY.getByName("stock-insight-market-summary").fetch(request);
+      return await env.MARKET_SUMMARY.getByName("stock-insight-market-summary").fetch(request);
     const services = injected?.market && typeof injected.market !== "function" ? injected : injected
       ? { market: injected, analysis: new AnalysisService(injected), summary: new MarketSummaryService(injected), history: new HistoryService(injected) }
       : createApplicationServices(env);
@@ -26,7 +26,7 @@ export async function routeApi(request, env, injected) {
     if (route.name === "nativePushConfig" || route.name === "nativePushSubscriptions")
       return await pushController(request, route, services.nativePush);
     const body = await marketController(route, url, services);
-    return json(request, body, 200, route.name === "snapshot"
+    return json(request, body, 200, body.meta?.researchCapture === "failed" ? "no-store" : route.name === "snapshot"
       ? "public, max-age=86400, immutable" : "public, max-age=60");
   } catch (cause) { return apiFailure(request, route.versioned, cause); }
 }
