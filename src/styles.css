@@ -61,12 +61,12 @@ body { background: var(--surface); }
 .settings-theme h3 { margin: 0; color: var(--accent); font-size: 12px; }
 .settings-theme h3 span { color: var(--muted); font-weight: 400; }
 .form-field select { min-width: 120px; padding: 9px 28px 9px 10px; border: 1px solid var(--border); border-radius: 4px; color: var(--ink); background: var(--surface); }
-[data-theme="dark"] :is(.source-about, .about-goal, .market-sentiment > button, .panel, #watchlist, .watch-card, .institution-overview-row, dialog, .metric-card, .sector-card, .institution-dialog, .sector-dialog) { background: #111b2b; color: var(--ink); border-color: var(--border); }
+[data-theme="dark"] :is(.source-about, .about-goal, .market-sentiment > button, .panel, #watchlist, dialog, .sector-card, .sector-dialog) { background: #111b2b; color: var(--ink); border-color: var(--border); }
 [data-theme="dark"] .market-sentiment > button { --sentiment-card: #111b2b; }
-[data-theme="dark"] :is(.topbar, .table-toolbar, .overview-tabs, .filter-tabs, .sector-sort-tabs, .sector-period, .institution-window, .table-scroll thead th) { background: #111b2b; border-color: var(--border); }
+[data-theme="dark"] :is(.topbar, .table-toolbar, .filter-tabs, .sector-sort-tabs, .sector-period, .table-scroll thead th) { background: #111b2b; border-color: var(--border); }
 [data-theme="dark"] :is(input, select, .search-box) { background-color: #0d1726; color: var(--ink); border-color: var(--border); }
-[data-theme="dark"] :is(.stock-name strong, .watch-card-heading h3, .institution-overview-row h4, .source-details dd, .guide-item code) { color: var(--ink); }
-[data-theme="dark"] :is(.overview-tabs [aria-selected="true"], .segmented-control [aria-pressed="true"]) { color: var(--ink); }
+[data-theme="dark"] :is(.stock-name strong, .source-details dd, .guide-item code) { color: var(--ink); }
+[data-theme="dark"] :is(.segmented-control [aria-pressed="true"]) { color: var(--ink); }
 [data-theme="dark"] dialog::backdrop { background: #020617b3; }
 .about-page { max-width: 900px; margin: 0 auto 36px; }
 .source-about.about-page { max-width: none; margin: 0 0 24px; }
@@ -489,70 +489,6 @@ h1 {
   fill: #d8c38a;
   stroke: #ae9559;
 }
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 21px;
-}
-.metric-card {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 18px 18px 16px;
-  position: relative;
-  overflow: hidden;
-}
-.metric-label {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  color: #697c96;
-  margin-bottom: 16px;
-}
-.metric-label > span {
-  flex-shrink: 0;
-  color: #8494aa;
-  letter-spacing: 0.5px;
-}
-.metric-label .icon {
-  width: 14px;
-  height: 14px;
-  color: #96a3b6;
-}
-.metric-value {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: center;
-  align-content: flex-start;
-  gap: 10px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.metric-number {
-  flex-shrink: 0;
-}
-.metric-value .change-chip,
-.metric-value .indicator-tag,
-.metric-value small {
-  flex-shrink: 0;
-}
-.metric-value small {
-  color: #73849d;
-  align-self: flex-end;
-  margin-bottom: 4px;
-  letter-spacing: 0;
-}
-.metric-value .change-chip {
-  letter-spacing: 0;
-  padding: 5px 6px;
-}
 .change-chip {
   display: inline-block;
   border-radius: 4px;
@@ -566,54 +502,11 @@ h1 {
 .change-chip.down {
   background: #eaf4ef;
 }
-.metric-description {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  margin-top: 15px;
-}
-.indicator-tag {
-  color: #8d855f;
-  border: 1px solid #e8e1cb;
-  border-radius: 4px;
-  padding: 5px;
-  letter-spacing: 0;
-}
-.quarter-card {
-  background: #f7f8fa;
-  border-color: #d0d9e6;
-}
-.quarter-card .metric-label {
-  color: #5d6e86;
-}
 .panel {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 8px;
   min-width: 0;
-}
-.buy-key {
-  background: #c4867a;
-}
-.sell-key {
-  background: #6b9b89;
-}
-.institution {
-  padding: 10px 21px;
-}
-.institution-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-.institution-heading h3 {
-  margin: 0;
-  color: #526177;
-}
-.institution-heading > span {
-  font-variant-numeric: tabular-nums;
 }
 .stocks-panel,
 .sector-page {
@@ -1392,13 +1285,6 @@ dialog h2 {
   .topbar {
     padding: 12px 42px;
   }
-  .metric-card {
-    padding: 22px;
-  }
-  .institution {
-    padding-top: 16px;
-    padding-bottom: 16px;
-  }
 }
 @media (max-width: 1250px) {
   :root {
@@ -1430,24 +1316,6 @@ dialog h2 {
   }
   main {
     padding: 28px 24px 0;
-  }
-  .metrics {
-    gap: 10px;
-  }
-  .metric-card {
-    padding: 16px 13px;
-  }
-  .metric-value {
-    gap: 7px;
-  }
-  .metric-value .change-chip {
-    padding: 4px;
-  }
-  .metric-description {
-    gap: 4px;
-  }
-  .institution {
-    padding: 10px 17px;
   }
   .table-toolbar {
     align-items: flex-start;
@@ -1491,12 +1359,6 @@ dialog h2 {
   .sidebar-bottom .nav-item {
     margin: 0;
   }
-  .metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .metric-card {
-    padding: 17px;
-  }
 }
 @media (max-width: 760px) {
   .market-sentiment > button { grid-template-columns: minmax(0, 1fr) 72px; gap: 12px; padding: 13px 14px; }
@@ -1505,9 +1367,6 @@ dialog h2 {
   .sentiment-score { font-size: 24px; }
   .sentiment-band { font-size: 10px; }
   .sentiment-more { display: none; }
-  .institution {
-    padding: 12px 20px;
-  }
   .page-heading {
     gap: 20px;
     align-items: flex-start;
@@ -1656,40 +1515,8 @@ dialog h2 {
     padding: 8px 15px 8px 8px;
     letter-spacing: 0;
   }
-  .metrics {
-    gap: 9px;
-    margin-bottom: 17px;
-  }
-  .metric-card {
-    padding: 14px 12px;
-    border-radius: 6px;
-  }
-  .metric-label {
-    margin-bottom: 14px;
-  }
-  .metric-label > span {
-    letter-spacing: 0;
-  }
-  .metric-value {
-    gap: 6px;
-    letter-spacing: -0.7px;
-    min-height: 28px;
-  }
-  .metric-value .change-chip {
-    padding: 4px 4px;
-  }
-  .metric-description {
-    gap: 3px;
-    margin-top: 12px;
-  }
-  .indicator-tag {
-    padding: 4px 3px;
-  }
   .panel {
     border-radius: 6px;
-  }
-  .institution {
-    padding: 11px 15px;
   }
   .outline-button {
     padding: 7px 9px;
@@ -1763,59 +1590,6 @@ dialog h2 {
   background: #fff;
   container: watchlist / inline-size;
 }
-.watch-symbol {
-  color: #42628f;
-  letter-spacing: .6px;
-}
-.watch-symbol > span {
-  margin-left: 7px;
-  color: #64748b;
-  letter-spacing: 0;
-}
-.watch-card .metric-value .change-chip,
-.watch-card .metric-value .indicator-tag {
-  grid-column: 1 / -1;
-  justify-self: start;
-}
-.watch-flow-heading,
-.watch-institution-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.watch-institutions {
-  display: grid;
-  gap: 12px;
-}
-.watch-institution-heading {
-  margin-bottom: 5px;
-}
-.watch-institution-value {
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.watch-institution-label {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-.watch-total-history .watch-history {
-  padding: 10px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: #f8fafc;
-}
-dialog.institution-dialog {
-  width: min(880px, calc(100vw - 32px));
-  max-width: calc(100vw - 32px);
-  max-height: min(88dvh, 900px);
-  padding: 0;
-  border-radius: 14px;
-  overscroll-behavior: contain;
-}
 .institution-dialog-top {
   position: sticky;
   top: 0;
@@ -1842,9 +1616,6 @@ dialog.institution-dialog {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.institution-dialog-body {
-  padding: 20px 26px 24px;
-}
 .institution-dialog-footer {
   padding: 13px 26px;
   border-top: 1px solid var(--border);
@@ -1852,14 +1623,6 @@ dialog.institution-dialog {
   background: #f8fafc;
 }
 @media (max-width: 520px) {
-  dialog.institution-dialog {
-    width: calc(100vw - 20px);
-    max-width: calc(100vw - 20px);
-    max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
-    margin-top: max(16px, env(safe-area-inset-top));
-    margin-bottom: max(12px, env(safe-area-inset-bottom));
-    border-radius: 12px;
-  }
   .institution-dialog-top {
     gap: 10px;
     padding: 18px 16px 14px;
@@ -1867,30 +1630,9 @@ dialog.institution-dialog {
   .institution-dialog-top .eyebrow {
     letter-spacing: 1px;
   }
-  .institution-dialog-body {
-    padding: 16px;
-  }
   .institution-dialog-footer {
     padding: 13px 16px;
   }
-}
-.watchlist-empty {
-  padding: 42px 20px;
-  border: 1px dashed #b8cae5;
-  border-radius: 10px;
-  background: #f5f8fe;
-  text-align: center;
-}
-.watchlist-empty[hidden] {
-  display: none;
-}
-.watchlist-empty > .icon {
-  width: 26px;
-  height: 26px;
-  color: var(--accent);
-}
-.watchlist-empty p {
-  color: #64748b;
 }
 @media (max-width: 520px) {
   .sidebar nav .nav-item > .nav-label { display: none; }
@@ -1910,12 +1652,6 @@ dialog.institution-dialog {
     animation: none !important;
   }
 }
-
-.watchlist-grid[hidden],
-.institution-overview[hidden] {
-  display: none;
-}
-.overview-tabs,
 .filter-tabs {
   position: relative;
   isolation: isolate;
@@ -1928,7 +1664,6 @@ dialog.institution-dialog {
   border-radius: 9px;
   background: #fff;
 }
-.overview-tab-indicator,
 .segmented-indicator {
   position: absolute;
   border-radius: 6px;
@@ -1945,7 +1680,6 @@ dialog.institution-dialog {
 }
 .segmented-control button { position: relative; z-index: 1; background: transparent; }
 .segmented-control button:focus-visible { outline-offset: -2px; }
-.overview-tabs [role="tab"],
 .filter-tabs button {
   display: flex;
   align-items: center;
@@ -1957,20 +1691,9 @@ dialog.institution-dialog {
   color: #64748b;
   white-space: nowrap;
 }
-.overview-tabs [role="tab"]:hover:not([aria-selected="true"]),
 .segmented-control button:hover:not([aria-pressed="true"]) {
   color: #245cac;
   background: #f1f5fb;
-}
-.institution-overview-head,
-.institution-overview-row {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
 }
 .sector-total strong {
   font-variant-numeric: tabular-nums;
@@ -1987,24 +1710,11 @@ dialog.institution-dialog {
   overflow-wrap: anywhere;
   white-space: normal;
 }
-.metric-institution-money {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 4px;
-}
 .sector-note {
   margin: 0;
   padding: 10px 20px 14px;
   border-top: 1px solid var(--border);
   color: var(--muted);
-}
-.institution-overview-metric-headings,
-.institution-overview-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0;
 }
 .favorite-button,
 .outline-button {
@@ -2151,7 +1861,6 @@ dialog.institution-dialog {
   #page-title {
     font-size: 17px;
   }
-  .overview-tabs,
   .filter-tabs {
     flex-shrink: 0;
     gap: 2px;
@@ -2161,16 +1870,11 @@ dialog.institution-dialog {
     background: #fff;
   }
   .segmented-indicator { border-radius: 5px; }
-  .overview-tabs [role="tab"],
   .filter-tabs button {
     min-width: 36px;
     min-height: 34px;
     padding: 3px 2px;
     border-radius: 5px;
-  }
-  .overview-tabs .icon,
-  .overview-label-full {
-    display: none;
   }
 }
 @media (max-width: 360px) {
@@ -2196,8 +1900,7 @@ dialog.institution-dialog {
   min-width: 0;
 }
 .topbar-actions,
-.breadcrumb,
-.watch-signal {
+.breadcrumb {
   flex-wrap: wrap;
 }
 .filter-tabs {
@@ -2248,30 +1951,6 @@ dialog.institution-dialog {
   #info-dialog .update-check-status { grid-column: 1 / -1; }
 }
 @media (max-width: 700px) {
-  .watchlist-grid,
-  .institution-overview-rows {
-    display: flex;
-    gap: 12px;
-    margin-top: 0;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x mandatory;
-    scroll-padding-inline: 12px;
-    padding: 2px 12px 12px;
-    scrollbar-width: none;
-  }
-  .watchlist-grid::-webkit-scrollbar,
-  .institution-overview-rows::-webkit-scrollbar { display: none; }
-  .watchlist-grid .watch-card,
-  .institution-overview-rows .institution-overview-row {
-    flex: 0 0 calc(100% - 12px);
-    scroll-snap-align: start;
-  }
-  .watch-card .metric-value .change-chip,
-  .watch-card .metric-value .indicator-tag {
-    padding: 2px 4px;
-    line-height: 18px;
-  }
   .table-scroll {
     --table-favorite-width: 28px;
     --table-stock-width: clamp(52px, 16cqw, 72px);
@@ -2555,7 +2234,6 @@ dialog.institution-dialog {
 .loading-spinner circle { opacity: .18; }
 .loading-spinner path { stroke-linecap: round; }
 .field-load-error { color: var(--muted); }
-.pending-card .metric-value { min-height: 46px; }
 .sector-loading-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; padding: 24px 16px; color: var(--muted); }
 .sector-loading-fields > div { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 #date-loading[hidden] { display: none; }
@@ -2611,19 +2289,12 @@ dialog.institution-dialog {
 /* Dark theme overrides stay last so responsive and sticky-table rules cannot restore light surfaces. */
 [data-theme="dark"] {
   :is(.workspace, main, .about-page) { color: var(--ink); }
-  :is(.topbar, .about-hero, .about-goal, .panel, #watchlist,
-    .watch-card, .institution-overview, .institution-overview-row,
-    .market-sentiment > button, dialog, dialog.institution-dialog, dialog.sector-dialog,
-    .sector-stock-scroll, .sector-stock-table thead, .sector-stock-table thead th,
-    .table-scroll thead, .table-scroll thead th, .sector-ranking-head,
-    .table-toolbar, .sector-toolbar, .overview-controls, .overview-tabs, .filter-tabs,
-    .institution-window, .sector-sort-tabs, .sector-period) {
+  :is(.topbar, .about-hero, .about-goal, .panel, #watchlist, .market-sentiment > button, dialog, dialog.sector-dialog, .sector-stock-scroll, .sector-stock-table thead, .sector-stock-table thead th, .table-scroll thead, .table-scroll thead th, .sector-ranking-head, .table-toolbar, .sector-toolbar, .filter-tabs, .sector-sort-tabs, .sector-period) {
     background: #111b2b;
     color: var(--ink);
     border-color: var(--border);
   }
-  :is(.metric-card, .watch-card .metric-card, .quarter-card, .sector-summary-period,
-    .source-banner, .guide-item code, .app-status, .search-box, input, select) {
+  :is(.sector-summary-period, .source-banner, .guide-item code, .app-status, .search-box, input, select) {
     background: #0d1726;
     color: var(--ink);
     border-color: var(--border);
@@ -2634,15 +2305,8 @@ dialog.institution-dialog {
     border-color: var(--border);
   }
   #sector-filter option { background: #0d1726; color: var(--ink); }
-  :is(.stock-name strong, .sector-stock-name > strong, .stock-close,
-    .watch-card-heading h3, .institution-overview-row h4, .sector-identity h3,
-    .sector-detail-heading h3, .source-details dd, dialog h2) { color: var(--ink); }
-  :is(.stock-name > span, .sector-inline, .institution-leader,
-    .watch-symbol > span, .overview-stock-code, .overview-metric dt,
-    .metric-label, .metric-label > span, .metric-description,
-    .page-heading p, .date-control label, .dialog-intro, .helper-text,
-    .sector-note, .institution-overview-note, .sector-stock-name > small,
-    .sector-stock-change, .table-footer) { color: var(--muted); }
+  :is(.stock-name strong, .sector-stock-name > strong, .stock-close, .sector-identity h3, .sector-detail-heading h3, .source-details dd, dialog h2) { color: var(--ink); }
+  :is(.stock-name > span, .sector-inline, .institution-leader, .page-heading p, .date-control label, .dialog-intro, .helper-text, .sector-note, .sector-stock-name > small, .sector-stock-change, .table-footer) { color: var(--muted); }
   :is(.table-scroll tbody td, .table-scroll tbody th, .sector-stock-table th,
     .sector-stock-table td, .source-details > div, .guide-item) { border-color: var(--border); }
   :is(.table-scroll tbody tr:hover, .table-scroll tbody tr:active,
@@ -2652,14 +2316,10 @@ dialog.institution-dialog {
   }
   :is(.table-scroll tbody td:first-child, .table-scroll tbody th) { background-color: #111b2b; }
   .table-scroll tbody th { box-shadow: 1px 0 var(--border); }
-  :is(.overview-tab-indicator, .segmented-indicator) { background: #26364d; }
-  :is(.overview-tabs [role="tab"], .filter-tabs button, .institution-window button,
-    .sector-sort-tabs button, .sector-period button) { color: var(--muted); }
-  :is(.overview-tabs [aria-selected="true"], .segmented-control [aria-pressed="true"],
-    .table-scroll thead th[aria-sort="ascending"] button,
-    .table-scroll thead th[aria-sort="descending"] button) { color: #93c5fd; }
-  :is(.overview-tabs [role="tab"]:hover:not([aria-selected="true"]),
-    .segmented-control button:hover:not([aria-pressed="true"]), .outline-button:hover) {
+  :is(.segmented-indicator) { background: #26364d; }
+  :is(.filter-tabs button, .sector-sort-tabs button, .sector-period button) { color: var(--muted); }
+  :is(.segmented-control [aria-pressed="true"], .table-scroll thead th[aria-sort="ascending"] button, .table-scroll thead th[aria-sort="descending"] button) { color: #93c5fd; }
+  :is(.segmented-control button:hover:not([aria-pressed="true"]), .outline-button:hover) {
     background: #1a2a43;
     color: #bfdbfe;
   }
@@ -2670,7 +2330,6 @@ dialog.institution-dialog {
   .price-volume-label.signal-badge { background: #263244; color: var(--ink); }
   .price-volume-label.signal-badge.up { background: #3b2528; color: var(--up); }
   .price-volume-label.signal-badge.down { background: #16352e; color: var(--down); }
-  .indicator-tag { border-color: #4d4937; color: #d6ca91; }
   .table-scroll { scrollbar-color: #52647d #111b2b; }
 }
 
@@ -2995,8 +2654,7 @@ dialog.sector-dialog {
 .institution-sparkline line { stroke: var(--border); }
 .institution-sparkline rect { fill: currentColor; }
 .sector-detail-heading .sector-chart-note { margin-top: 5px; }
-.sector-dialog-handle,
-.institution-dialog-handle { display: none; }
+.sector-dialog-handle { display: none; }
 .sector-dialog-footer { padding-bottom: max(13px, env(safe-area-inset-bottom)); }
 .date-control [hidden] { display: none; }
 @media (max-width: 700px) {
@@ -3088,17 +2746,6 @@ dialog.sector-dialog {
   .sector-stock-period-label { display: block; margin-bottom: 3px; }
 }
 @media (max-width: 520px) {
-  dialog.institution-dialog {
-    position: fixed;
-    inset: auto 10px max(12px, env(safe-area-inset-bottom));
-    width: calc(100vw - 20px);
-    max-width: calc(100vw - 20px);
-    max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
-    margin: 0;
-    border-radius: 18px;
-    transform: translateY(var(--mobile-drag-y, 0px));
-    transition: transform 180ms ease-out;
-  }
   dialog.sector-dialog {
     position: fixed;
     inset: auto 0 0;
@@ -3113,12 +2760,10 @@ dialog.sector-dialog {
     transform: translateY(var(--mobile-drag-y, 0px));
     transition: transform 180ms ease-out;
   }
-  dialog.institution-dialog.is-dragging,
   dialog.sector-dialog.is-dragging {
     transition: none;
   }
-  .sector-dialog-handle,
-  .institution-dialog-handle {
+  .sector-dialog-handle {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3127,22 +2772,19 @@ dialog.sector-dialog {
     touch-action: none;
     cursor: grab;
   }
-  .sector-dialog-handle:focus-visible,
-  .institution-dialog-handle:focus-visible {
+  .sector-dialog-handle:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -3px;
     border-radius: 18px 18px 0 0;
   }
-  .sector-dialog-handle::before,
-  .institution-dialog-handle::before {
+  .sector-dialog-handle::before {
     content: "";
     width: 40px;
     height: 5px;
     border-radius: 999px;
     background: #cbd5e1;
   }
-  dialog.sector-dialog.is-dragging .sector-dialog-handle,
-  dialog.institution-dialog.is-dragging .institution-dialog-handle {
+  dialog.sector-dialog.is-dragging .sector-dialog-handle {
     cursor: grabbing;
   }
   .institution-dialog-top { padding-top: 0; }
@@ -3150,8 +2792,7 @@ dialog.sector-dialog {
     gap: 10px;
     padding: 0 16px 14px;
   }
-  #close-sector-dialog,
-  #close-institution-dialog { display: none; }
+  #close-sector-dialog { display: none; }
   .sector-dialog-body { padding: 15px 16px 20px; }
   .sector-summary-grid { gap: 8px; }
   .sector-detail-heading { align-items: flex-start; }
@@ -3169,30 +2810,13 @@ dialog.sector-dialog {
   color: var(--ink);
   border-color: var(--border);
 }
-[data-theme="dark"] :is(#institution-meta, #sector-dialog-meta,
-  .watch-flow-total > div:first-child > span, .watch-flow-total small,
-  .watch-flow-amounts, .watch-cumulative > span, .watch-history-note,
-  .institution-dialog-footer) { color: var(--muted); }
-[data-theme="dark"] :is(.overview-total, .institution-dialog .watch-flow-total,
-  .institution-dialog .watch-total-history .watch-history) {
-  background: #162238;
-  border-color: var(--border);
-}
-[data-theme="dark"] .overview-metric:not(.overview-total) { border-color: var(--border); }
-[data-theme="dark"] .overview-detail-button {
-  background: #162238;
-  color: #93c5fd;
-  border-color: var(--border);
-}
-[data-theme="dark"] .overview-detail-button:hover { background: #1a2a43; }
-[data-theme="dark"] .watch-streak { background: #26364d; color: var(--muted); }
-[data-theme="dark"] .watch-streak.buy { background: #3b2528; color: var(--up); }
-[data-theme="dark"] .watch-streak.sell { background: #16352e; color: var(--down); }
+[data-theme="dark"] :is(#sector-dialog-meta, .institution-dialog-footer) { color: var(--muted); }
 .table-scroll thead th[data-sort-heading="entryScore"][aria-sort] button { color: inherit; }
 #watchlist { padding: 0; border: 0; border-radius: 0; background: transparent; }
 [data-theme="dark"] #watchlist { border: 0; background: transparent; }
 .research-center { color: var(--text, inherit); }
-.research-date, .research-muted, .research-device-note { color: var(--muted, #8da5c4); font-size: .82rem; }
+.research-date,
+.research-muted { color: var(--muted, #8da5c4); font-size: .82rem; }
 .research-date { margin: 0; }
 .research-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin: 1rem 0; }
 .research-stats>div { display: flex; flex-direction: column; gap: .15rem; padding: .7rem; border: 1px solid var(--border, #293d58); border-radius: 10px; }

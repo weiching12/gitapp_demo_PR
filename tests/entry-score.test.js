@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeHistory, getSnapshot } from "../shared/indicators.js";
+import { getSnapshot } from "../shared/indicators.js";
 import { ENTRY_WEIGHTS, getQualifiedEntryScore, evaluateCoreConditions, getAtr14, getEntryScore, institutionalScoreBreakdown } from "../shared/entry-score.js";
 
 import { MarketSummaryService } from "../cloudflare/services/market-summary-service.js";
 import { AnalysisService } from "../cloudflare/services/analysis-service.js";
-import { SHARD_COUNT, shardOf } from "../shared/market-codec.js";
+import { shardOf } from "../shared/market-codec.js";
 import { referenceAdjustedDividendHistory } from "../shared/corporate-actions.js";
 
 test("institutional score explanation uses the same capped components as the model", () => {

@@ -64,8 +64,6 @@ select,
 tbody td,
 tbody th,
 .k-cell,
-.watch-institution-heading,
-.overview-metric dd,
 .form-field label {
   font-size: var(--text-body);
 }
@@ -75,8 +73,7 @@ select {
   line-height: var(--leading-control);
 }
 button,
-.price-cell,
-.overview-metric dd {
+.price-cell {
   font-weight: 500;
 }
 tbody th,
@@ -89,35 +86,19 @@ tbody td {
   font-weight: 600;
   line-height: var(--leading-heading);
 }
-.nav-item.active,
-.institution-window [aria-pressed="true"],
-.overview-total dd {
+.nav-item.active {
   font-weight: 600;
 }
 
 /* Secondary copy: descriptions and labels have one shared reading size. */
 .page-heading p,
-.metric-label,
-.metric-description,
-.watch-symbol,
-.overview-stock-code,
-.overview-metric dt,
-.institution-overview-head,
 .sector-sort-control,
 .date-control label,
 .signal-note,
 .signal-note button,
 .signal-badge,
 .position-tag,
-.indicator-tag,
 .change-chip,
-.watch-flow-heading > span,
-.watch-flow-total > div:first-child > span,
-.watch-flow-amounts,
-.watch-flow-legend,
-.watch-history-note,
-.watch-cumulative > span,
-.watch-flow-bar-row > span:last-child,
 .institution-dialog-footer,
 .dialog-intro,
 .source-banner,
@@ -126,23 +107,19 @@ tbody td {
 .guide-item p,
 .guide-item code,
 .form-field > div span,
-.watchlist-empty p,
 .empty-state p,
 .toast {
   font-size: var(--text-secondary);
   line-height: var(--leading-reading);
 }
-.metric-description,
 .helper-text {
   color: var(--muted);
 }
-.guide-item h3,
-.watch-flow-heading h3 {
+.guide-item h3 {
   font-size: var(--text-title);
 }
 .signal-badge,
 .position-tag,
-.indicator-tag,
 .change-chip {
   line-height: var(--leading-control);
   font-weight: 500;
@@ -150,14 +127,11 @@ tbody td {
 thead th,
 thead th button,
 .sector-ranking-head,
-.overview-tabs [role="tab"],
-.institution-window button,
 .sector-period button,
 .sector-sort-tabs button,
 .filter-tabs button,
 .outline-button,
 .text-button,
-.overview-detail-button,
 .primary-button {
   font-size: var(--text-secondary);
   line-height: var(--leading-control);
@@ -174,20 +148,14 @@ thead th button,
 .count-pill,
 .breadcrumb,
 .demo-badge,
-.metric-label > span,
-.metric-value small,
-.watch-symbol > span,
 .stock-name > span,
 .institution-volume-share,
 .signal-reason,
 .institution-leader,
-.institution-overview-note,
 .sector-note,
 .sector-inline,
 .kd-detail,
 .deviation,
-.watch-streak,
-#institution-meta,
 .table-footer,
 .page-footer,
 .page-footer button,
@@ -198,28 +166,20 @@ thead th button,
   line-height: var(--leading-control);
   font-weight: 400;
 }
-.eyebrow,
-.watch-streak {
+.eyebrow {
   font-weight: 500;
 }
 .eyebrow {
   letter-spacing: 0.1em;
 }
-.watch-card-heading h3,
-.institution-overview-row h4,
 .sector-card h3 {
   font-size: var(--text-title);
 }
-.metric-value,
-.watch-flow-total strong,
 .sector-total strong {
   font-size: var(--text-section);
   font-weight: 600;
   line-height: var(--leading-heading);
   letter-spacing: -0.02em;
-}
-.watch-signal .signal-reason {
-  line-height: var(--leading-reading);
 }
 .sidebar-note p {
   font-size: var(--text-body);
@@ -248,20 +208,14 @@ thead th button,
   .sector-identity p {
     font-size: var(--text-secondary);
   }
-  .overview-total dd {
-    font-size: var(--text-body);
-    line-height: var(--leading-heading);
-  }
   .guide-item h3,
-  .watch-flow-heading h3,
-  .sector-detail-heading h3,
-  .sector-summary-period h4 {
+.sector-detail-heading h3,
+.sector-summary-period h4 {
     font-size: var(--text-secondary);
   }
   .change-chip,
-  .deviation,
-  .sector-stock-change,
-  .quarter-card .metric-number {
+.deviation,
+.sector-stock-change {
     font-size: var(--text-title);
   }
   .sector-change {
@@ -274,10 +228,6 @@ thead th button,
   .sector-toolbar .sector-period-control > span {
     font-size: var(--text-secondary);
   }
-  .overview-tabs [role="tab"],
-  .institution-window button {
-    font-size: var(--text-secondary);
-  }
   .filter-tabs button,
   #sector-filter {
     font-size: var(--text-secondary);
@@ -285,8 +235,7 @@ thead th button,
   .search-box input {
     font-size: max(16px, 1rem);
   }
-  .filter-tabs button.active,
-  .overview-tabs [aria-selected="true"] {
+  .filter-tabs button.active {
     font-weight: 700;
   }
   .sector-sort-tabs button,
