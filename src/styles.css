@@ -3298,7 +3298,7 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
 .page-heading.favorites-heading #page-description { display: block; grid-column: 1 / -1; grid-row: 3; max-width: 65ch; font-size: clamp(13px, 1.5vw, 15px); line-height: 1.55; }
 .research-review-detail { margin: 1rem 0; }
 .research-review-detail h4 { margin: 0 0 .5rem; }
-.research-price-chart { min-width: 0; margin: 1rem 0; padding: .65rem; border: 1px solid var(--border); border-radius: 12px; }
+.research-price-chart { min-width: 0; margin: 1rem 0; }
 .research-chart-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
 .research-chart-controls span { flex: 1; }
 .research-chart-controls button { border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--muted); padding: .25rem .4rem; font-size: .75rem; cursor: pointer; }
