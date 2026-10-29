@@ -15,6 +15,7 @@ async function setup(page, { pushEnabled = false } = {}) {
   const calls = [];
   let generation = original.generation;
   await page.route("**/src/native/bootstrap.js", (route) => route.fulfill({ contentType: "application/javascript", body: `
+    export const nativeScoreImpact = () => style => { (window.__nativeHaptics ??= []).push(style); };
     import { createNativeStorage } from '/src/native/storage.js';
     import { createNativeRuntime } from '/src/native/runtime.js';
     import { startNativePush } from '/src/native/push.js';

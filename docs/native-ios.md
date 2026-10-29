@@ -5,6 +5,10 @@
 
 ## 已整合
 
+- 個股分數動畫使用 Haptics：跑動期間最多每 120ms 一次輕回饋，定格時一次中等回饋。
+  明細補載沿用同一次動畫；關閉、背景及減少動態效果會停止，不支援裝置不影響分數顯示。
+  網頁版僅在瀏覽器支援 Vibration API 時提供短震；iPhone Safari／PWA 不支援此 API。
+  原生回饋已整合至 iOS 專案，實際震感仍須使用實機驗證。
 - App 背景事件儲存設定、研究追蹤基準與所在頁面；回到前景檢查行情版本。
   同版本不重載；進入頁面後的新資料透過不可手動關閉的更新視窗確認，點選更新後先等待設定寫入，再重載並回復所在頁面；新資料載入完成後關閉視窗，失敗保留重試。這是行情資料更新，不是原生二進位檔更新。
   並行檢查共用請求，背景完成的回應不重載畫面，失敗可再試。
@@ -63,5 +67,6 @@ native subscriptions 與瀏覽器 Web Push 使用獨立資料表及端點，不�
 裝置以本機隨機產生的 secret 取消自己的訂閱，伺服器只保存其 SHA-256；無帳號與跨裝置同步。
 
 官方介面：[App](https://capacitorjs.com/docs/apis/app)、
+[Haptics](https://capacitorjs.com/docs/apis/haptics)、
 [Preferences](https://capacitorjs.com/docs/apis/preferences)、
 [Push Notifications](https://capacitorjs.com/docs/apis/push-notifications)。
