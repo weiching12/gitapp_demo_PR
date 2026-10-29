@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const source = `
 import { SummaryCache } from "./cloudflare/summary-cache.js";
+import worker from "./cloudflare/worker.js";
+export { MarketSummaryCoordinator } from "./cloudflare/summary-coordinator.js";
 export class TestSummaryCache {
   constructor(ctx) {
     this.storage = ctx.storage;
@@ -53,13 +55,24 @@ export class TestSummaryCache {
     return new Response(null, { status: 404 });
   }
 }
-export default { fetch() { return new Response("test only"); } };
+export default worker;
 `;
 const bundle = await build({ stdin: { contents: source, resolveDir: fileURLToPath(new URL("../", import.meta.url)) },
   bundle: true, write: false, format: "esm", platform: "browser", target: "es2022" });
 const mf = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text,
-  compatibilityDate: "2026-10-17", durableObjects: { SUMMARY_CACHE: { className: "TestSummaryCache", useSQLite: true } } }));
+  compatibilityDate: "2026-10-17", kvNamespaces: ["MARKET_DATA"],
+  durableObjects: { SUMMARY_CACHE: { className: "TestSummaryCache", useSQLite: true },
+    MARKET_SUMMARY: { className: "MarketSummaryCoordinator", useSQLite: true } } }));
 try {
+  // Error subclasses do not preserve their prototype across a real DO boundary.
+  // Validation must form the API response inside the DO, before stub transport.
+  for (const method of ["GET", "HEAD"]) {
+    const response = await mf.dispatchFetch("https://internal/api/v1/market/summary?period=0", { method });
+    assert.equal(response.status, 400);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    if (method === "HEAD") assert.equal(await response.text(), "");
+    else assert.equal((await response.json()).error.code, "INVALID_QUERY");
+  }
   const namespace = await mf.getDurableObjectNamespace("SUMMARY_CACHE");
   const client = (name) => {
     const object = namespace.get(namespace.idFromName(name));

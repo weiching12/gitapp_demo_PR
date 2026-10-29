@@ -257,6 +257,21 @@ test("effective query values share a summary cache despite ordering, defaults an
   assert.equal(shardReads, SHARD_COUNT);
 });
 
+test("invalid summary options return the public 400 contract before reading storage", async () => {
+  const coordinator = new MarketSummaryCoordinator({ storage: durableStorage() }, {
+    MARKET_DATA: { get: async () => assert.fail("invalid options must not access market storage") },
+  });
+  for (const query of ["period=0", "kSmooth=21", "asOf=2026-02-30"]) {
+    for (const method of ["GET", "HEAD"]) {
+      const response = await coordinator.fetch(new Request(`https://example.test/api/v1/market/summary?${query}`, { method }));
+      assert.equal(response.status, 400);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      if (method === "HEAD") assert.equal(await response.text(), "");
+      else assert.equal((await response.json()).error.code, "INVALID_QUERY");
+    }
+  }
+});
+
 test("failed research persistence keeps the market available but retries before caching success", async t => {
   t.mock.method(console, "error", () => {});
   const db = testDatabase();

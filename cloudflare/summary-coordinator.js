@@ -1,6 +1,7 @@
 import { routeApi } from "./api/router.js";
 import { createApplicationServices } from "./composition.js";
 import { analysisOptions } from "./api/validators.js";
+import { apiFailure } from "./api/errors.js";
 import { SummaryCache } from "./summary-cache.js";
 
 const SUMMARY_ROUTES = ["/api/v1/market/summary", "/api/v1/favorites/summary"];
@@ -21,9 +22,12 @@ export class MarketSummaryCoordinator {
     if (!SUMMARY_ROUTES.includes(url.pathname) && !url.pathname.startsWith("/api/v1/sectors/"))
       return new Response(null, { status: 404 });
 
+    let options;
+    try { options = analysisOptions(url.searchParams); }
+    catch (cause) { return apiFailure(request, true, cause); }
+    const { asOf, settings } = options;
     const services = createApplicationServices(this.env);
     const manifest = await services.market.market();
-    const { asOf, settings } = analysisOptions(url.searchParams);
     // Key only on effective validated inputs; ignore ordering and unknown query parameters.
     const canonical = new URLSearchParams({ asOf: asOf || manifest.asOf, ...settings });
     if (url.pathname === "/api/v1/favorites/summary") canonical.set("symbols", url.searchParams.get("symbols") || "");
