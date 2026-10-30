@@ -58,6 +58,12 @@ test('chart selection compares that session to joining and keeps the selected da
   await expect(comparison.locator('.research-comparison-category')).toHaveCount(5);
   await expect(comparison.locator('.research-comparison-bar')).toHaveCount(10);
   await expect(comparison.locator('.research-comparison-summary')).toContainText('89.25 → 64.25 · 變化 -25.00');
+  const trend = comparison.locator('[data-category="trend"]');
+  await expect(trend.locator('.research-comparison-category-heading')).toContainText('-90.00 分');
+  await expect(trend.locator('.research-comparison-bar').last().locator('strong')).toHaveText('0.00');
+  await expect(trend.locator('.research-comparison-bar').last().locator('.research-comparison-status')).toHaveText('未通過');
+  await expect(trend.locator('.research-comparison-bar').last().locator('.selected')).toHaveCSS('width', '0px');
+  await expect(comparison.locator('.research-comparison-state')).toHaveCount(0);
   await plot.scrollIntoViewIfNeeded();
   const marker = await plot.locator('.research-selected-date text').boundingBox();
   const plotBounds = await plot.boundingBox();
@@ -68,6 +74,7 @@ test('chart selection compares that session to joining and keeps the selected da
   await page.mouse.up();
   expect(await page.evaluate(() => getSelection().toString())).toBe('');
   await expect(comparison).toHaveAttribute('data-selected-date', '2026-10-14');
+  await plot.focus(); await plot.press('End');
   for (const width of [320, 516]) {
     await page.setViewportSize({ width, height: 956 });
     expect(await comparison.evaluate(n => n.scrollWidth - n.clientWidth)).toBeLessThanOrEqual(1);

@@ -31,6 +31,31 @@ test('join day uses its original snapshot even outside the loaded history', () =
   assert.match(researchComparisonContent(period, row, initial.asOf, esc), /89\.25 → 89\.25 · 變化 0\.00/);
 });
 
+test('failed conditions display zero, recalculate gated deltas, and keep missing data distinct from failure', () => {
+  const before = snapshot('2026-10-22', 89.25), after = snapshot('2026-10-30', 36.25);
+  before.categories.trend.score = 92;
+  after.categories.trend.score = 52;
+  after.conditions.trend.status = 'FAIL';
+  const render = () => researchComparisonContent({ addedSnapshot: before }, { latest: after }, after.asOf, esc);
+  const category = html => html.split('data-category="trend"')[1].split('data-category="momentum"')[0];
+  const failed = category(render());
+  assert.match(failed, /-92\.00 分/);
+  assert.match(failed, /<strong>0\.00<\/strong>/);
+  assert.match(failed, /data-state="fail"/);
+  assert.match(failed, /class="selected" style="width:0%"/);
+  assert.doesNotMatch(failed, /52\.00|research-comparison-state/);
+  assert.equal(after.categories.trend.score, 52); // The saved raw score stays unchanged.
+  before.conditions.trend.status = 'FAIL';
+  assert.match(category(render()), /0\.00 分/);
+  after.conditions.trend.status = 'PASS';
+  assert.match(category(render()), /\+52\.00 分/);
+  after.conditions.trend.status = 'UNKNOWN';
+  const unknown = category(render());
+  assert.match(unknown, /<strong>—<\/strong>/);
+  assert.match(unknown, /資料不足/);
+  assert.doesNotMatch(unknown, /neutral">0\.00 分/);
+});
+
 test('a missing or invalid selected session never borrows the latest score or invents a change', () => {
   const missing = researchComparisonContent(period, row, '2026-10-28', esc);
   assert.match(missing, /所選日沒有評分快照/);

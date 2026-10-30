@@ -26,12 +26,21 @@ export function researchComparisonContent(period, row, date, esc) {
             : !comparable ? "所選日資料不足，無法比較。" : "";
   const pair = (label, before, after, suffix = "") => `<div><dt>${label}</dt><dd>${esc(String(before ?? "—"))} → ${esc(String(after ?? "—"))}${suffix}</dd></div>`;
   const cap = snap => snap ? snap.cap?.enabled ? `${fmt(snap.cap.value)}：${snap.cap.reason ?? ""}` : "未啟用" : "—";
-  const score = (snap, key) => snap?.valid ? snap.categories?.[key]?.score : null;
-  const bar = (value, kind) => `<div class="research-comparison-bar"><span class="research-comparison-track"><i class="${kind}" style="width:${Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0}%"></i></span><span>${fmt(value)}</span></div>`;
+  const score = (snap, key) => {
+    if (!snap?.valid) return null;
+    const condition = snap.conditions?.[key]?.status;
+    if (condition === "FAIL") return 0;
+    return condition === "PASS" ? snap.categories?.[key]?.score : null;
+  };
+  const bar = (value, kind, label, snap, key) => {
+    const condition = snap?.valid ? snap.conditions?.[key]?.status : "UNKNOWN";
+    const state = condition === "PASS" ? "pass" : condition === "FAIL" ? "fail" : "missing";
+    return `<div class="research-comparison-bar" data-state="${state}"><span class="research-comparison-period">${esc(label)}</span><span class="research-comparison-track"><i class="${kind}" style="width:${Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0}%"></i></span><strong>${fmt(value)}</strong><span class="research-comparison-status ${state}">${status(condition)}</span></div>`;
+  };
   const chart = `<div class="research-comparison-chart" role="group" aria-label="各條件分數比較，滿分 100 分"><div class="research-comparison-legend"><span><i class="baseline"></i>${esc(baselineLabel)} ${esc(initial?.asOf?.slice(5).replace("-", "/") ?? "—")}</span><span><i class="selected"></i>所選日 ${esc(date?.slice(5).replace("-", "/") ?? "—")}</span></div>${Object.entries(categories).map(([key, label]) => {
     const before = score(initial, key), after = score(target, key);
     const change = comparable && Number.isFinite(before) && Number.isFinite(after) ? after - before : null;
-    return `<div class="research-comparison-category" data-category="${key}"><div class="research-comparison-category-heading"><strong>${label}</strong>${Number.isFinite(change) ? `<span class="${tone(change)}">${signed(change)} 分</span>` : ""}</div><div role="img" aria-label="${label}，${esc(baselineLabel)} ${fmt(before)} 分，所選日 ${fmt(after)} 分">${bar(before, "baseline")}${bar(after, "selected")}</div><p class="research-comparison-state">${esc(baselineLabel)} ${status(initial?.conditions?.[key]?.status)} → 所選日 ${status(target?.conditions?.[key]?.status)}</p></div>`;
+    return `<div class="research-comparison-category" data-category="${key}"><div class="research-comparison-category-heading"><strong>${label}</strong>${Number.isFinite(change) ? `<span class="${tone(change)}">${signed(change)} 分</span>` : ""}</div><div role="group" aria-label="${label}，${esc(baselineLabel)} ${fmt(before)} 分，所選日 ${fmt(after)} 分">${bar(before, "baseline", baselineLabel, initial, key)}${bar(after, "selected", "所選日", target, key)}</div></div>`;
   }).join("")}</div>`;
   return `<p class="research-muted research-comparison-dates" aria-live="polite">${esc(baselineLabel)} ${esc(initial?.asOf ?? "—")} → 所選日 ${esc(date ?? "—")}</p>${notice ? `<p class="research-muted research-comparison-notice">${notice}</p>` : ""}<dl class="research-facts research-comparison-summary">${pair("分數", fmt(initial?.valid ? initial.finalScore : null), fmt(target?.valid ? target.finalScore : null), comparable ? ` · 變化 ${signed(comparison.finalDelta)}` : "")}${pair("必要條件", initial ? `${initial.passedCount}/${initial.totalConditions}` : null, target ? `${target.passedCount}/${target.totalConditions}` : null)}</dl>${chart}<dl class="research-facts">${pair("分數上限", cap(initial), cap(target))}${pair("資料完整性", initial?.valid ? "完整" : "資料不足", target ? target.valid ? "完整" : target.missingData?.join("、") || "資料不足" : "無當日快照")}${pair("模型／設定", initial ? `${initial.modelVersion} · ${initial.configId}` : null, target ? `${target.modelVersion} · ${target.configId}` : null)}</dl>`;
 }
