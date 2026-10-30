@@ -68,7 +68,7 @@ test("documented account operations use their declared methods and cookie-based 
   const { hashPassword } = await import("../cloudflare/auth/password.js");
   const db = authDatabase();
   try {
-    db.sqlite.prepare("INSERT INTO app_users VALUES (?, ?, ?, ?, 0, ?)")
+    db.sqlite.prepare("INSERT INTO app_users(id, username, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, 0, ?)")
       .run("contract-user", "contract-user", await hashPassword("contract-test-password"), "user", Date.now());
     const env = { T86_DB: db };
     const response = await worker.fetch(new Request("https://example.test/api/v1/auth/login", {
@@ -77,7 +77,23 @@ test("documented account operations use their declared methods and cookie-based 
     }), env);
     assert.equal(response.status, 200);
     check(spec.paths["/api/v1/auth/login"].post.responses[200].content["application/json"].schema, await response.json());
-    const cookie = response.headers.get("set-cookie");
+    let cookie = response.headers.get("set-cookie");
+    db.sqlite.prepare("UPDATE app_users SET must_change_password = 1 WHERE id = 'contract-user'").run();
+    for (const path of ["/api/presence", "/api/v1/presence"]) {
+      const restricted = await worker.fetch(new Request(`https://example.test${path}`, { headers: { Cookie: cookie } }), env);
+      assert.equal(restricted.status, 403);
+      const failure = await restricted.json();
+      assert.equal(path.startsWith("/api/v1/") ? failure.error.code : failure.code, "PASSWORD_CHANGE_REQUIRED");
+    }
+    const changed = await worker.fetch(new Request("https://example.test/api/v1/auth/change-password", {
+      method: "POST", headers: { Cookie: cookie, Origin: "https://example.test" },
+      body: JSON.stringify({ password: "new-contract-test-password", confirmPassword: "new-contract-test-password" }),
+    }), env);
+    assert.equal(changed.status, 200);
+    const changedBody = await changed.json();
+    assert.equal(changedBody.user.mustChangePassword, false);
+    check(spec.paths["/api/v1/auth/change-password"].post.responses[200].content["application/json"].schema, changedBody);
+    cookie = changed.headers.get("set-cookie");
     const me = await worker.fetch(new Request("https://example.test/api/v1/auth/me", { headers: { Cookie: cookie } }), env);
     assert.equal(me.status, 200);
     check(spec.paths["/api/v1/auth/me"].get.responses[200].content["application/json"].schema, await me.json());

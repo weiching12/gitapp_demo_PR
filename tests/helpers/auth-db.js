@@ -4,6 +4,7 @@ export function authDatabase() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec('PRAGMA foreign_keys=ON');
   sqlite.exec(readFileSync(new URL('../../cloudflare/migrations/0007_auth.sql', import.meta.url), 'utf8'));
+  sqlite.exec(readFileSync(new URL('../../cloudflare/migrations/0008_required_password_change.sql', import.meta.url), 'utf8'));
   const db = { sqlite, prepare(sql) {
     let values = [];
     return { bind(...input) { values = input; return this; },

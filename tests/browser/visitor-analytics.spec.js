@@ -49,3 +49,17 @@ test('ordinary user cannot view visitor details or trends', async ({ page }) => 
   await expect(page.locator('#visitors')).toBeEmpty();
   await expect(page.locator('#trend')).toBeEmpty();
 });
+
+test('administrator with a temporary password must change it before viewing visitor details', async ({ page }) => {
+  await page.route('**/api/v1/auth/me', route => route.fulfill({ json: {
+    user: { id: 'temporary-admin', username: 'temporary-admin', role: 'admin', mustChangePassword: true },
+  } }));
+  await page.route('**/api/v1/presence?**', route => route.fulfill({ status: 403, json: {
+    error: { code: 'PASSWORD_CHANGE_REQUIRED', message: '請先更新密碼' },
+  } }));
+  await page.goto('/admin-visitors.html');
+  await expect(page).toHaveURL(/\/change-password\.html$/);
+  await expect(page.locator('#change-password-form')).toBeVisible();
+  await expect(page.locator('#password')).toBeEnabled();
+  await expect(page.locator('#visitors')).toHaveCount(0);
+});

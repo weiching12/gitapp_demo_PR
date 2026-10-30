@@ -16,7 +16,7 @@ function fixture() {
   let now = Date.UTC(2026, 9, 22, 15, 50);
   presence.now = () => now;
   const accountDb = authDatabase();
-  accountDb.sqlite.prepare('INSERT INTO app_users VALUES (?, ?, ?, ?, 0, ?)').run('admin', 'admin', 'unused', 'admin', Date.now());
+  accountDb.sqlite.prepare('INSERT INTO app_users(id, username, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, 0, ?)').run('admin', 'admin', 'unused', 'admin', Date.now());
   accountDb.sqlite.prepare('INSERT INTO auth_sessions VALUES (?, ?, ?)').run(createHash('sha256').update('a'.repeat(64)).digest('hex'), 'admin', Date.now() + 3600000);
   const env = { T86_DB: accountDb, ONLINE_PRESENCE: { getByName: () => presence } };
   const request = (path = '', options = {}) => presenceResponse(new Request(`https://stock.test/api/v1/presence${path}`, options), env);

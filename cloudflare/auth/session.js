@@ -13,9 +13,10 @@ export async function currentUser(request, env, now = Date.now()) {
   const token = sessionToken(request);
   if (!token) return null;
   if (!env.T86_DB) throw new Error('Account database unavailable');
-  return env.T86_DB.prepare(`SELECT u.id, u.username, u.role FROM auth_sessions s
+  const user = await env.T86_DB.prepare(`SELECT u.id, u.username, u.role, u.must_change_password AS mustChangePassword FROM auth_sessions s
     JOIN app_users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled = 0`)
     .bind(await sha256(token), now).first();
+  return user ? { ...user, mustChangePassword: Boolean(user.mustChangePassword) } : null;
 }
 export function sameOrigin(request) {
   const origin = request.headers.get('Origin');

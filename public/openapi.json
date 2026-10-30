@@ -873,7 +873,7 @@
     "/api/v1/auth/login": {
       "post": {
         "operationId": "loginAccount",
-        "description": "Same-origin account/password login. Sets a 12-hour HttpOnly, Secure, SameSite=Strict session cookie. Client-supplied roles are ignored. No caching.",
+        "description": "Same-origin account/password login. Sets a 12-hour HttpOnly, Secure, SameSite=Strict session cookie. Client-supplied roles are ignored. No caching. Accounts provisioned with a temporary password return mustChangePassword:true and must complete the password-change flow.",
         "requestBody": {
           "required": true,
           "content": {
@@ -911,7 +911,8 @@
                       "required": [
                         "id",
                         "username",
-                        "role"
+                        "role",
+                        "mustChangePassword"
                       ],
                       "properties": {
                         "id": {
@@ -926,6 +927,10 @@
                             "user",
                             "admin"
                           ]
+                        },
+                        "mustChangePassword": {
+                          "type": "boolean",
+                          "description": "Must establish a new password before accessing administrator statistics."
                         }
                       }
                     }
@@ -971,7 +976,8 @@
                           "required": [
                             "id",
                             "username",
-                            "role"
+                            "role",
+                            "mustChangePassword"
                           ],
                           "properties": {
                             "id": {
@@ -986,6 +992,10 @@
                                 "user",
                                 "admin"
                               ]
+                            },
+                            "mustChangePassword": {
+                              "type": "boolean",
+                              "description": "Must establish a new password before accessing administrator statistics."
                             }
                           }
                         },
@@ -1015,6 +1025,100 @@
           },
           "403": {
             "description": "Cross-origin request"
+          },
+          "503": {
+            "description": "Account database unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "operationId": "changeTemporaryPassword",
+        "description": "Same-origin temporary-password completion. Requires a valid session whose current account mustChangePassword is true. Passwords must match, be 12–128 characters and differ from the current temporary password. Stores a salted password hash, clears the flag, revokes old sessions and sets a fresh 12-hour session. No caching.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "password",
+                  "confirmPassword"
+                ],
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 128
+                  },
+                  "confirmPassword": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed; current account returned and fresh session cookie set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "username",
+                        "role",
+                        "mustChangePassword"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "admin"
+                          ]
+                        },
+                        "mustChangePassword": {
+                          "type": "boolean",
+                          "description": "Must establish a new password before accessing administrator statistics."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, mismatched or reused password, or no password change required"
+          },
+          "401": {
+            "description": "Valid account session required"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          },
+          "409": {
+            "description": "Account or session changed during password update; sign in again"
           },
           "503": {
             "description": "Account database unavailable"
@@ -1127,7 +1231,7 @@
             }
           },
           "403": {
-            "description": "Cross-origin request or account lacks administrator role",
+            "description": "Cross-origin request, account lacks administrator role, or temporary password requires replacement (PASSWORD_CHANGE_REQUIRED)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1153,7 +1257,7 @@
             "description": "Invalid date range, period or offset"
           }
         },
-        "description": "Administrator-only daily, monthly and whole-history visitor analytics. Requires an authenticated session whose current server-side role is admin. All dates use Asia/Taipei. No public counts.",
+        "description": "Administrator-only daily, monthly and whole-history visitor analytics. Requires an authenticated session whose current server-side role is admin and mustChangePassword is false. All dates use Asia/Taipei. No public counts.",
         "security": [
           {
             "AccountSession": []

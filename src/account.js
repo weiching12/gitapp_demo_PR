@@ -9,7 +9,8 @@ export async function startAccountMenu(node) {
       node.replaceChildren();
       if (!user) { const link = document.createElement('a'); link.href = '/login.html'; link.textContent = '登入'; node.append(link); return; }
       const label = document.createElement('span'); label.textContent = user.username; label.title = user.username; node.append(label);
-      if (user.role === 'admin') { const link = document.createElement('a'); link.href = '/admin-visitors.html'; link.textContent = '訪客統計'; node.append(link); }
+      if (user.mustChangePassword) { const link = document.createElement('a'); link.href = '/change-password.html'; link.textContent = '設定新密碼'; node.append(link); }
+      else if (user.role === 'admin') { const link = document.createElement('a'); link.href = '/admin-visitors.html'; link.textContent = '訪客統計'; node.append(link); }
       const logout = document.createElement('button'); logout.type = 'button'; logout.textContent = '登出';
       logout.onclick = async () => {
         logout.disabled = true;

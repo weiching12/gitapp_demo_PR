@@ -28,7 +28,9 @@
     "test:sync-runtime": "node tests/sync-coordinator-runtime.mjs",
     "test:presence-runtime": "node tests/presence-runtime.mjs",
     "test:refactor-browser": "node tests/refactor-browser-runtime.mjs",
-    "test:auth-runtime": "node tests/auth-runtime.mjs"
+    "test:auth-runtime": "node tests/auth-runtime.mjs",
+    "test:auth-proxy-runtime": "node tests/auth-proxy-runtime.mjs",
+    "test:pwa-build-runtime": "node tests/pwa-build-runtime.mjs"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.3",

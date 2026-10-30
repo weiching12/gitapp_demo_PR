@@ -1,7 +1,7 @@
 import { hashPassword, normalizeUsername, validUsername, verifyPassword, sha256, randomToken } from './password.js';
 import { currentUser, sessionToken, sessionCookie, SESSION_SECONDS, sameOrigin, authReply } from './session.js';
 let dummyHash;
-async function readLogin(request) {
+async function readBody(request) {
   let length = 0, chunks = [];
   const reader = request.body?.getReader();
   if (!reader) throw new Error('Invalid login');
@@ -14,7 +14,10 @@ async function readLogin(request) {
   }
   const bytes = new Uint8Array(length); let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-  const body = JSON.parse(new TextDecoder().decode(bytes));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+async function readLogin(request) {
+  const body = await readBody(request);
   const username = normalizeUsername(body?.username), password = body?.password;
   if (!validUsername(username) || typeof password !== 'string' || password.length < 1 || password.length > 128) throw new Error('Invalid login');
   return { username, password };
@@ -26,6 +29,39 @@ async function attempt(db, key, now, max) {
     RETURNING count`).bind(key, now + 15 * 60_000, now, now).first();
   return row.count <= max;
 }
+async function changePassword(request, env, time) {
+  const user = await currentUser(request, env, time);
+  if (!user) return authReply({ error: '請先登入' }, 401);
+  if (!user.mustChangePassword) return authReply({ error: '此帳號不需更改初始密碼' }, 403);
+  let input;
+  try { input = await readBody(request); } catch { return authReply({ error: '請輸入有效的新密碼' }, 400); }
+  if (typeof input?.password !== 'string' || input.password.length < 12 || input.password.length > 128)
+    return authReply({ error: '密碼必須為 12～128 字元' }, 400);
+  if (input.password !== input.confirmPassword) return authReply({ error: '兩次輸入的密碼不一致' }, 400);
+  const db = env.T86_DB;
+  const account = await db.prepare('SELECT password_hash FROM app_users WHERE id = ? AND disabled = 0 AND must_change_password = 1').bind(user.id).first();
+  if (!account) return authReply({ error: '登入狀態已變更，請重新登入' }, 409);
+  if (await verifyPassword(input.password, account.password_hash)) return authReply({ error: '新密碼不可與初始密碼相同' }, 400);
+  const passwordHash = await hashPassword(input.password), token = randomToken();
+  const oldTokenHash = await sha256(sessionToken(request)), tokenHash = await sha256(token);
+  // Only the request that replaces the original hash may revoke sessions or issue a new one.
+  // The original session must still be valid when the atomic batch commits.
+  await db.batch([
+    db.prepare(`UPDATE app_users SET password_hash = ?, must_change_password = 0
+      WHERE id = ? AND password_hash = ? AND must_change_password = 1 AND disabled = 0
+      AND EXISTS (SELECT 1 FROM auth_sessions WHERE token_hash = ? AND user_id = app_users.id AND expires_at > ?)`)
+      .bind(passwordHash, user.id, account.password_hash, oldTokenHash, time),
+    db.prepare(`DELETE FROM auth_sessions WHERE user_id = ? AND EXISTS
+      (SELECT 1 FROM app_users WHERE id = ? AND password_hash = ? AND must_change_password = 0 AND disabled = 0)`)
+      .bind(user.id, user.id, passwordHash),
+    db.prepare(`INSERT INTO auth_sessions(token_hash, user_id, expires_at)
+      SELECT ?, id, ? FROM app_users WHERE id = ? AND password_hash = ? AND must_change_password = 0 AND disabled = 0`)
+      .bind(tokenHash, time + SESSION_SECONDS * 1000, user.id, passwordHash),
+  ]);
+  const authenticated = await currentUser(new Request(request.url, { headers: { Cookie: sessionCookie(token) } }), env, time);
+  if (!authenticated) return authReply({ error: '登入狀態已變更，請重新登入' }, 409);
+  return authReply({ user: authenticated }, 200, { 'Set-Cookie': sessionCookie(token) });
+}
 export async function authController(request, env, action, { now = Date.now } = {}) {
   if (!sameOrigin(request)) return authReply({ error: '請從本站登入' }, 403);
   const method = action === 'me' ? 'GET' : 'POST';
@@ -33,6 +69,7 @@ export async function authController(request, env, action, { now = Date.now } = 
   try {
     if (action === 'me') return authReply({ user: await currentUser(request, env, now()) });
     if (!env.T86_DB) return authReply({ error: '帳號服務暫時無法使用' }, 503);
+    if (action === 'change-password') return await changePassword(request, env, now());
     if (action === 'logout') {
       const token = sessionToken(request);
       if (token) await env.T86_DB.prepare('DELETE FROM auth_sessions WHERE token_hash = ?').bind(await sha256(token)).run();

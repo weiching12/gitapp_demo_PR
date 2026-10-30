@@ -2,7 +2,7 @@
 
 部署後開啟 `/login.html`，輸入管理員帳號密碼。管理員會進入 `/admin-visitors.html`；一般使用者無法查閱統計。建置帳號、migration 與維護指令見 [帳號與管理員權限](accounts.md)。
 
-GET `/api/presence` 與 `/api/v1/presence` 均需要有效的管理員登入 Cookie，沒有登入回應 401，一般使用者回應 403。POST 僅回傳寫入成功，不公開數量。支援 `start`、`end`（YYYY-MM-DD）、`offset`，每頁最多 100 筆。回應禁止快取。舊版 `ADMIN_ANALYTICS_TOKEN` 已停用。
+GET `/api/presence` 與 `/api/v1/presence` 均需要有效的管理員登入 Cookie，沒有登入回應 401，一般使用者回應 403。使用臨時密碼登入、尚未完成首次密碼變更的帳號同樣回應 403；v1 的 `error.code` 為 `PASSWORD_CHANGE_REQUIRED`，舊版路徑則在頂層回傳 `code`。須先至 `/change-password.html` 建立新密碼才能查詢。這項限制由後端執行，無法透過修改前端或直接呼叫 API 繞過。POST 僅回傳寫入成功，不公開數量。支援 `start`、`end`（YYYY-MM-DD）、`offset`，每頁最多 100 筆。回應禁止快取。舊版 `ADMIN_ANALYTICS_TOKEN` 已停用。
 
 統計沿用既有 SQLite Durable Object，訪客紀錄本身不需新增 D1 migration；帳號登入需先套用 `0007_auth.sql`。啟動時匯入尚未刪除的舊瀏覽器紀錄；原始時間未知則為空值。之後依台北日期永久保留每日匿名識別碼、首次及最近紀錄時間，同時保留 Cloudflare 提供的來源 IP 與訪客選填國籍，不收集完整瀏覽路徑。國籍為自述資料，未驗證身分；IP 可能由多位使用者共用，不可當成唯一人數。正式 Worker 以 Cloudflare 覆寫的 CF-Connecting-IP 為來源，請勿在繞過 Cloudflare 的代理環境信任自訂標頭。最近時間是瀏覽器每日回報的時間，不代表精確離站或持續在線時間。需要容量及保留期限時應另外規劃清理政策。
 

@@ -9,7 +9,7 @@ import { presenceResponse } from '../cloudflare/presence.js';
 async function fixture() {
   const db = authDatabase();
   const hash = await hashPassword('correct-test-password');
-  for (const role of ['admin', 'user']) db.sqlite.prepare('INSERT INTO app_users VALUES (?, ?, ?, ?, 0, ?)').run(role, role, hash, role, Date.now());
+  for (const role of ['admin', 'user']) db.sqlite.prepare('INSERT INTO app_users(id, username, password_hash, role, disabled, created_at) VALUES (?, ?, ?, ?, 0, ?)').run(role, role, hash, role, Date.now());
   let time = Date.now(), calls = 0;
   const env = { T86_DB: db, ONLINE_PRESENCE: { getByName: () => ({ fetch: () => { calls++; return Response.json({ private: true }); } }) } };
   const send = (action, body, cookie, headers = {}) => authController(new Request(`https://stock.test/api/v1/auth/${action}`, {
@@ -36,7 +36,7 @@ test('shared login sets secure sessions; only the server-stored admin role can a
     const admin = await f.login('ADMIN'), user = await f.login('user');
     for (const flag of ['HttpOnly', 'Secure', 'SameSite=Strict', 'Path=/', 'Max-Age=43200']) assert.ok(admin.includes(flag));
     const identity = await (await f.send('me', null, user)).json();
-    assert.deepEqual(identity.user, { id: 'user', username: 'user', role: 'user' });
+    assert.deepEqual(identity.user, { id: 'user', username: 'user', role: 'user', mustChangePassword: false });
     assert.equal(JSON.stringify(identity).includes('password'), false);
     for (const path of ['/api/presence', '/api/v1/presence']) {
       assert.equal((await f.stats(null, path)).status, 401);
@@ -52,6 +52,133 @@ test('shared login sets secure sessions; only the server-stored admin role can a
     assert.equal((await f.stats(admin)).status, 403);
     f.db.sqlite.prepare("UPDATE app_users SET disabled=1 WHERE id='user'").run();
     assert.equal((await f.stats(user)).status, 401);
+  } finally { f.db.sqlite.close(); }
+});
+
+test('required password change blocks protected statistics until a new password rotates every old session', async () => {
+  const f = await fixture();
+  try {
+    f.db.sqlite.prepare("UPDATE app_users SET must_change_password = 1 WHERE id = 'admin'").run();
+    const firstLogin = await f.send('login', { username: 'admin', password: 'correct-test-password' });
+    assert.equal(firstLogin.status, 200);
+    assert.equal((await firstLogin.json()).user.mustChangePassword, true);
+    const old = firstLogin.headers.get('set-cookie'), other = await f.login('admin');
+    assert.equal((await (await f.send('me', null, old)).json()).user.mustChangePassword, true);
+    for (const path of ['/api/presence', '/api/v1/presence']) {
+      const blocked = await f.stats(old, path);
+      assert.equal(blocked.status, 403);
+      assert.equal((await blocked.json()).code, 'PASSWORD_CHANGE_REQUIRED');
+      assert.equal(blocked.headers.get('cache-control'), 'no-store');
+    }
+    assert.equal(f.calls(), 0);
+    const response = await f.send('change-password', { password: 'changed-test-password', confirmPassword: 'changed-test-password' }, old);
+    assert.equal(response.status, 200);
+    const user = (await response.json()).user;
+    assert.deepEqual(user, { id: 'admin', username: 'admin', role: 'admin', mustChangePassword: false });
+    const cookie = response.headers.get('set-cookie');
+    assert.notEqual(cookie, old);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal((await f.stats(old)).status, 401);
+    assert.equal((await f.stats(other)).status, 401);
+    assert.equal((await f.stats(cookie)).status, 200);
+    assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM auth_sessions').get().n, 1);
+    const stored = f.db.sqlite.prepare("SELECT * FROM app_users WHERE id = 'admin'").get();
+    assert.equal(stored.must_change_password, 0);
+    assert.equal(await verifyPassword('changed-test-password', stored.password_hash), true);
+    assert.equal(await verifyPassword('correct-test-password', stored.password_hash), false);
+    assert.equal((await f.send('login', { username: 'admin', password: 'correct-test-password' })).status, 401);
+    const login = await f.send('login', { username: 'admin', password: 'changed-test-password' });
+    assert.equal(login.status, 200);
+    assert.equal((await login.json()).user.mustChangePassword, false);
+  } finally { f.db.sqlite.close(); }
+});
+
+test('password changes require authentication, a pending change, same origin, confirmed new password and bounded input', async () => {
+  const f = await fixture();
+  try {
+    const body = { password: 'changed-test-password', confirmPassword: 'changed-test-password' };
+    assert.equal((await f.send('change-password', body)).status, 401);
+    const ordinary = await f.login('user');
+    assert.equal((await f.send('change-password', body, ordinary)).status, 403);
+    f.db.sqlite.prepare("UPDATE app_users SET must_change_password = 1 WHERE id = 'admin'").run();
+    const cookie = await f.login('admin');
+    assert.equal((await f.send('change-password', body, cookie, { Origin: 'https://evil.test' })).status, 403);
+    for (const input of [
+      { password: 'short', confirmPassword: 'short' },
+      { password: 'x'.repeat(129), confirmPassword: 'x'.repeat(129) },
+      { password: body.password, confirmPassword: 'different-password' },
+      { password: 'correct-test-password', confirmPassword: 'correct-test-password' },
+      { password: 'x'.repeat(3000), confirmPassword: 'x'.repeat(3000) },
+    ]) assert.equal((await f.send('change-password', input, cookie)).status, 400);
+    assert.equal(f.db.sqlite.prepare("SELECT must_change_password FROM app_users WHERE id = 'admin'").get().must_change_password, 1);
+    assert.equal((await (await f.send('me', null, cookie)).json()).user.mustChangePassword, true);
+  } finally { f.db.sqlite.close(); }
+});
+
+test('competing first-password changes cannot replace the winning password or revoke its new session', async () => {
+  const f = await fixture();
+  try {
+    f.db.sqlite.prepare("UPDATE app_users SET must_change_password = 1 WHERE id = 'admin'").run();
+    const cookie = await f.login('admin'), batch = f.db.batch.bind(f.db), releases = [];
+    let bothArrived;
+    const arrived = new Promise(resolve => { bothArrived = resolve; });
+    f.db.batch = async statements => {
+      await new Promise(resolve => { releases.push(resolve); if (releases.length === 2) bothArrived(); });
+      return batch(statements);
+    };
+    const first = f.send('change-password', { password: 'first-changed-password', confirmPassword: 'first-changed-password' }, cookie);
+    const second = f.send('change-password', { password: 'second-changed-password', confirmPassword: 'second-changed-password' }, cookie);
+    await arrived;
+    releases[0]();
+    // Hash derivation may finish in either order; let the first queued request complete.
+    const winner = await Promise.race([first, second]);
+    assert.equal(winner.status, 200);
+    releases[1]();
+    const results = await Promise.all([first, second]);
+    assert.deepEqual(results.map(response => response.status).sort(), [200, 409]);
+    const winnerCookie = winner.headers.get('set-cookie');
+    assert.equal((await f.stats(winnerCookie)).status, 200);
+    assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM auth_sessions').get().n, 1);
+    assert.equal(results.find(response => response.status === 409).headers.get('set-cookie'), null);
+  } finally { f.db.sqlite.close(); }
+});
+
+test('revoking the old session before the password-change batch prevents any password update', async () => {
+  const f = await fixture();
+  try {
+    f.db.sqlite.prepare("UPDATE app_users SET must_change_password = 1 WHERE id = 'admin'").run();
+    const cookie = await f.login('admin'), batch = f.db.batch.bind(f.db);
+    f.db.batch = statements => {
+      f.db.sqlite.prepare("DELETE FROM auth_sessions WHERE user_id = 'admin'").run();
+      return batch(statements);
+    };
+    const response = await f.send('change-password', { password: 'changed-test-password', confirmPassword: 'changed-test-password' }, cookie);
+    assert.equal(response.status, 409);
+    const account = f.db.sqlite.prepare("SELECT * FROM app_users WHERE id = 'admin'").get();
+    assert.equal(account.must_change_password, 1);
+    assert.equal(await verifyPassword('correct-test-password', account.password_hash), true);
+    assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM auth_sessions').get().n, 0);
+  } finally { f.db.sqlite.close(); }
+});
+
+test('password-change transaction failure retains the old password, flag and sessions for a safe retry', async () => {
+  const f = await fixture();
+  try {
+    f.db.sqlite.prepare("UPDATE app_users SET must_change_password = 1 WHERE id = 'admin'").run();
+    const cookie = await f.login('admin'), batch = f.db.batch.bind(f.db);
+    f.db.batch = statements => {
+      statements[2].run = async () => { throw new Error('Simulated session insert failure'); };
+      return batch(statements);
+    };
+    const response = await f.send('change-password', { password: 'changed-test-password', confirmPassword: 'changed-test-password' }, cookie);
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get('set-cookie'), null);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    const account = f.db.sqlite.prepare("SELECT * FROM app_users WHERE id = 'admin'").get();
+    assert.equal(account.must_change_password, 1);
+    assert.equal(await verifyPassword('correct-test-password', account.password_hash), true);
+    assert.equal((await (await f.send('me', null, cookie)).json()).user.mustChangePassword, true);
+    assert.equal(f.db.sqlite.prepare('SELECT count(*) n FROM auth_sessions').get().n, 1);
   } finally { f.db.sqlite.close(); }
 });
 test('logout revokes the server session and expired or invented cookies never authenticate', async () => {

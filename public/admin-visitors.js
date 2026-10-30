@@ -41,6 +41,10 @@ async function load() {
       credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
     });
     if (response.status === 401) { clearReport(); location.replace('/login.html'); return; }
+    if (response.status === 403) {
+      const failure = await response.clone().json().catch(() => null);
+      if ((failure?.error?.code || failure?.code) === 'PASSWORD_CHANGE_REQUIRED') { clearReport(); location.replace('/change-password.html'); return; }
+    }
     if (!response.ok) throw new Error(response.status === 403 ? '僅管理員可查看造訪紀錄' : response.status === 503 ? '統計服務尚未設定或暫時無法使用' : '查詢失敗，請確認日期範圍');
     const data = await response.json();
     if (currentGeneration !== generation) return;

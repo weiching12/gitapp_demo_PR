@@ -1,10 +1,27 @@
 import { defineConfig } from "vite";
 import { createHash } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
+function publicAssetFingerprint(directory) {
+  const hash = createHash("sha256");
+  const visit = (path, prefix = "") => {
+    for (const item of readdirSync(path, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const name = `${prefix}${item.name}`, file = join(path, item.name);
+      if (item.isDirectory()) visit(file, `${name}/`);
+      else if (item.isFile()) hash.update(name).update("\0").update(readFileSync(file)).update("\0");
+    }
+  };
+  if (directory) visit(directory);
+  return hash.digest("hex");
+}
 
 function pwaServiceWorker() {
+  let publicDirectory;
   return {
     name: "stock-insight-pwa",
     apply: "build",
+    configResolved(config) { publicDirectory = config.publicDir; },
     generateBundle(_, bundle) {
       const files = Object.values(bundle)
         .map((item) => `/${item.fileName}`)
@@ -13,15 +30,15 @@ function pwaServiceWorker() {
       this.emitFile({
         type: "asset",
         fileName: "sw.js",
-        source: serviceWorkerSource(files, bundle),
+        source: serviceWorkerSource(files, bundle, publicAssetFingerprint(publicDirectory)),
       });
     },
   };
 }
 
-function serviceWorkerSource(files, bundle) {
+function serviceWorkerSource(files, bundle, publicFingerprint) {
   const version = createHash("sha256").update(Object.values(bundle).map((item) =>
-    `${item.fileName}:${item.type === "asset" ? String(item.source) : item.code}`).join("|")).digest("hex").slice(0, 16);
+    `${item.fileName}:${item.type === "asset" ? String(item.source) : item.code}`).join("|")).update(publicFingerprint).digest("hex").slice(0, 16);
   // Separate this policy from older shells that cached research API responses.
   return `const SHELL_CACHE = ${JSON.stringify(`stock-insight-shell-v2-${version}`)};
 const DATA_CACHE = "stock-insight-market-v2";
@@ -144,9 +161,17 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: native ? [] : [pwaServiceWorker()],
     server: { proxy: {
-      "/api/v1/auth": "http://127.0.0.1:8787",
-      "/api/v1/presence": "http://127.0.0.1:8787",
-      "/api/presence": "http://127.0.0.1:8787",
+      ...Object.fromEntries(["/api/v1/auth", "/api/v1/presence", "/api/presence"].map(path => [path, {
+        target: "http://127.0.0.1:8787", changeOrigin: true,
+        configure(proxy) {
+          proxy.on("proxyReq", (outgoing, incoming) => {
+            // Match the browser's original origin before translating the local dev hop.
+            // Foreign origins stay intact so the Worker still rejects them.
+            if (incoming.headers.origin === `http://${incoming.headers.host}`)
+              outgoing.setHeader("Origin", `http://${outgoing.getHeader("host")}`);
+          });
+        },
+      }])),
     } },
     build: { outDir: native ? "dist-native" : "dist" },
     define: {

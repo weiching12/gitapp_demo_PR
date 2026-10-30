@@ -74,6 +74,7 @@ export async function presenceResponse(request, env) {
     try { user = await currentUser(request, env); }
     catch { return reply({ error: "帳號服務暫時無法使用" }, 503); }
     if (!user) return reply({ error: "請先登入" }, 401);
+    if (user.mustChangePassword) return reply({ code: "PASSWORD_CHANGE_REQUIRED", error: "請先更改初始密碼" }, 403);
     if (user.role !== "admin") return reply({ error: "僅管理員可查看造訪紀錄" }, 403);
   }
   if (!env.ONLINE_PRESENCE) return reply({ error: "Daily visitor count unavailable" }, 503);
