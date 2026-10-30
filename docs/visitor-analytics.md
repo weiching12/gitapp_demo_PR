@@ -1,15 +1,28 @@
-# 管理員訪客統計
+# 管理員瀏覽統計
 
 部署後開啟 `/login.html`，輸入管理員帳號密碼。管理員會進入 `/admin-visitors.html`；一般使用者無法查閱統計。建置帳號、migration 與維護指令見 [帳號與管理員權限](accounts.md)。
 
 GET `/api/presence` 與 `/api/v1/presence` 均需要有效的管理員登入 Cookie，沒有登入回應 401，一般使用者回應 403。使用臨時密碼登入、尚未完成首次密碼變更的帳號同樣回應 403；v1 的 `error.code` 為 `PASSWORD_CHANGE_REQUIRED`，舊版路徑則在頂層回傳 `code`。須先至 `/change-password.html` 建立新密碼才能查詢。這項限制由後端執行，無法透過修改前端或直接呼叫 API 繞過。POST 僅回傳寫入成功，不公開數量。支援 `start`、`end`（YYYY-MM-DD）、`offset`，每頁最多 100 筆。回應禁止快取。舊版 `ADMIN_ANALYTICS_TOKEN` 已停用。
 
-統計沿用既有 SQLite Durable Object，訪客紀錄本身不需新增 D1 migration；帳號登入需先套用 `0007_auth.sql`。啟動時匯入尚未刪除的舊瀏覽器紀錄；原始時間未知則為空值。之後依台北日期永久保留每日匿名識別碼、首次及最近紀錄時間，同時保留 Cloudflare 提供的來源 IP 與訪客選填國籍，不收集完整瀏覽路徑。國籍為自述資料，未驗證身分；IP 可能由多位使用者共用，不可當成唯一人數。正式 Worker 以 Cloudflare 覆寫的 CF-Connecting-IP 為來源，請勿在繞過 Cloudflare 的代理環境信任自訂標頭。最近時間是瀏覽器每日回報的時間，不代表精確離站或持續在線時間。需要容量及保留期限時應另外規劃清理政策。
+統計沿用既有 SQLite Durable Object，新 `visit_events` 表逐筆保存每次進入或重新載入頁面的事件。同一瀏覽器再次進入會再計數，**不按瀏覽器或日期去重**。同頁面重建導覽、失敗重試及修改國籍不會增加次數。前端跨台北午夜會更新回報的頁面事件 key。事件以首次接收時間所屬的台北日期保存；重試或資料更新不會將舊事件移到其他日。
 
-不同裝置、瀏覽器或清除 localStorage 會視為不同訪客；這是匿名瀏覽器估計，不能辨識真實個人，也不保證排除機器流量。啟用前已刪除的歷史資料無法回補，無紀錄日期不等於零訪客。
+POST body 為 `{id, visitId?, nationality?, metadataOnly?}`，上限 512 UTF-8 bytes。`id` 與 `visitId` 使用 UUID v4；`visitId` 每次頁面載入重新生成，網路重試沿用同值，因此重送不會膨脹計數。國籍最多 80 字元。`metadataOnly:true` 必須帶 `visitId`，只更新該 `id` 已有事件的資料；不存在不建立，也不允許改綁其他瀏覽器。舊客戶端只有 `id` 時，每次 POST 各計一次。瀏覽器 ID 保留作為明細欄位，不代表唯一人數，也不能辨識真實個人或保證排除機器流量。
+
+原 `visit_history` 與 `visitors` 保留不刪，舊每日瀏覽器紀錄每列只安全換算為至少一次瀏覽，不能重建當時被去重的重複進入次數。匯入以永久 `legacy_key`、固定事件 key 與完成標記確保重啟／中途重試不重複匯入。時間未知維持 `null`；已刪除的歷史不能回補。此為 DO 內部 schema 升級，不新增 D1 migration；帳號仍需 `0007_auth.sql` 與 `0008_required_password_change.sql`。
+
+事件永久保留匿名識別碼、首次／最近回報時間、Cloudflare 提供的來源 IP 與訪客選填國籍，不收集完整瀏覽路徑。國籍為自述資料，未驗證身分；IP 可能多人共用，不作為唯一人數。正式 Worker 信任 Cloudflare 覆寫的 `CF-Connecting-IP`，繞過 Cloudflare 的代理環境不能信任任意自訂標頭。最近時間不代表精確離站或持續在線時間；容量與保留期限需要另行規劃清理政策。
 
 連線國家／地區來自 Cloudflare `CF-IPCountry`（ISO 國碼，缺少時顯示未知），不能代表國籍；VPN 或代理可能導致誤差。
 
-趨勢面板整合「每日」、「每月」及「全部歷史（按月）」。每日範圍最多 366 天，每月範圍最多 3651 天；全部歷史自最早保留日期至今日。月統計與期間總人數皆使用 DISTINCT 瀏覽器識別碼，並非每日人數相加。月統計以選定日期範圍計算，首尾月份可能不完整。API 可指定 `period=day|month`、`scope=range|history`，歷史模式固定按月。
+管理頁使用 `GET /api/v1/presence?month=YYYY-MM` 自動載入該月每日統計；未指定舊版範圍時預設當月。當月 `end` 截至台北今日。未來月份、無效月份及日期回 400；沒有紀錄的歷史月份仍可查詢並回空陣列，趨勢不補造缺少日期的零值。
+
+- `daily[]` 的 `{day,visitors,visits}` 為每日瀏覽次數，`visits` 與舊欄名 `visitors` 相同。
+- `total` 是選定月份或舊範圍的全部事件次數。
+- `selectedDay=YYYY-MM-DD` 必須是月份／範圍內的有效日期，而且不晚於今日；只篩選 `visitors[]` 明細與 `detailTotal`，不改變整月趨勢或 `total`。未選日則 `detailTotal` 等於該範圍總筆數。
+- 明細依日期、首次接收時間倒序；`offset` 非負整數，每頁固定最多 100 筆。每列含 `event_id`、瀏覽器 `id`、日期、首次／最近回報時間及管理員可見資料。
+- `overall:{total,firstDay,lastDay}` 是所有保留事件的累積總次數與最早／最近日期，不隨月份、選日或分頁改變；空資料日期回 `null`。
+- `months[]` 為有紀錄的月份加上當月，最新在前；也允許另外查詢沒有紀錄的歷史月份。
+
+舊版 `start`、`end`、`period=day|month`、`scope=range|history` 可繼續使用。每日範圍最多 366 天，按月最多 3651 天，全部歷史自最早保留日期至今日。每日、每月及全部歷史都累加事件次數；保留的 `unique` 僅為舊版相容欄位，管理頁不以它顯示瀏覽量。
 
 國籍可由訪客在工作台右上方「訪客資料說明」選填；同一瀏覽器會記住填寫值，後續每日回報沿用。國籍與 IP 推估的連線國家／地區分開儲存與顯示。

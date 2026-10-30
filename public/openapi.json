@@ -1149,7 +1149,12 @@
                             "type": "string"
                           },
                           "visitors": {
-                            "type": "integer"
+                            "type": "integer",
+                            "description": "Page-entry count, including repeat entries by the same browser."
+                          },
+                          "visits": {
+                            "type": "integer",
+                            "description": "Alias of visitors for page-entry terminology."
                           }
                         }
                       }
@@ -1159,6 +1164,7 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "event_id": { "type": "string", "description": "Unique page-entry key; migrated legacy events have a legacy: prefix." },
                           "day": {
                             "type": "string"
                           },
@@ -1199,11 +1205,26 @@
                       }
                     },
                     "unique": {
-                      "type": "integer"
+                      "type": "integer",
+                      "description": "Distinct-browser compatibility field; not the page-entry metric displayed by the administrator UI."
                     },
                     "total": {
-                      "type": "integer"
+                      "type": "integer",
+                      "description": "All page entries in the selected month/range; selectedDay and pagination do not change this count."
                     },
+                    "detailTotal": { "type": "integer", "description": "Number of event rows matching selectedDay, or the full range when no day is selected." },
+                    "selectedDay": { "type": ["string", "null"], "description": "Applied day filter for detail rows only." },
+                    "month": { "type": ["string", "null"], "description": "Selected YYYY-MM; null for legacy date-range/history requests." },
+                    "overall": {
+                      "type": "object",
+                      "required": ["total", "firstDay", "lastDay"],
+                      "properties": {
+                        "total": { "type": "integer", "description": "Lifetime retained page-entry count, independent of the selected month/day and pagination." },
+                        "firstDay": { "type": ["string", "null"] },
+                        "lastDay": { "type": ["string", "null"] }
+                      }
+                    },
+                    "months": { "type": "array", "items": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$" }, "description": "Recorded months plus the current Taipei month, newest first. Empty historical months may still be queried explicitly." },
                     "offset": {
                       "type": "integer"
                     },
@@ -1254,16 +1275,24 @@
             "description": "Account login required"
           },
           "400": {
-            "description": "Invalid date range, period or offset"
+            "description": "Invalid/future month, selected day outside the selected month/range or in the future, invalid date range, period or offset"
           }
         },
-        "description": "Administrator-only daily, monthly and whole-history visitor analytics. Requires an authenticated session whose current server-side role is admin and mustChangePassword is false. All dates use Asia/Taipei. No public counts.",
+        "description": "Administrator-only page-entry analytics. Select month=YYYY-MM for its daily trend; selectedDay filters detail rows only. Counts include repeat entries and reloads in the same browser. overall.total always covers all retained events, independent of filters. Without query parameters, the current month is used. Legacy start/end/period/scope remain supported. Requires a server-checked admin session with mustChangePassword=false. All dates use Asia/Taipei. No public counts.",
         "security": [
           {
             "AccountSession": []
           }
         ],
         "parameters": [
+          {
+            "name": "month", "in": "query", "description": "Taipei calendar month; defaults to the current month when no legacy range parameters are supplied. Future months are rejected. Empty historical months are allowed.",
+            "schema": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$" }
+          },
+          {
+            "name": "selectedDay", "in": "query", "description": "Valid day within the selected month/range and not later than today; filters detail rows, not monthly/lifetime totals or the trend.",
+            "schema": { "type": "string", "format": "date" }
+          },
           {
             "name": "start",
             "in": "query",
@@ -1317,7 +1346,7 @@
       },
       "post": {
         "operationId": "heartbeat",
-        "description": "Same-origin visit registration. Browser UUID and optional self-reported nationality; source IP and connection country come from Cloudflare. Returns only a receipt.",
+        "description": "Same-origin page-entry registration, max 512 UTF-8 bytes. Use one fresh UUID visitId for each page entry/reload and reuse it for retries. Repeat browsers count again with a new key. metadataOnly=true requires visitId and only updates an existing event owned by id, without increasing counts. Legacy requests with only id create a new event on every POST. Source IP and connection country come from Cloudflare. Returns only a receipt.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1332,6 +1361,8 @@
                     "type": "string",
                     "format": "uuid"
                   },
+                  "visitId": { "type": "string", "format": "uuid", "description": "Page-entry UUID v4; retry with the same value to avoid duplicate delivery counts." },
+                  "metadataOnly": { "type": "boolean", "default": false, "description": "Requires visitId; updates existing metadata without adding a page entry." },
                   "nationality": {
                     "type": "string",
                     "maxLength": 80

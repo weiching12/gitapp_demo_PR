@@ -12,12 +12,14 @@ test('invalid browser identifiers and malformed or oversized stream bodies are r
   const db = new DatabaseSync(':memory:');
   try {
     const presence = new OnlinePresence({ storage: { sql: sqlFor(db) } });
-    for (const body of ['{', 'null', '{}', JSON.stringify({ id: 'bad' }), JSON.stringify({ id: crypto.randomUUID(), nationality: 123 })]) {
+    for (const body of ['{', 'null', '{}', JSON.stringify({ id: 'bad' }), JSON.stringify({ id: crypto.randomUUID(), nationality: 123 }),
+      JSON.stringify({ id: crypto.randomUUID(), visitId: 'bad' }), JSON.stringify({ id: crypto.randomUUID(), metadataOnly: true }),
+      JSON.stringify({ id: crypto.randomUUID(), metadataOnly: 'true' })]) {
       assert.equal((await presence.fetch(new Request('https://stock.test/api/presence', { method: 'POST', body }))).status, 400);
     }
     const stream = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('界'.repeat(171))); controller.close(); } });
     assert.equal((await presence.fetch(new Request('https://stock.test/api/presence', { method: 'POST', duplex: 'half', body: stream }))).status, 413);
-    assert.equal(db.prepare('SELECT count(*) n FROM visit_history').get().n, 0);
+    assert.equal(db.prepare('SELECT count(*) n FROM visit_events').get().n, 0);
   } finally { db.close(); }
 });
 test('legacy daily records are imported once with unknown timestamps', async () => {
@@ -29,9 +31,13 @@ test('legacy daily records are imported once with unknown timestamps', async () 
     new OnlinePresence(ctx); new OnlinePresence(ctx);
     const rows = db.prepare('SELECT * FROM visit_history').all();
     assert.equal(rows.length, 1); assert.equal(rows[0].day, '2026-10-22'); assert.equal(rows[0].first_seen, null);
+    const events = db.prepare('SELECT * FROM visit_events').all();
+    assert.equal(events.length, 1); assert.equal(events[0].legacy_key, `2026-10-22:${rows[0].id}`);
+    assert.equal(events[0].first_seen, null);
+    assert.equal(db.prepare('SELECT count(*) n FROM presence_migrations').get().n, 1);
   } finally { db.close(); }
 });
-test('daily visitor policy validates identifiers and uses Taipei midnight', () => {
+test('page visit policy validates identifiers and uses Taipei dates', () => {
   const calls = [], now = Date.UTC(2026, 9, 22, 15, 50);
   const service = new PresenceService({ recordVisit(input) { calls.push(input); return 7; }, countVisits() { return 7; } }, { now: () => now });
   for (const id of [undefined, null, 123, '', '6ba7b810-9dad-11d1-80b4-00c04fd430c8']) assert.throws(() => service.heartbeat(id), InvalidPresenceIdentifier);

@@ -1,30 +1,109 @@
-export async function startAccountMenu(node) {
-  if (!node) return;
-  const render = async () => {
+// One document shares account state and a single cross-tab subscription across
+// the desktop top bar and repeatedly opened mobile settings.
+const menus = new Map();
+let user = null, loaded = false, busy = false, logoutFailed = false;
+let generation = 0, pending, controller, channel, listening = false;
+
+function accountLink(text, href, settings) {
+  const link = document.createElement('a');
+  link.href = href; link.textContent = text;
+  if (settings) link.className = 'outline-button account-destination';
+  return link;
+}
+
+function render(node, settings) {
+  node.replaceChildren();
+  if (!user) {
+    const login = accountLink('登入', '/login.html', settings);
+    if (settings) login.className = 'outline-button account-login';
+    node.append(login); return;
+  }
+  const label = document.createElement('span');
+  label.className = 'account-identity'; label.textContent = user.username; label.title = user.username;
+  node.append(label);
+  const destination = user.mustChangePassword
+    ? accountLink('設定新密碼', '/change-password.html', settings)
+    : user.role === 'admin' ? accountLink('訪客統計', '/admin-visitors.html', settings) : null;
+  if (destination && !settings) node.append(destination);
+  const logout = document.createElement('button');
+  logout.type = 'button'; logout.textContent = busy ? '登出中…' : logoutFailed ? '登出失敗，重試' : '登出';
+  logout.disabled = busy;
+  if (settings) logout.className = 'outline-button account-logout';
+  logout.onclick = () => void signOut();
+  node.append(logout);
+  if (destination && settings) node.append(destination);
+}
+
+function notify() {
+  for (const [node, settings] of menus) {
+    if (node.isConnected) render(node, settings);
+    else menus.delete(node);
+  }
+  if (!menus.size) stopListening();
+}
+
+function invalidateRequest() {
+  generation++; controller?.abort(); controller = null; pending = null;
+}
+
+async function refresh(force = false) {
+  if (force) invalidateRequest();
+  if (pending) return pending;
+  const requestGeneration = generation;
+  const abort = new AbortController(); controller = abort;
+  pending = Promise.resolve().then(async () => {
     try {
-      const response = await fetch('/api/v1/auth/me', { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+      const response = await fetch('/api/v1/auth/me', { credentials: 'same-origin', cache: 'no-store',
+        signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]) });
       if (!response.ok) return;
-      const { user } = await response.json();
-      if (!node.isConnected) return;
-      node.replaceChildren();
-      if (!user) { const link = document.createElement('a'); link.href = '/login.html'; link.textContent = '登入'; node.append(link); return; }
-      const label = document.createElement('span'); label.textContent = user.username; label.title = user.username; node.append(label);
-      if (user.mustChangePassword) { const link = document.createElement('a'); link.href = '/change-password.html'; link.textContent = '設定新密碼'; node.append(link); }
-      else if (user.role === 'admin') { const link = document.createElement('a'); link.href = '/admin-visitors.html'; link.textContent = '訪客統計'; node.append(link); }
-      const logout = document.createElement('button'); logout.type = 'button'; logout.textContent = '登出';
-      logout.onclick = async () => {
-        logout.disabled = true;
-        try {
-          const response = await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin', cache: 'no-store' });
-          if (!response.ok) throw new Error();
-          const channel = new BroadcastChannel('stock-insight-auth'); channel.postMessage('changed'); channel.close();
-          await render();
-        } catch { logout.textContent = '登出失敗，重試'; logout.disabled = false; }
-      };
-      node.append(logout);
-    } catch { /* Public browsing remains available when account services are offline. */ }
-  };
-  const channel = new BroadcastChannel('stock-insight-auth');
-  channel.onmessage = () => { if (node.isConnected) void render(); else channel.close(); };
-  await render();
+      const body = await response.json();
+      if (!Object.hasOwn(body ?? {}, 'user') || (body.user !== null &&
+          (typeof body.user?.username !== 'string' || !['admin', 'user'].includes(body.user.role)))) return;
+      if (requestGeneration !== generation) return;
+      user = body.user; loaded = true; logoutFailed = false; notify();
+    } catch { /* Account services must not prevent public market browsing. */ }
+    finally { if (requestGeneration === generation) { pending = null; controller = null; } }
+  });
+  return pending;
+}
+
+async function signOut() {
+  if (busy) return;
+  invalidateRequest(); busy = true; logoutFailed = false; notify();
+  try {
+    const response = await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error();
+    invalidateRequest();
+    user = null; loaded = true;
+    channel?.postMessage('changed');
+  } catch { logoutFailed = true; }
+  finally { busy = false; notify(); }
+}
+
+const onFocus = () => { if (!document.hidden && !busy) void refresh(); };
+function stopListening() {
+  channel?.close(); channel = null;
+  if (listening) {
+    window.removeEventListener('focus', onFocus);
+    document.removeEventListener('visibilitychange', onFocus);
+    listening = false;
+  }
+  invalidateRequest();
+}
+
+export function startAccountMenu(node, { settings = false } = {}) {
+  if (!node) return;
+  menus.set(node, settings);
+  if (!listening) {
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel('stock-insight-auth');
+      channel.onmessage = () => { if (!busy) void refresh(true); };
+    }
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    listening = true;
+  }
+  render(node, settings);
+  if (!loaded || settings) void refresh();
+  return { refresh: () => refresh(), stop() { menus.delete(node); if (!menus.size) stopListening(); } };
 }

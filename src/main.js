@@ -131,7 +131,7 @@ const tableState = { visibleLimit: TABLE_BATCH_SIZE, viewKey: "", observer: unde
 const tableBatches = createTableBatchController({ state: tableState, batchSize: TABLE_BATCH_SIZE, render: () => renderTable() });
 let toastTimer;
 let isDemo;
-let presence, stopUpdateCountdown, usingCachedData = false;
+let presence, accountMenu, settingsAccountMenu, stopUpdateCountdown, usingCachedData = false;
 let nativeStorage, nativePush;
 let checkPwaUpdate = async () => false;
 let startupVersionCheck = Promise.resolve(false);
@@ -339,6 +339,7 @@ async function finishAppSplashBeforeLoading() {
 }
 
 function shell() {
+  accountMenu?.stop(); settingsAccountMenu?.stop();
   document.querySelector("#app").innerHTML = shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc });
   presence?.stop();
   if (nativeMode) {
@@ -348,7 +349,7 @@ function shell() {
   }
   else {
     presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
-    void startAccountMenu(document.querySelector("#account-menu"));
+    accountMenu = startAccountMenu(document.querySelector("#account-menu"));
   }
 }
 
@@ -663,6 +664,7 @@ function animateEntryScore(dialog) {
 }
 
 function openDialog(type, focusClose = true, showResearch = false) {
+  settingsAccountMenu?.stop(); settingsAccountMenu = null;
   const infoDialog = document.querySelector("#info-dialog");
   if (!type.startsWith("entry:") || infoDialog.dataset.entrySymbol !== type.slice(6)) delete infoDialog.dataset.mobileSheet;
   infoDialog.dataset.entrySymbol = type.startsWith("entry:") ? type.slice(6) : "";
@@ -675,8 +677,11 @@ function openDialog(type, focusClose = true, showResearch = false) {
     updateStatus.hidden = true;
     updateStatus.textContent = "";
     content.innerHTML = `<h2 id="dialog-heading">設定</h2><p class="dialog-intro">色彩主題選擇後立即套用；KD 指標需按「指標儲存」。</p><section class="settings-theme" aria-labelledby="settings-theme-heading"><h3 id="settings-theme-heading">顯示 <span>選擇後立即套用</span></h3><div class="form-field"><label for="theme">色彩主題</label><select id="theme" name="theme"><option value="light"${state.theme === "light" ? " selected" : ""}>淺色</option><option value="dark"${state.theme === "dark" ? " selected" : ""}>深色</option></select></div></section><form id="settings-form"><fieldset class="settings-group"><legend>KD 指標</legend><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div></fieldset><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 指標儲存</button></div></form>`;
-    if (!nativeMode) content.querySelector(".dialog-intro").insertAdjacentHTML("afterend",
-      `<section class="settings-account" aria-labelledby="settings-account-heading"><h3 id="settings-account-heading">帳號</h3><a class="outline-button" href="/login.html">登入</a></section>`);
+    if (!nativeMode) {
+      content.querySelector(".dialog-intro").insertAdjacentHTML("afterend",
+        `<section class="settings-account" aria-labelledby="settings-account-heading"><h3 id="settings-account-heading">帳號</h3><div id="settings-account-menu" class="account-menu"></div></section>`);
+      settingsAccountMenu = startAccountMenu(content.querySelector("#settings-account-menu"), { settings: true });
+    }
   } else if (type.startsWith("entry:")) {
     const symbol = type.slice(6);
     const stock = snapshots.find((item) => item.symbol === symbol);

@@ -15,30 +15,23 @@
     <nav aria-label="管理頁面導覽"><a class="back-link" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg><span>研究工作台</span></a><button class="quiet-button" id="logout" type="button" hidden>登出</button></nav>
   </div></header>
   <main>
-    <header class="page-heading"><div><p class="eyebrow">VISITOR ANALYTICS</p><h1>訪客統計</h1><p class="intro">依台灣時間檢視造訪趨勢與紀錄。</p></div><span class="timezone">台灣時間 UTC+8</span></header>
+    <header class="page-heading"><div><p class="eyebrow">VISITOR ANALYTICS</p><h1>訪客統計</h1></div><span class="timezone">台灣時間 UTC+8</span></header>
     <div class="feedback" role="status" aria-live="polite"><p id="status"></p><button class="quiet-button" id="retry" type="button" hidden>重新載入</button><p id="login" hidden><a href="/login.html">使用其他帳號登入</a></p></div>
-    <section class="query-panel" id="query-panel" aria-label="統計查詢" hidden>
-      <form id="filters">
-        <label class="view-field" for="view">趨勢檢視<select id="view"><option value="day">每日</option><option value="month">每月</option><option value="history">全部歷史（按月）</option></select></label>
-        <label for="start">開始日期<input type="date" id="start" required></label>
-        <label for="end">結束日期<input type="date" id="end" required></label>
-        <button class="primary-button" id="query" type="submit">查詢</button>
-      </form>
-    </section>
     <div id="report" hidden>
-      <section class="panel overview" aria-label="造訪摘要"><div class="today-summary"><p class="section-label">今日瀏覽者</p><div class="today-number"><strong id="today">—</strong><span>位</span></div><p id="today-date"></p></div><div class="range-info"><p class="section-label">查詢期間</p><p id="range-summary"></p><p class="muted">同一瀏覽器去除重複計算；不同裝置或清除儲存空間會分別計數。</p></div></section>
-      <section class="panel trend-panel" aria-labelledby="trend-title">
-        <div class="section-heading"><h2 id="trend-title">每日瀏覽者趨勢</h2><span class="chart-legend"><i aria-hidden="true"></i>不重複瀏覽器</span></div>
-        <div id="trend"></div>
-        <p class="chart-note">無紀錄期間保留缺口；月份首尾依選定日期統計。</p>
-        <details class="daily-details"><summary>查看數量明細</summary><div class="daily-scroll"><table><thead><tr><th scope="col">日期</th><th scope="col">不重複瀏覽器</th></tr></thead><tbody id="daily"></tbody></table></div></details>
+      <section class="panel overview" aria-label="造訪摘要">
+        <div class="summary-metrics"><div><p class="section-label">今日瀏覽數</p><div class="metric-number"><strong id="today">—</strong><span>次</span></div><p id="today-date" class="metric-date"></p></div><div><p class="section-label">累積瀏覽數</p><div class="metric-number"><strong id="cumulative">—</strong><span>次</span></div><p id="overall-start" class="metric-date"></p></div></div>
+        <dl class="month-summary"><div><dt>統計月份</dt><dd id="month-range">—</dd></div><div><dt>月份瀏覽數</dt><dd><strong id="month-total">—</strong><span> 次</span></dd></div></dl>
       </section>
-      <section class="panel visitors-panel" aria-labelledby="visitors-heading">
-        <div class="section-heading"><h2 id="visitors-heading">造訪明細</h2><span class="scroll-hint">左右滑動查看完整明細</span></div>
+      <section class="panel trend-panel" aria-labelledby="trend-title">
+        <div class="section-heading"><h2 id="trend-title">每日瀏覽數</h2><label class="month-control" for="month"><span>月份</span><select id="month" aria-label="月份"></select></label></div>
+        <div id="trend"></div>
+        <div class="visitor-details" aria-labelledby="visitors-heading">
+        <div class="section-heading detail-heading"><div><h2 id="visitors-heading">造訪明細</h2><p id="selected-day-text"></p></div><button class="quiet-button" id="show-month" type="button" hidden>查看全月</button></div>
         <div class="scroll" role="region" aria-label="造訪明細表格，可左右捲動" tabindex="0"><table class="visitor-table"><thead><tr><th scope="col">日期</th><th scope="col">匿名識別碼</th><th scope="col">國籍（自填）</th><th scope="col">IP</th><th scope="col">連線國家／地區</th><th scope="col">首次造訪</th><th scope="col">最近造訪</th></tr></thead><tbody id="visitors"></tbody></table></div>
         <div class="pagination"><p id="pagination"></p><div><button class="quiet-button" id="previous" type="button">上一頁</button><button class="quiet-button" id="next" type="button">下一頁</button></div></div>
+        </div>
       </section>
-      <details class="data-notes"><summary>統計方式與資料說明</summary><p>每日與每月人數分別去除重複瀏覽器。每日最多查詢 366 天，每月最多 10 年；全部歷史按月呈現。每頁最多顯示 100 筆造訪紀錄。</p><p>歷史資料自此功能啟用後保留，舊紀錄可能沒有造訪時間。國籍由訪客自行填寫；連線國家／地區由 IP 推估，可能受 VPN 或代理影響，不代表國籍。匿名瀏覽器計數不等於真實人數。</p></details>
+      <details class="data-notes"><summary>資料說明</summary><p>同一瀏覽器重複進入網頁會分別計次。舊版紀錄只保留當時已儲存的造訪，無法回補過去未記錄的重複次數。</p><p>國籍由訪客自行填寫；連線國家／地區由 IP 推估，可能受 VPN 或代理影響。每頁最多顯示 100 筆紀錄。</p></details>
     </div>
     <footer class="page-footer">株研 <span>STOCK RESEARCH</span></footer>
   </main>

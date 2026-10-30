@@ -5,8 +5,7 @@ const reply = (body, status = 200) => Response.json(body, {
   status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
 });
 
-// A single SQLite-backed object deduplicates browsers across Worker regions.
-// Store daily browser records and administrator-only visitor metadata.
+// One SQLite-backed object stores page-entry events across Worker regions.
 export class OnlinePresence {
   constructor(ctx) {
     this.sql = ctx.storage.sql;
@@ -23,16 +22,33 @@ export class OnlinePresence {
       const scope = url.searchParams.get("scope") || "range";
       if (!["day", "month"].includes(period) || !["range", "history"].includes(scope)) return reply({ error: "Invalid period" }, 400);
       if (scope === "history") period = "month";
-      const end = scope === "history" ? today : url.searchParams.get("end") || today;
-      const start = scope === "history" ? (this.repository.firstDay() || today) : url.searchParams.get("start") || new Date(this.now() + 8 * 3600000 - 29 * 86400000).toISOString().slice(0, 10);
+      const month = url.searchParams.has("month") ? url.searchParams.get("month")
+        : !["start", "end", "period", "scope"].some(key => url.searchParams.has(key)) ? today.slice(0, 7) : null;
+      let start, end;
+      if (month !== null) {
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || Number(month.slice(0, 4)) < 1 || month > today.slice(0, 7)) return reply({ error: "Invalid month" }, 400);
+        start = `${month}-01`;
+        const nextMonth = new Date(`${start}T00:00:00Z`);
+        nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+        end = new Date(nextMonth.getTime() - 86400000).toISOString().slice(0, 10);
+        if (end > today) end = today;
+        period = "day";
+      } else {
+        end = scope === "history" ? today : url.searchParams.get("end") || today;
+        start = scope === "history" ? (this.repository.firstDay() || today) : url.searchParams.get("start") || new Date(this.now() + 8 * 3600000 - 29 * 86400000).toISOString().slice(0, 10);
+      }
       const validDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
       const offset = Number(url.searchParams.get("offset") || 0);
       if (!validDay(start) || !validDay(end) || start > end || (scope !== "history" && Date.parse(end) - Date.parse(start) > (period === "day" ? 365 : 3650) * 86400000) || !Number.isSafeInteger(offset) || offset < 0)
         return reply({ error: "Invalid date range or offset" }, 400);
-      return reply({ ...this.repository.analytics(start, end, 100, offset, period),
-        today: this.service.count(), start, end, period, scope, timezone: "Asia/Taipei" });
+      const selectedDay = url.searchParams.get("selectedDay");
+      if (url.searchParams.has("selectedDay") && (!validDay(selectedDay) || selectedDay < start || selectedDay > end || selectedDay > today))
+        return reply({ error: "Invalid selected day" }, 400);
+      return reply({ ...this.repository.analytics(start, end, 100, offset, period, selectedDay),
+        overall: this.repository.overall(), months: this.repository.months(today),
+        today: this.service.count(), month, start, end, period, scope, timezone: "Asia/Taipei" });
     }
-    let id, nationality = null;
+    let id, visitId, metadataOnly = false, nationality = null;
     if (request.method === "POST") {
       if (Number(request.headers.get("Content-Length")) > 512) return reply({ error: "Invalid heartbeat" }, 413);
       // Bound streamed bodies too: Content-Length is optional and untrusted.
@@ -49,12 +65,14 @@ export class OnlinePresence {
         }
         raw += decoder.decode();
       }
-      try { const body = JSON.parse(raw); id = body.id;
+      try { const body = JSON.parse(raw); id = body.id; visitId = body.visitId;
+        if (body.metadataOnly !== undefined && typeof body.metadataOnly !== "boolean") return reply({ error: "Invalid visit metadata option" }, 400);
+        metadataOnly = body.metadataOnly ?? false;
         if (body.nationality != null && (typeof body.nationality !== "string" || body.nationality.length > 80)) return reply({ error: "Invalid nationality" }, 400);
         nationality = body.nationality?.trim() || null; } catch { return reply({ error: "Invalid heartbeat" }, 400); }
     }
     try {
-      if (request.method === "POST") { this.service.heartbeat(id, { nationality, ip: request.headers.get("CF-Connecting-IP"), country: request.headers.get("CF-IPCountry") }); return reply({ recorded: true }); }
+      if (request.method === "POST") { this.service.heartbeat(id, { visitId, metadataOnly, nationality, ip: request.headers.get("CF-Connecting-IP"), country: request.headers.get("CF-IPCountry") }); return reply({ recorded: true }); }
       return reply(this.service.count());
     } catch (error) {
       if (error instanceof InvalidPresenceIdentifier) return reply({ error: error.message }, 400);

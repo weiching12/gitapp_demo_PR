@@ -31,7 +31,7 @@ with versioned API routes added only when those capabilities exist.
 | GET / HEAD | `/api/v1/stocks/{symbol}/history` | `{data: [...], meta: {symbol, asOf, updatedAt, tradingDates}}` |
 | GET / HEAD | `/api/v1/stocks/{symbol}/analysis` | Shared indicator rules, latest bar, signal, institutional summary, and up to 30 daily closes through `asOf` |
 | GET / HEAD | `/api/v1/favorites/research` | Saved snapshots and sparse history through `asOf`, covering up to 120 market sessions; `asOf` remains limited to the latest 30 sessions |
-| GET / POST | `/api/v1/presence` | Administrator-only daily/monthly/history analytics (session cookie, server-checked admin role) / record one browser visit (receipt only); same-origin protection retained |
+| GET / POST | `/api/v1/presence` | Administrator-only month/day page-entry analytics and lifetime totals / record a page entry with an idempotent `visitId` (receipt only); same-origin protection retained |
 
 The stocks collection supports `offset` (default 0), `limit` (default 100, 1–200),
 `type=stock|etf`, exact `sector`, and case-insensitive `q` matching code/name.
@@ -46,6 +46,19 @@ version `technical-v1` and unadjusted prices, and excludes bars after `asOf`.
 The machine-readable OpenAPI contract is published at `/openapi.json`.
 
 Examples: `/api/v1/stocks?type=etf&limit=20`, `/api/v1/stocks/2330/history`.
+
+Presence accepts `month=YYYY-MM` (default current Taipei month), optional `selectedDay=YYYY-MM-DD`
+and `offset`. Repeated entries/reloads from the same browser count again. `daily[].visitors`
+and its `visits` alias count page entries, not distinct browsers; `today.today` is today's
+page-entry count. `unique` is retained solely for compatibility and is not displayed as
+the browsing metric. `selectedDay` filters only `visitors[]` detail rows
+and `detailTotal`; `total` and the daily trend retain the whole month. `overall.total` always
+covers all retained events and `months[]` lists recorded months plus the current month.
+POST `{id, visitId?, nationality?, metadataOnly?}` requires UUID v4 IDs: new page entries use
+new `visitId`; only delivery retries reuse that entry's key to prevent counting the same
+delivery twice. Metadata-only writes require an existing owned event and never add a count.
+Legacy id-only POSTs create a new event per request. Legacy date-range/history query parameters
+remain supported. See [visitor analytics](visitor-analytics.md) for migration and count limits.
 
 ## Compatibility and errors
 

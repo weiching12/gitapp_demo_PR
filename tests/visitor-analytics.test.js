@@ -21,7 +21,7 @@ function fixture() {
   const env = { T86_DB: accountDb, ONLINE_PRESENCE: { getByName: () => presence } };
   const request = (path = '', options = {}) => presenceResponse(new Request(`https://stock.test/api/v1/presence${path}`, options), env);
   const get = (query = '') => request(query, { headers: { Cookie: '__Host-stock_session=' + 'a'.repeat(64) } });
-  const post = (id, nationality) => request('', { method: 'POST', body: JSON.stringify({ id, nationality }), headers: { 'CF-Connecting-IP': '203.0.113.7', 'CF-IPCountry': 'TW' } });
+  const post = (id, nationality, options = {}) => request('', { method: 'POST', body: JSON.stringify({ id, nationality, ...options }), headers: { 'CF-Connecting-IP': '203.0.113.7', 'CF-IPCountry': 'TW' } });
   return { db, accountDb, env, presence, request, get, post, advance: ms => { now += ms; } };
 }
 test('anonymous writes disclose no counts; every public GET requires administrator authentication', async () => {
@@ -36,10 +36,10 @@ test('anonymous writes disclose no counts; every public GET requires administrat
     assert.equal((await f.get()).status, 503);
   } finally { f.db.close(); f.accountDb.sqlite.close(); }
 });
-test('history survives midnight and restart, deduplicates browsers, stores submitted name and trusted-edge IP', async () => {
-  const f = fixture(), id = crypto.randomUUID();
+test('events survive midnight and restart, retry the same entry once and retain trusted-edge metadata', async () => {
+  const f = fixture(), id = crypto.randomUUID(), visitId = crypto.randomUUID();
   try {
-    await f.post(id, '台灣'); f.advance(60000); await f.post(id);
+    await f.post(id, '台灣', { visitId }); f.advance(60000); await f.post(id, undefined, { visitId });
     let data = await (await f.get()).json();
     assert.equal(data.today.today, 1); assert.equal(data.total, 1);
     assert.equal(data.visitors[0].nationality, '台灣'); assert.equal(data.visitors[0].ip, '203.0.113.7'); assert.equal(data.visitors[0].country, 'TW');
@@ -48,7 +48,7 @@ test('history survives midnight and restart, deduplicates browsers, stores submi
     await f.post(crypto.randomUUID());
     data = await (await f.get('?start=2026-10-22&end=2026-10-23')).json();
     assert.equal(data.today.today, 2); assert.equal(data.total, 3);
-    assert.deepEqual(data.daily, [{ day: '2026-10-23', visitors: 2 }, { day: '2026-10-22', visitors: 1 }]);
+    assert.deepEqual(data.daily, [{ day: '2026-10-23', visitors: 2, visits: 2 }, { day: '2026-10-22', visitors: 1, visits: 1 }]);
     const { PresenceRepository } = await import('../cloudflare/repositories/presence-repository.js');
     const repository = new PresenceRepository(f.presence.sql);
     assert.equal(repository.analytics('2026-10-22', '2026-10-23', 100, 0).total, 3);
@@ -70,16 +70,99 @@ test('trend preserves date order and unknown gaps without inventing historical z
   ]);
 });
 
-test('monthly and whole-history trends count distinct browsers across days and months', async () => {
+test('monthly and whole-history trends count page entries including repeat browsers', async () => {
   const f = fixture(), id = crypto.randomUUID();
   try {
     await f.post(id, '台灣'); f.advance(86400000); await f.post(id, '台灣');
     f.advance(31 * 86400000); await f.post(id);
     let data = await (await f.get('?scope=history')).json();
     assert.equal(data.period, 'month'); assert.equal(data.unique, 1); assert.equal(data.total, 3);
-    assert.deepEqual(data.daily, [{ day: '2026-11', visitors: 1 }, { day: '2026-10', visitors: 1 }]);
+    assert.deepEqual(data.daily, [{ day: '2026-11', visitors: 1, visits: 1 }, { day: '2026-10', visitors: 2, visits: 2 }]);
     const { trendSeries } = await import('../public/visitor-trend.js');
-    assert.deepEqual(trendSeries('2026-10-22', '2026-11-23', data.daily, 'month').map(p => p.value), [1, 1]);
+    assert.deepEqual(trendSeries('2026-10-22', '2026-11-23', data.daily, 'month').map(p => p.value), [2, 1]);
     assert.equal((await f.get('?start=2020-01-01&end=2026-10-23')).status, 400);
+  } finally { f.db.close(); f.accountDb.sqlite.close(); }
+});
+
+test('repeat entries count individually; retries and metadata-only updates cannot add or rebind events', async () => {
+  const f = fixture(), id = crypto.randomUUID(), visitId = crypto.randomUUID();
+  try {
+    await f.post(id, '台灣', { visitId });
+    await f.post(id, '台灣', { visitId });
+    await f.post(id, '日本', { visitId, metadataOnly: true });
+    let data = await (await f.get('?month=2026-10')).json();
+    assert.equal(data.total, 1); assert.equal(data.overall.total, 1);
+    assert.equal(data.visitors[0].nationality, '日本');
+    await f.post(crypto.randomUUID(), '不可改綁', { visitId });
+    await f.post(crypto.randomUUID(), '不可修改', { visitId, metadataOnly: true });
+    await f.post(id, '不存在', { visitId: crypto.randomUUID(), metadataOnly: true });
+    data = await (await f.get('?month=2026-10')).json();
+    assert.equal(data.total, 1); assert.equal(data.visitors[0].nationality, '日本');
+    await f.post(id, undefined, { visitId: crypto.randomUUID() });
+    await f.post(id); await f.post(id); // Legacy clients omit keys: each POST is a page entry.
+    data = await (await f.get('?month=2026-10')).json();
+    assert.equal(data.total, 4); assert.equal(data.unique, 1);
+    f.advance(86400000);
+    await f.post(id, undefined, { visitId });
+    data = await (await f.get('?month=2026-10')).json();
+    assert.equal(data.total, 4); assert.equal(data.today.today, 0);
+    assert.equal(data.visitors.find(event => event.event_id === visitId).day, '2026-10-22');
+  } finally { f.db.close(); f.accountDb.sqlite.close(); }
+});
+
+test('month and selected-day filters retain the full monthly trend and lifetime total across pagination', async () => {
+  const f = fixture(), id = crypto.randomUUID();
+  try {
+    for (let index = 0; index < 102; index++) await f.post(id, undefined, { visitId: crypto.randomUUID() });
+    f.advance(86400000);
+    for (let index = 0; index < 3; index++) await f.post(id, undefined, { visitId: crypto.randomUUID() });
+    let data = await (await f.get('?month=2026-10&selectedDay=2026-10-22&offset=100')).json();
+    assert.equal(data.month, '2026-10'); assert.equal(data.start, '2026-10-01'); assert.equal(data.end, '2026-10-23');
+    assert.equal(data.total, 105); assert.equal(data.detailTotal, 102); assert.equal(data.visitors.length, 2);
+    assert.equal(data.visitors.every(event => event.day === '2026-10-22'), true);
+    assert.deepEqual(data.daily, [{ day: '2026-10-23', visitors: 3, visits: 3 }, { day: '2026-10-22', visitors: 102, visits: 102 }]);
+    assert.deepEqual(data.overall, { total: 105, firstDay: '2026-10-22', lastDay: '2026-10-23' });
+    assert.deepEqual(data.months, ['2026-10']);
+    f.advance(40 * 86400000); await f.post(id);
+    data = await (await f.get('?month=2026-10&selectedDay=2026-10-23')).json();
+    assert.equal(data.total, 105); assert.equal(data.detailTotal, 3); assert.equal(data.overall.total, 106);
+    assert.deepEqual(data.months, ['2026-12', '2026-10']);
+    const emptyMonth = await (await f.get('?month=2026-11')).json();
+    assert.equal(emptyMonth.total, 0); assert.deepEqual(emptyMonth.daily, []); assert.deepEqual(emptyMonth.visitors, []);
+    assert.equal(emptyMonth.overall.total, 106);
+    const emptyDay = await (await f.get('?month=2026-10&selectedDay=2026-10-21')).json();
+    assert.equal(emptyDay.detailTotal, 0); assert.equal(emptyDay.total, 105); assert.equal(emptyDay.daily.length, 2);
+  } finally { f.db.close(); f.accountDb.sqlite.close(); }
+});
+
+test('calendar validation rejects future months, invalid dates and selected days outside the month', async () => {
+  const f = fixture();
+  try {
+    for (const query of ['month=', 'month=2026-1', 'month=2026-13', 'month=2026-11', 'month=0000-01',
+      'month=2026-10&selectedDay=2026-09-30', 'month=2026-10&selectedDay=2026-10-23',
+      'month=2026-02&selectedDay=2026-02-30', 'month=2026-10&selectedDay=', 'month=2026-10&offset=1.5'])
+      assert.equal((await f.get(`?${query}`)).status, 400, query);
+    const empty = await (await f.get()).json();
+    assert.equal(empty.month, '2026-10'); assert.equal(empty.total, 0); assert.equal(empty.detailTotal, 0);
+    assert.deepEqual(empty.overall, { total: 0, firstDay: null, lastDay: null }); assert.deepEqual(empty.months, ['2026-10']);
+  } finally { f.db.close(); f.accountDb.sqlite.close(); }
+});
+
+test('existing daily history imports once, preserves unknown times, and never invents previously discarded repeat views', async () => {
+  const f = fixture(), id = crypto.randomUUID();
+  try {
+    // Recreate an old database before event migration to exercise a crash-safe import retry.
+    f.db.exec('DROP TABLE visit_events; DROP TABLE presence_migrations');
+    f.db.prepare('INSERT INTO visit_history(day,id,first_seen,last_seen,nationality) VALUES (?,?,?,?,?)').run('2026-10-21', id, null, null, '台灣');
+    f.db.prepare('INSERT INTO visit_history(day,id,first_seen,last_seen,nationality) VALUES (?,?,?,?,?)').run('2026-10-22', id, 123, 456, '台灣');
+    const { PresenceRepository } = await import('../cloudflare/repositories/presence-repository.js');
+    const first = new PresenceRepository(f.presence.sql), second = new PresenceRepository(f.presence.sql);
+    assert.equal(first.overall().total, 2); assert.equal(second.overall().total, 2);
+    const events = second.analytics('2026-10-01', '2026-10-22', 100, 0).visitors;
+    assert.equal(events.find(event => event.day === '2026-10-21').first_seen, null);
+    assert.equal(events.find(event => event.day === '2026-10-22').last_seen, 456);
+    assert.equal(f.db.prepare('SELECT count(*) n FROM visit_history').get().n, 2);
+    assert.equal(f.db.prepare('SELECT count(DISTINCT legacy_key) n FROM visit_events').get().n, 2);
+    assert.equal(f.db.prepare('SELECT count(*) n FROM presence_migrations').get().n, 1);
   } finally { f.db.close(); f.accountDb.sqlite.close(); }
 });

@@ -15,22 +15,24 @@ export class InvalidPresenceIdentifier extends Error {
   }
 }
 
-// Count each browser once per Taipei calendar day; reading the count is read-only.
+// A new page-entry key counts a new visit; retries and metadata edits reuse that key.
 export class PresenceService {
   constructor(repository, { now = Date.now } = {}) {
     this.repository = repository;
     this.now = now;
   }
 
-  heartbeat(id, { nationality = null, ip = null, country = null } = {}) {
+  heartbeat(id, { visitId, metadataOnly = false, nationality = null, ip = null, country = null } = {}) {
     if (typeof id !== "string" || !browserIdentifier.test(id)) throw new InvalidPresenceIdentifier();
-    const now = this.now(), { asOf, expiresAt } = taipeiVisitDay(now);
-    return { today: this.repository.recordVisit({ id, now, expiresAt, nationality, ip, country }), asOf };
+    if ((visitId !== undefined && (typeof visitId !== "string" || !browserIdentifier.test(visitId))) ||
+      typeof metadataOnly !== "boolean" || (metadataOnly && visitId === undefined)) throw new InvalidPresenceIdentifier();
+    const now = this.now(), { asOf } = taipeiVisitDay(now);
+    return { today: this.repository.recordVisit({ id, visitId: visitId ?? crypto.randomUUID(), metadataOnly, now, nationality, ip, country }), asOf };
   }
 
   count() {
     const now = this.now();
-    const { asOf, expiresAt } = taipeiVisitDay(now);
-    return { today: this.repository.countVisits(expiresAt), asOf };
+    const { asOf } = taipeiVisitDay(now);
+    return { today: this.repository.countVisits(asOf), asOf };
   }
 }
