@@ -2871,7 +2871,16 @@ dialog.sector-dialog {
 .research-tracking-facts dd { line-height: 1.45; }
 .research-initial-comparison { margin-top: 8px; }
 .research-initial-comparison > h5 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
-.research-comparison-dates { margin: 0 0 10px; }
+.research-comparison-metric dd { display: grid; gap: 5px; }
+.research-metric-current { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
+.research-comparison-metric strong { font-size: 20px; line-height: 1.3; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.research-metric-change { max-width: 100%; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.research-metric-change.up { color: var(--up); }
+.research-metric-change.down { color: var(--down); }
+.research-metric-baseline { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+@media (max-width: 400px) { .research-comparison-summary { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
+.research-comparison-summary > div:last-child { display: flex; align-items: baseline; gap: 8px; grid-column: 1 / -1; }
+.research-comparison-summary > div:last-child dd { margin: 0; }
 .research-contribution-heading { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; font-size: 13px; }
 .research-contribution-heading > span { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .research-comparison-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 16px 0; color: var(--muted); font-size: 12px; }
@@ -2957,12 +2966,7 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
 .research-series-key i { display: inline-block; width: .9rem; border-top: 2px solid; }
 .research-series-key .price-key { border-color: #e19971; }
 .research-series-key .score-key { border-color: #6a9cff; }
-.research-chart-readout { min-height: 1.4em; margin: .55rem 0; font-size: .85rem; display: grid; gap: 4px; text-align: left; }
-.research-readout-metric { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
-.research-readout-metric > span { min-width: 3em; color: var(--muted); font-size: 12px; }
-.research-readout-metric strong { font-weight: 700; font-variant-numeric: tabular-nums; }
-.research-readout-metric small { color: var(--muted); font-size: 12px; }
-.research-price-chart > .research-muted { margin: 8px 0 0; font-size: 11px; line-height: 1.5; }
+.research-price-chart > .research-muted { margin: 8px 0 0; text-align: right; font-size: 11px; line-height: 1.5; }
 .research-selected-date rect { fill: var(--accent-soft); }
 .research-selected-date text { fill: var(--accent); font-size: 10px; font-weight: 600; }
 .research-chart-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: .66rem; line-height: 1.2; }

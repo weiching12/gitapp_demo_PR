@@ -42,8 +42,8 @@ test("research center preserves favorites and opens existing score detail", asyn
   await expect(page.locator(".research-tracking-facts")).toContainText("追蹤時評分");
   await expect(page.locator(".research-tracking-facts")).not.toContainText("最新保存快照");
   await expect(page.locator(".research-review-summary")).toHaveCount(0);
-  await expect(page.locator(".research-chart-readout")).toContainText("收盤");
-  await expect(page.locator(".research-chart-readout")).toContainText("評分");
+  await expect(page.locator(".research-comparison-summary")).toContainText("收盤");
+  await expect(page.locator(".research-comparison-summary")).toContainText("加權總分");
   await expect(page.locator("#dialog-heading")).not.toContainText("株研評分");
 });
 
@@ -212,10 +212,10 @@ test("phone history review opens on demand and chart responds to touch and keybo
   expect(series.some((point) => Number.isFinite(point.score))).toBe(true);
   await chart.press("Home");
   await expect(chart.locator(".research-selected-date text")).toHaveText(series[0].date.slice(5).replace("-", "/"));
-  await expect(page.locator(".research-chart-readout strong")).toHaveCount(2);
-  await expect(page.locator(".research-chart-readout strong").first()).toHaveCSS("font-weight", "700");
-  await expect(page.locator(".research-chart-readout")).toContainText(series[0].priceChange);
-  await expect(page.locator(".research-chart-readout")).toContainText(series[0].scoreChange);
+  await expect(page.locator(".research-comparison-summary strong")).toHaveCount(2);
+  await expect(page.locator(".research-comparison-summary strong").first()).toHaveCSS("font-weight", "700");
+  await expect(page.locator(".research-comparison-summary")).toContainText(series[0].priceChange);
+  expect(await chart.getAttribute("aria-valuetext")).toContain(series[0].scoreChange);
   await page.locator('[data-review-range="20"]').click();
   await expect(page.locator(".research-price-chart")).toHaveAttribute("data-range", "20");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

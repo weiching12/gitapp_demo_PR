@@ -1,9 +1,11 @@
 import { reviewInitialScore } from "../../shared/research-review.js";
 import { ENTRY_WEIGHTS } from "../../shared/entry-score.js";
+import { researchPriceChange } from "./research-review.js";
 
 const categories = { trend: "趨勢結構", momentum: "KD 動能", priceVolume: "量價表現",
   institutional: "法人籌碼", entryRisk: "進場位置與風險" };
 const fmt = value => Number.isFinite(value) ? value.toFixed(2) : "—";
+const metricNumber = value => Number.isFinite(value) ? value.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const signed = value => `${value > 0 ? "+" : ""}${fmt(value)}`;
 const status = value => ({ PASS: "通過", FAIL: "未通過", UNKNOWN: "資料不足" })[value] ?? "資料不足";
 const tone = value => value > 0 ? "up" : value < 0 ? "down" : "neutral";
@@ -19,13 +21,15 @@ export function researchComparisonContent(period, row, date, esc) {
   const baselineLabel = period?.addedSnapshot?.valid ? "加入時" : "首次有效";
   const comparable = Boolean(initial && target && initial.asOf <= date &&
     ["comparable", "same-snapshot"].includes(comparison.status));
-  const notice = !initial ? "缺少加入時或首次有效評分快照，無法比較。"
-    : initial.asOf > date ? "所選日早於評分基準日，無法比較。"
-      : !target ? "所選日沒有評分快照，無法比較。"
-        : comparison.status === "incompatible" ? "模型、設定或價格基準不同，無法直接比較。"
-          : comparison.status === "revision" ? "同日快照版本不同，無法視為跨日變化。"
-            : !comparable ? "所選日資料不足，無法比較。" : "";
   const pair = (label, before, after, suffix = "") => `<div><dt>${label}</dt><dd>${esc(String(before ?? "—"))} → ${esc(String(after ?? "—"))}${suffix}</dd></div>`;
+  const metric = (key, label, before, after, change, changeValue) => {
+    const origin = key === "price" ? period?.baseline ? "加入時" : "首次有效" : baselineLabel;
+    return `<div class="research-comparison-metric" data-metric="${key}"><dt>${label}</dt><dd><div class="research-metric-current"><strong>${metricNumber(after)}</strong>${change ? `<small class="research-metric-change ${Number.isFinite(changeValue) ? tone(changeValue) : "neutral"}">${esc(change)}</small>` : ""}</div><span class="research-metric-baseline">${esc(origin)} ${metricNumber(before)}</span></dd></div>`;
+  };
+  const priceBaseline = period?.baseline ?? period?.firstValidPriceBaseline;
+  const selectedClose = row?.review ? row.review.bars?.find(bar => bar.date === date)?.close : target?.close;
+  const priceChange = researchPriceChange(period, row?.review, date);
+  const priceDelta = /^[+-]?\d+(?:\.\d+)?%$/.test(priceChange) ? Number.parseFloat(priceChange) : null;
   const cap = snap => snap ? snap.cap?.enabled ? `${fmt(snap.cap.value)}：${snap.cap.reason ?? ""}` : "未啟用" : "—";
   const weight = (snap, key) => snap?.categories?.[key]?.weight ?? snap?.weights?.[key] ?? ENTRY_WEIGHTS[key];
   const scale = Math.max(1, ...Object.keys(categories).flatMap(key => [weight(initial, key), weight(target, key)]));
@@ -50,7 +54,7 @@ export function researchComparisonContent(period, row, date, esc) {
     const weights = beforeWeight === afterWeight ? `${beforeWeight}%` : `${beforeWeight}% → ${afterWeight}%`;
     return `<div class="research-comparison-category" data-category="${key}"><div class="research-comparison-category-heading"><div><strong>${label}</strong><small>權重 ${esc(weights)}</small></div>${Number.isFinite(change) ? `<span class="${tone(change)}">${signed(change)} 分</span>` : ""}</div><div role="group" aria-label="${label}加權貢獻，${esc(baselineLabel)} ${fmt(before)} 分，所選日 ${fmt(after)} 分">${bar(before, "baseline", baselineLabel, initial, key)}${bar(after, "selected", "所選日", target, key)}</div></div>`;
   }).join("")}</div>`;
-  return `<p class="research-muted research-comparison-dates" aria-live="polite">${esc(baselineLabel)} ${esc(initial?.asOf ?? "—")} → 所選日 ${esc(date ?? "—")}</p>${notice ? `<p class="research-muted research-comparison-notice">${notice}</p>` : ""}<dl class="research-facts research-comparison-summary">${pair("加權總分", fmt(initial?.valid ? initial.finalScore : null), fmt(target?.valid ? target.finalScore : null), comparable ? ` · 變化 ${signed(comparison.finalDelta)}` : "")}${pair("必要條件", initial ? `${initial.passedCount}/${initial.totalConditions}` : null, target ? `${target.passedCount}/${target.totalConditions}` : null)}</dl>${chart}<dl class="research-facts">${pair("分數上限", cap(initial), cap(target))}${pair("資料完整性", initial?.valid ? "完整" : "資料不足", target ? target.valid ? "完整" : target.missingData?.join("、") || "資料不足" : "無當日快照")}${pair("模型／設定", initial ? `${initial.modelVersion} · ${initial.configId}` : null, target ? `${target.modelVersion} · ${target.configId}` : null)}</dl>`;
+  return `<dl class="research-facts research-comparison-summary" aria-label="${esc(baselineLabel)} ${esc(initial?.asOf ?? "—")} → 所選日 ${esc(date ?? "—")}">${metric("price", "收盤價", priceBaseline?.close, selectedClose, priceChange, priceDelta)}${metric("score", "加權總分", initial?.valid ? initial.finalScore : null, target?.valid ? target.finalScore : null, comparable ? `變化 ${signed(comparison.finalDelta)} 分` : "", comparable ? comparison.finalDelta : null)}${pair("必要條件", initial ? `${initial.passedCount}/${initial.totalConditions}` : null, target ? `${target.passedCount}/${target.totalConditions}` : null)}</dl>${chart}<dl class="research-facts">${pair("分數上限", cap(initial), cap(target))}${pair("資料完整性", initial?.valid ? "完整" : "資料不足", target ? target.valid ? "完整" : target.missingData?.join("、") || "資料不足" : "無當日快照")}${pair("模型／設定", initial ? `${initial.modelVersion} · ${initial.configId}` : null, target ? `${target.modelVersion} · ${target.configId}` : null)}</dl>`;
 }
 
 export function researchComparisonMarkup(period, row, esc) {
