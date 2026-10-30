@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { researchComparisonContent } from '../src/ui/research-comparison.js';
+import { researchPriceChart } from '../src/ui/research-review.js';
+
+const keys = ['trend', 'momentum', 'priceVolume', 'institutional', 'entryRisk'];
+const snapshot = (asOf, score, overrides = {}) => ({ id: asOf, asOf, symbol: '2031', valid: true,
+  modelVersion: 'v1', strategy: 'swing', configId: 'a', priceBasis: 'unadjusted',
+  finalScore: score, baseScore: score, passedCount: 5, totalConditions: 5,
+  categories: Object.fromEntries(keys.map(key => [key, { score }])),
+  conditions: Object.fromEntries(keys.map(key => [key, { status: 'PASS' }])), cap: {}, ...overrides });
+const initial = snapshot('2026-10-22', 89.25);
+const middle = snapshot('2026-10-27', 82.25);
+const latest = snapshot('2026-10-30', 20.5);
+const period = { addedSnapshot: initial };
+const row = { latest, history: [middle, latest] };
+const esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
+
+test('selected-session comparison keeps the saved join baseline and renders all five paired score bars', () => {
+  const html = researchComparisonContent(period, row, middle.asOf, esc);
+  assert.match(html, /加入時 2026-10-22 → 所選日 2026-10-27/);
+  assert.match(html, /89\.25 → 82\.25 · 變化 -7\.00/);
+  assert.doesNotMatch(html, /20\.50/);
+  assert.equal((html.match(/data-category=/g) || []).length, 5);
+  assert.equal((html.match(/class="research-comparison-bar"/g) || []).length, 10);
+  const current = researchComparisonContent(period, row, latest.asOf, esc);
+  assert.match(current, /89\.25 → 20\.50 · 變化 -68\.75/);
+});
+
+test('join day uses its original snapshot even outside the loaded history', () => {
+  assert.match(researchComparisonContent(period, row, initial.asOf, esc), /89\.25 → 89\.25 · 變化 0\.00/);
+});
+
+test('a missing or invalid selected session never borrows the latest score or invents a change', () => {
+  const missing = researchComparisonContent(period, row, '2026-10-28', esc);
+  assert.match(missing, /所選日沒有評分快照/);
+  assert.doesNotMatch(missing, /20\.50| · 變化/);
+  const invalid = researchComparisonContent(period, { ...row, history: [snapshot('2026-10-28', null, { valid: false })] }, '2026-10-28', esc);
+  assert.match(invalid, /所選日資料不足/);
+  assert.doesNotMatch(invalid, / · 變化/);
+});
+
+test('incompatible models and dates before the baseline do not calculate deltas', () => {
+  const incompatible = researchComparisonContent(period, { latest: { ...latest, configId: 'b' } }, latest.asOf, esc);
+  assert.match(incompatible, /無法直接比較/);
+  assert.doesNotMatch(incompatible, / · 變化|分<\/span>/);
+  const earlier = snapshot('2026-10-21', 90);
+  const before = researchComparisonContent(period, { history: [earlier] }, earlier.asOf, esc);
+  assert.match(before, /早於評分基準日/);
+  assert.doesNotMatch(before, / · 變化/);
+});
+
+test('legacy periods label the first valid baseline and missing baselines stay explicit', () => {
+  assert.match(researchComparisonContent({ firstValidSnapshot: initial }, row, middle.asOf, esc), /首次有效 2026-10-22/);
+  assert.match(researchComparisonContent({}, row, middle.asOf, esc), /缺少加入時或首次有效評分快照/);
+});
+
+test('an invalid latest revision cannot leave an older valid same-day score on the price chart', () => {
+  const chartPeriod = { ...period, baseline: { asOf: initial.asOf, close: 100, priceBasis: 'unadjusted' } };
+  const chartRow = { ...row, latest: { ...latest, valid: false, finalScore: null },
+    review: { dates: [initial.asOf, latest.asOf], bars: [{ date: initial.asOf, close: 100 }, { date: latest.asOf, close: 101 }], priceBasis: 'unadjusted' } };
+  const html = researchPriceChart(chartPeriod, chartRow, esc);
+  assert.match(html, /該日無評分/);
+  assert.doesNotMatch(html, /20\.50/);
+  assert.match(researchComparisonContent(chartPeriod, chartRow, latest.asOf, esc), /所選日資料不足/);
+});

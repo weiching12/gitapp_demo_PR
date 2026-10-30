@@ -31,10 +31,13 @@ export function researchPriceChart(period, row, esc, range = 60) {
   if (base < 0) return '<p class="research-muted">基準日期已超出可查詢的歷史範圍，無法繪製連續走勢。</p>';
   const dates = review.dates.slice(Math.max(base, review.dates.length - range));
   const byDate = new Map(review.bars.map((bar) => [bar.date, bar.close]));
-  const scores = new Map((row.history ?? []).filter((snap) => snap.valid && Number.isFinite(snap.finalScore))
-    .map((snap) => [snap.asOf, snap]));
+  const snapshots = [...(row.history ?? []), row.latest].filter(Boolean);
+  const initial = period.addedSnapshot?.valid ? period.addedSnapshot : period.firstValidSnapshot;
+  if (initial && !snapshots.some(snapshot => snapshot.asOf === initial.asOf)) snapshots.push(initial);
+  const scores = new Map(snapshots.map((snap) => [snap.asOf, snap]));
   const points = dates.map((date) => {
-    const snapshot = scores.get(date);
+    const recorded = scores.get(date);
+    const snapshot = recorded?.valid && Number.isFinite(recorded.finalScore) ? recorded : null;
     const price = reviewPriceStatus(baseline, date, review);
     const day = review.dates.indexOf(date) - base;
     return { date, close: byDate.get(date) ?? null, score: snapshot?.finalScore ?? null,
@@ -82,4 +85,5 @@ export function selectResearchPricePoint(plot, index) {
   date?.setAttribute("transform", `translate(${Math.max(21, Math.min(299, 12 + selected * 296 / Math.max(1, points.length - 1)))},0)`);
   if (date) date.querySelector("text").textContent = shortDate(point.date);
   plot.closest(".research-price-chart").querySelector(".research-chart-readout").innerHTML = readoutMarkup(point);
+  return point;
 }

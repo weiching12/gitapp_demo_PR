@@ -1,6 +1,7 @@
 import { activeResearchPeriod } from "./research-store.js";
 import { reviewInitialScore, reviewTrackingTimeline } from "../../shared/research-review.js";
 import { researchPriceChart } from "./research-review.js";
+import { researchComparisonMarkup } from "./research-comparison.js";
 
 const fmt = (value) => Number.isFinite(value) ? value.toFixed(2) : "—";
 const delta = (value) => Number.isFinite(value) ? `${value > 0 ? "+" : ""}${fmt(value)}` : "—";
@@ -154,24 +155,17 @@ function researchDetailMarkupV2({ symbol, row, store, esc }) {
     const summary = item.status === "comparable" ? item.finalDelta === 0 ? "分數持平" : `分數${item.finalDelta > 0 ? "提高" : "下降"} ${fmt(Math.abs(item.finalDelta))} 分` : item.summary;
     const reasons = item.events.filter(event => !["final-score-change", "base-score-change"].includes(event.type));
     return `<li><time>${esc(item.fromDate)} → ${esc(item.toDate)}</time><span>${esc(summary)}</span>${reasons.length ? `<ul>${reasons.map(event => `<li>${esc(event.reason)}</li>`).join("")}</ul>` : ""}</li>`;
-  }).join("")}</ol>` : `<p class="research-muted">${timeline.start ? "等待收藏後下一個交易日的評分快照。" : "缺少收藏時或首次有效基準，暫無可比較的時間軸。"}</p>`;
+  }).join("")}</ol>` : "";
   const trackingScore = period.addedSnapshot?.valid && Number.isFinite(period.addedSnapshot.finalScore)
     ? `${esc(period.addedSnapshot.asOf)} · ${fmt(period.addedSnapshot.finalScore)} 分`
     : period.addedSnapshot ? "追蹤時資料不足" : "追蹤時評分未保存";
-  return `<section class="entry-evidence research-detail"><h3>研究追蹤</h3>${comparisonNotice}<dl class="research-facts research-tracking-facts"><div><dt>追蹤時間</dt><dd>${period.startedAt ? esc(dateTime(period.startedAt)) : "追蹤時間未知"}</dd></div><div><dt>追蹤時評分</dt><dd>${trackingScore}</dd></div></dl>${scoreChart(row?.history ?? [])}${categoryMarkup}<h4>研究事件時間軸</h4>${timelineMarkup}<p class="research-muted">從收藏基準起，依相鄰交易日逐段比較；歷史以可取得的快照為準，資料不足時不推算。</p></section>`;
+  return `<section class="entry-evidence research-detail"><h3>研究追蹤</h3>${comparisonNotice}<dl class="research-facts research-tracking-facts"><div><dt>追蹤時間</dt><dd>${period.startedAt ? esc(dateTime(period.startedAt)) : "追蹤時間未知"}</dd></div><div><dt>追蹤時評分</dt><dd>${trackingScore}</dd></div></dl>${scoreChart(row?.history ?? [])}${categoryMarkup}${timelineMarkup ? `<h4>研究事件時間軸</h4>${timelineMarkup}` : ""}</section>`;
 }
 
 export function researchDetailMarkup({ symbol, row, store, esc }) {
   const base = researchDetailMarkupV2({ symbol, row, store, esc });
   const period = activeResearchPeriod(store, symbol);
   if (!base || !period) return base;
-  const latest = row?.latest;
-  const initial = reviewInitialScore(period, latest);
-  const initialSnapshot = initial.initial;
-  const names = { trend: "趨勢結構", momentum: "KD 動能", priceVolume: "量價表現", institutional: "法人籌碼", entryRisk: "進場位置與風險" };
-  const comparable = ["comparable", "same-snapshot"].includes(initial.status);
-  const pair = (label, before, after, suffix = "") => `<div><dt>${label}</dt><dd>${esc(String(before ?? "—"))} → ${esc(String(after ?? "—"))}${suffix}</dd></div>`;
-  const compare = `<details class="research-breakdown" open><summary>加入時與目前研究差異</summary><p class="research-muted">${initialSnapshot ? `${period.addedSnapshot?.valid ? "加入時" : "首次有效"} ${esc(initialSnapshot.asOf)} → ${esc(latest?.asOf ?? "—")}` : "缺少加入時或首次有效評分快照"}${!comparable && initial.status === "incompatible" ? " · 設定不同，無法直接比較" : ""}</p><dl class="research-facts">${pair("分數", fmt(initialSnapshot?.finalScore), fmt(latest?.finalScore), comparable ? ` · 變化 ${delta(initial.finalDelta)}` : "")}${Object.entries(names).map(([key, name]) => pair(name, fmt(initialSnapshot?.categories?.[key]?.score), fmt(latest?.categories?.[key]?.score))).join("")}${pair("必要條件", initialSnapshot ? `${initialSnapshot.passedCount}/${initialSnapshot.totalConditions}` : null, latest ? `${latest.passedCount}/${latest.totalConditions}` : null)}${Object.entries(names).map(([key, name]) => pair(`${name}條件`, initialSnapshot?.conditions?.[key]?.status, latest?.conditions?.[key]?.status)).join("")}${pair("分數上限", initialSnapshot?.cap?.enabled ? `${fmt(initialSnapshot.cap.value)}：${initialSnapshot.cap.reason ?? ""}` : "未啟用", latest?.cap?.enabled ? `${fmt(latest.cap.value)}：${latest.cap.reason ?? ""}` : "未啟用")}${pair("資料完整性", initialSnapshot?.valid ? "完整" : (initialSnapshot?.missingData?.join("、") ?? "未知"), latest?.valid ? "完整" : (latest?.missingData?.join("、") ?? "未知"))}${pair("模型／設定", initialSnapshot ? `${initialSnapshot.modelVersion} · ${initialSnapshot.configId}` : null, latest ? `${latest.modelVersion} · ${latest.configId}` : null)}</dl></details>`;
-  const review = `<section class="research-review-detail">${researchPriceChart(period, row, esc)}</section>${compare}`;
+  const review = `<section class="research-review-detail">${researchPriceChart(period, row, esc)}</section>${researchComparisonMarkup(period, row, esc)}`;
   return base.replace(/<\/section>$/, `${review}</section>`);
 }

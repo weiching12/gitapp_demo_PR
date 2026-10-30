@@ -27,7 +27,7 @@ test("research center preserves favorites and opens existing score detail", asyn
   await card.locator(".research-card-main").click();
   await expect(page.locator(".research-edit")).toHaveCount(0);
   await expect(page.locator(".research-detail")).toContainText("追蹤價格與評分");
-  await expect(page.locator(".research-detail")).toContainText("加入時與目前研究差異");
+  await expect(page.locator(".research-detail")).toContainText("加入時與所選日研究差異");
   await expect(page.locator(".research-detail")).not.toContainText("基礎分數");
   await expect(page.locator(".research-detail")).not.toContainText("最終分數");
   await expect(page.locator(".entry-summary")).not.toContainText("基礎分數");

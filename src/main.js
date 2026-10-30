@@ -31,6 +31,7 @@ import { compareResearchSnapshots, researchSnapshot } from "../shared/research-t
 import { activeResearchPeriod, addResearchPeriod, loadResearchStore, persistResearchStore, recordFirstValidSnapshot, recordFirstValidPriceBaseline, removeResearchPeriod } from "./ui/research-store.js";
 import { renderResearchCenter, researchDetailMarkup, selectResearchScorePoint } from "./ui/research.js";
 import { researchPriceChart, selectResearchPricePoint } from "./ui/research-review.js";
+import { updateResearchComparison } from "./ui/research-comparison.js";
 import { dailyCloseSeries } from "../shared/price-history.js";
 import { priceBaseline } from "../shared/research-review.js";
 import { entryScoreDialogMarkup, selectEntryChartPoint, restoreEntryChartTitle } from "./ui/entry-score.js";
@@ -200,7 +201,7 @@ async function loadResearchReview(symbol, { force = false } = {}) {
         const nextPlot = dialog.querySelector(".research-chart-plot");
         if (nextPlot && selectedDate) {
           const index = JSON.parse(nextPlot.dataset.points).findIndex(point => point.date === selectedDate);
-          if (index >= 0) selectResearchPricePoint(nextPlot, index);
+          if (index >= 0) selectResearchReviewPoint(nextPlot, index);
         }
         dialog.scrollTop = scrollTop;
       }
@@ -812,6 +813,13 @@ function syncTableFavorite(symbol) {
   if (cached) cached.favorite = favorite;
 }
 
+function selectResearchReviewPoint(plot, index) {
+  const point = selectResearchPricePoint(plot, index);
+  const symbol = plot.closest(".research-price-chart").dataset.reviewSymbol;
+  updateResearchComparison(plot.closest(".research-detail")?.querySelector(".research-initial-comparison"),
+    activeResearchPeriod(researchStore, symbol), researchRows.get(symbol), point.date, esc);
+}
+
 function bindEvents() {
   document.addEventListener("click", (event) => {
     document.querySelectorAll(".research-chart-info[open]").forEach((hint) => {
@@ -838,7 +846,7 @@ function bindEvents() {
       reviewPlot.focus({ preventScroll: true });
       reviewPlot.setPointerCapture(event.pointerId);
       const rect = reviewPlot.querySelector("svg").getBoundingClientRect();
-      selectResearchPricePoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
+      selectResearchReviewPoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
         (event.clientX - rect.left) / rect.width)) * (Number(reviewPlot.getAttribute("aria-valuemax")) - 1)));
       return;
     }
@@ -859,7 +867,7 @@ function bindEvents() {
     const reviewPlot = event.target.closest(".research-chart-plot");
     if (reviewPlot?.hasPointerCapture(event.pointerId)) {
       const rect = reviewPlot.querySelector("svg").getBoundingClientRect();
-      selectResearchPricePoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
+      selectResearchReviewPoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
         (event.clientX - rect.left) / rect.width)) * (Number(reviewPlot.getAttribute("aria-valuemax")) - 1)));
       return;
     }
@@ -891,7 +899,7 @@ function bindEvents() {
       event.preventDefault();
       const current = Number(reviewPlot.getAttribute("aria-valuenow")) - 1;
       const last = Number(reviewPlot.getAttribute("aria-valuemax")) - 1;
-      selectResearchPricePoint(reviewPlot, event.key === "Home" ? 0 : event.key === "End" ? last :
+      selectResearchReviewPoint(reviewPlot, event.key === "Home" ? 0 : event.key === "End" ? last :
         Math.max(0, Math.min(last, current + (event.key === "ArrowLeft" ? -1 : 1))));
       return;
     }
@@ -958,8 +966,16 @@ function bindEvents() {
       const chart = button.closest(".research-price-chart");
       const symbol = chart?.dataset.reviewSymbol;
       const period = activeResearchPeriod(researchStore, symbol);
-      if (chart && period) chart.outerHTML = researchPriceChart(period, researchRows.get(symbol), esc,
-        Number(button.dataset.reviewRange));
+      if (chart && period) {
+        const plot = chart.querySelector(".research-chart-plot"), detail = chart.closest(".research-detail");
+        const selectedDate = JSON.parse(plot.dataset.points)[Number(plot.getAttribute("aria-valuenow")) - 1]?.date;
+        chart.outerHTML = researchPriceChart(period, researchRows.get(symbol), esc, Number(button.dataset.reviewRange));
+        const nextPlot = detail.querySelector(".research-chart-plot");
+        if (nextPlot) {
+          const points = JSON.parse(nextPlot.dataset.points), index = points.findIndex(point => point.date === selectedDate);
+          selectResearchReviewPoint(nextPlot, index < 0 ? points.length - 1 : index);
+        }
+      }
       return;
     }
     if (button.dataset.chartSeries) {
