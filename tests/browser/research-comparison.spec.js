@@ -24,7 +24,16 @@ test('chart selection compares that session to joining and keeps the selected da
   const comparison = page.locator('.research-initial-comparison');
   await expect(plot).toBeVisible();
   await expect(comparison).toHaveAttribute('data-selected-date', '2026-10-16');
+  const points = await plot.evaluate(n => JSON.parse(n.dataset.points));
+  const joinedIndex = points.findIndex(point => point.date === '2026-10-14');
+  await plot.scrollIntoViewIfNeeded();
+  const svg = await plot.locator('svg').boundingBox();
+  await page.mouse.click(svg.x + (12 + joinedIndex * 296 / (points.length - 1)) / 320 * svg.width, svg.y + svg.height / 2);
+  await expect(comparison).toHaveAttribute('data-selected-date', '2026-10-14');
   await plot.focus(); await plot.press('Home');
+  await expect(comparison.locator('.research-comparison-notice')).toContainText('早於評分基準日');
+  await expect(page.locator('.research-chart-readout')).toContainText('加入前');
+  await plot.press('End'); await plot.press('ArrowLeft'); await plot.press('ArrowLeft');
   await expect(comparison).toHaveAttribute('data-selected-date', '2026-10-14');
   await expect(page.locator('.research-chart-readout strong').last()).toHaveText('89.25 分');
   await expect(comparison.locator('.research-comparison-summary')).toContainText('89.25 → 89.25 · 變化 0.00');

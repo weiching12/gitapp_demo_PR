@@ -64,3 +64,25 @@ test('an invalid latest revision cannot leave an older valid same-day score on t
   assert.doesNotMatch(html, /20\.50/);
   assert.match(researchComparisonContent(chartPeriod, chartRow, latest.asOf, esc), /所選日資料不足/);
 });
+
+test('selected chart range includes dates before joining while price changes keep the join baseline', () => {
+  const dates = ['2026-10-21', '2026-10-22', '2026-10-23', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30'];
+  const chartPeriod = { addedSnapshot: snapshot('2026-10-27', 90.65),
+    baseline: { asOf: '2026-10-27', close: 104, priceBasis: 'unadjusted' } };
+  const chartRow = { latest, history: [initial, middle, latest], review: { dates,
+    bars: dates.map((date, index) => ({ date, close: 100 + index })), priceBasis: 'unadjusted',
+    corporateActions: { coveredDates: dates, events: [] } } };
+  const points = range => JSON.parse(researchPriceChart(chartPeriod, chartRow, esc, range)
+    .match(/data-points="([^"]*)"/)[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&'));
+  const full = points(120);
+  assert.deepEqual(full.map(point => point.date), dates);
+  assert.equal(full.find(point => point.date === '2026-10-22').priceChange, '加入前');
+  assert.equal(full.find(point => point.date === '2026-10-27').priceChange, '0.00%');
+  assert.equal(full.at(-1).priceChange, '+2.88%');
+  assert.deepEqual(points(3).map(point => point.date), dates.slice(-3));
+  assert.equal(points(3).at(-1).priceChange, '+2.88%');
+  // An older baseline outside available history does not hide the known prices or invent a comparable change.
+  const outside = researchPriceChart({ ...chartPeriod, baseline: { ...chartPeriod.baseline, asOf: '2026-09-01' } }, chartRow, esc, 120);
+  assert.match(outside, /research-chart-plot/);
+  assert.match(outside, /歷史資料未涵蓋/);
+});

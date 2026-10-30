@@ -831,6 +831,11 @@ function bindEvents() {
     const position = ((clientX - rect.left) / rect.width * 600 - 8) / 584;
     return Math.round(Math.max(0, Math.min(1, position)) * (Number(plot.getAttribute("aria-valuemax")) - 1));
   };
+  const reviewIndexAt = (plot, clientX) => {
+    const rect = plot.querySelector("svg").getBoundingClientRect();
+    const position = ((clientX - rect.left) / rect.width * 320 - 12) / 296;
+    return Math.round(Math.max(0, Math.min(1, position)) * (Number(plot.getAttribute("aria-valuemax")) - 1));
+  };
   document.addEventListener("pointerdown", (event) => {
     const scorePlot = event.target.closest(".research-score-plot");
     if (scorePlot) {
@@ -845,9 +850,7 @@ function bindEvents() {
     if (reviewPlot) {
       reviewPlot.focus({ preventScroll: true });
       reviewPlot.setPointerCapture(event.pointerId);
-      const rect = reviewPlot.querySelector("svg").getBoundingClientRect();
-      selectResearchReviewPoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
-        (event.clientX - rect.left) / rect.width)) * (Number(reviewPlot.getAttribute("aria-valuemax")) - 1)));
+      selectResearchReviewPoint(reviewPlot, reviewIndexAt(reviewPlot, event.clientX));
       return;
     }
     const plot = event.target.closest(".entry-chart-plot");
@@ -866,9 +869,7 @@ function bindEvents() {
     }
     const reviewPlot = event.target.closest(".research-chart-plot");
     if (reviewPlot?.hasPointerCapture(event.pointerId)) {
-      const rect = reviewPlot.querySelector("svg").getBoundingClientRect();
-      selectResearchReviewPoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
-        (event.clientX - rect.left) / rect.width)) * (Number(reviewPlot.getAttribute("aria-valuemax")) - 1)));
+      selectResearchReviewPoint(reviewPlot, reviewIndexAt(reviewPlot, event.clientX));
       return;
     }
     const plot = event.target.closest(".entry-chart-plot");

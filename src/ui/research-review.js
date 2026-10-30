@@ -28,8 +28,7 @@ export function researchPriceChart(period, row, esc, range = 60) {
   const baseline = period?.baseline ?? period?.firstValidPriceBaseline;
   if (!review || !baseline) return '<p class="research-muted">缺少可靠價格基準或價格資料，無法繪製追蹤價格走勢。</p>';
   const base = review.dates.indexOf(baseline.asOf);
-  if (base < 0) return '<p class="research-muted">基準日期已超出可查詢的歷史範圍，無法繪製連續走勢。</p>';
-  const dates = review.dates.slice(Math.max(base, review.dates.length - range));
+  const dates = review.dates.slice(-range);
   const byDate = new Map(review.bars.map((bar) => [bar.date, bar.close]));
   const snapshots = [...(row.history ?? []), row.latest].filter(Boolean);
   const initial = period.addedSnapshot?.valid ? period.addedSnapshot : period.firstValidSnapshot;
@@ -39,9 +38,9 @@ export function researchPriceChart(period, row, esc, range = 60) {
     const recorded = scores.get(date);
     const snapshot = recorded?.valid && Number.isFinite(recorded.finalScore) ? recorded : null;
     const price = reviewPriceStatus(baseline, date, review);
-    const day = review.dates.indexOf(date) - base;
+    const day = base < 0 ? null : review.dates.indexOf(date) - base;
     return { date, close: byDate.get(date) ?? null, score: snapshot?.finalScore ?? null,
-      priceChange: price.status === "comparable" ? signed(price.change) : stateText[price.status] ?? "資料不足",
+      priceChange: date < baseline.asOf ? "加入前" : price.status === "comparable" ? signed(price.change) : stateText[price.status] ?? "資料不足",
       scoreChange: scoreChange(period, snapshot), milestone: [5, 10, 20].includes(day) ? day : null };
   });
   const values = points.map((point) => point.close).filter((value) => Number.isFinite(value) && value > 0);

@@ -19,8 +19,8 @@ export function researchComparisonContent(period, row, date, esc) {
   const comparable = Boolean(initial && target && initial.asOf <= date &&
     ["comparable", "same-snapshot"].includes(comparison.status));
   const notice = !initial ? "缺少加入時或首次有效評分快照，無法比較。"
-    : !target ? "所選日沒有評分快照，無法比較。"
-      : initial.asOf > date ? "所選日早於評分基準日，無法比較。"
+    : initial.asOf > date ? "所選日早於評分基準日，無法比較。"
+      : !target ? "所選日沒有評分快照，無法比較。"
         : comparison.status === "incompatible" ? "模型、設定或價格基準不同，無法直接比較。"
           : comparison.status === "revision" ? "同日快照版本不同，無法視為跨日變化。"
             : !comparable ? "所選日資料不足，無法比較。" : "";
