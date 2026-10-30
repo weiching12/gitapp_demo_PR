@@ -47,7 +47,7 @@ function clearReport() {
 function renderVisitors(data) {
   const rows = data.visitors.map(visit => {
     const row = document.createElement('tr');
-    for (const value of [visit.day.slice(5).replace('-', ' '), visit.id, countryName(visit.country), visit.ip || '未記錄', time(visit.first_seen), time(visit.last_seen)]) {
+    for (const value of [visit.day.slice(5), visit.id, countryName(visit.country), visit.ip || '未記錄', time(visit.first_seen), time(visit.last_seen)]) {
       const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
     }
     row.firstElementChild.title = visit.day;

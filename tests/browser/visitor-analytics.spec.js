@@ -57,7 +57,7 @@ test('administrator sees visit totals and repeated visits from the same browser 
   await expect(page.locator('#trend').getByRole('button')).toHaveCount(31);
   await expect(dayButton(page)).toBeVisible();
   await expect(page.locator('#visitors tr')).toHaveCount(2);
-  await expect(page.locator('#visitors tr').first().locator('td').first()).toHaveText('10 24');
+  await expect(page.locator('#visitors tr').first().locator('td').first()).toHaveText('10-24');
   await expect(page.locator('#visitors tr').first().locator('td').first()).toHaveAttribute('title', '2026-10-24');
   await expect(page.locator('.data-notes')).toHaveCount(0);
   await expect(page.getByText('資料說明', { exact: true })).toHaveCount(0);
