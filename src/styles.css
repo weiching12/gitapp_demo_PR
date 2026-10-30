@@ -3005,9 +3005,9 @@ html[data-input-mode="keyboard"] .research-chart-info summary:focus-visible { ou
 @media (max-width: 700px) {
   .settings-account { display: block; margin: 16px 0; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
   .settings-account h3 { margin: 0 0 10px; font-size: 14px; }
-  .settings-account .account-menu { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
-  .settings-account .account-identity { max-width: none; font-size: 14px; }
-  .settings-account :is(a, button) { min-height: 44px; min-width: 88px; justify-content: center; text-decoration: none; }
-  .settings-account .account-login { grid-column: 2; }
-  .settings-account .account-destination { grid-column: 1 / -1; background: var(--accent-soft); color: var(--accent); border-color: var(--border); }
+  .settings-account .account-menu { flex-wrap: nowrap; justify-content: flex-end; gap: 10px; }
+  .settings-account .account-identity { min-width: 0; max-width: none; font-size: 14px; }
+  .settings-account :is(a, button) { flex: 0 0 auto; min-height: 44px; min-width: 0; padding-inline: 12px; justify-content: center; text-decoration: none; }
+  .settings-account .account-login { min-width: 88px; }
+  .settings-account .account-destination { background: var(--accent-soft); color: var(--accent); border-color: var(--border); }
 }
