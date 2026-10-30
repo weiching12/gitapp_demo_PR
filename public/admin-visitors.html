@@ -1,11 +1,47 @@
 <!doctype html>
-<html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>訪客統計｜株研管理員</title>
-<style>body{font:16px/1.7 system-ui;background:#f8fafc;color:#14243b;margin:0}main{max-width:1000px;margin:auto;padding:24px}input,button{font:inherit;padding:8px;margin:4px}table{border-collapse:collapse;width:100%;background:white}th,td{text-align:left;padding:10px;border-bottom:1px solid #ddd}section{margin:24px 0}.scroll{overflow:auto}#status{min-height:2em}button{cursor:pointer}input[type=password]{width:min(85%,420px)}</style>
-<main><a href="/">返回研究工作台</a><h1>訪客統計</h1><p>僅限管理員。以台灣時間計算，每個匿名瀏覽器每天計一次；不同裝置或清除儲存空間會分別計數。</p>
-<p id="login"><a href="/login.html">使用帳號密碼登入</a></p>
-<p id="status" role="status"></p>
-<section id="report" hidden><button id="logout">登出</button><h2 id="today"></h2>
-<form id="filters"><label>趨勢檢視 <select id="view"><option value="day">每日</option><option value="month">每月</option><option value="history">全部歷史（按月）</option></select></label><label>開始日期 <input type="date" id="start" required></label><label>結束日期 <input type="date" id="end" required></label><button>查詢</button></form>
-<h2 id="trend-title">每日瀏覽者趨勢</h2><p>每日與每月人數分別去除重複瀏覽器；首尾月份僅統計選定日期。每日最多 366 天，每月最多 10 年；全部歷史按月呈現。無紀錄期間保留缺口。</p><p id="range-summary"></p><div id="trend"></div><h2>瀏覽者數量</h2><table><thead><tr><th>日期</th><th>不重複瀏覽器</th></tr></thead><tbody id="daily"></tbody></table>
-<h2>造訪明細</h2><p>歷史資料自此功能啟用後保留。舊計數匯入的紀錄可能沒有造訪時間。連線國家／地區由 IP 推估，可能受 VPN 或代理影響，不代表國籍。</p><div class="scroll"><table><thead><tr><th>日期</th><th>匿名識別碼</th><th>國籍（自行填寫）</th><th>IP</th><th>連線國家／地區</th><th>首次造訪</th><th>最近造訪</th></tr></thead><tbody id="visitors"></tbody></table></div><p id="pagination"></p><button id="previous">上一頁</button><button id="next">下一頁</button></section></main>
-<script type="module" src="/admin-visitors.js"></script></html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#f5f7fb">
+  <title>訪客統計｜株研管理員</title>
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/admin-visitors.css">
+</head>
+<body>
+  <header class="topbar"><div class="topbar-inner">
+    <a class="brand" href="/" aria-label="株研，返回研究工作台"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 23V15m8 8V8m8 15V12"/></svg></span><span>株研</span></a>
+    <nav aria-label="管理頁面導覽"><a class="back-link" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg><span>研究工作台</span></a><button class="quiet-button" id="logout" type="button" hidden>登出</button></nav>
+  </div></header>
+  <main>
+    <header class="page-heading"><div><p class="eyebrow">VISITOR ANALYTICS</p><h1>訪客統計</h1><p class="intro">依台灣時間檢視造訪趨勢與紀錄。</p></div><span class="timezone">台灣時間 UTC+8</span></header>
+    <div class="feedback" role="status" aria-live="polite"><p id="status"></p><button class="quiet-button" id="retry" type="button" hidden>重新載入</button><p id="login" hidden><a href="/login.html">使用其他帳號登入</a></p></div>
+    <section class="query-panel" id="query-panel" aria-label="統計查詢" hidden>
+      <form id="filters">
+        <label class="view-field" for="view">趨勢檢視<select id="view"><option value="day">每日</option><option value="month">每月</option><option value="history">全部歷史（按月）</option></select></label>
+        <label for="start">開始日期<input type="date" id="start" required></label>
+        <label for="end">結束日期<input type="date" id="end" required></label>
+        <button class="primary-button" id="query" type="submit">查詢</button>
+      </form>
+    </section>
+    <div id="report" hidden>
+      <section class="panel overview" aria-label="造訪摘要"><div class="today-summary"><p class="section-label">今日瀏覽者</p><div class="today-number"><strong id="today">—</strong><span>位</span></div><p id="today-date"></p></div><div class="range-info"><p class="section-label">查詢期間</p><p id="range-summary"></p><p class="muted">同一瀏覽器去除重複計算；不同裝置或清除儲存空間會分別計數。</p></div></section>
+      <section class="panel trend-panel" aria-labelledby="trend-title">
+        <div class="section-heading"><h2 id="trend-title">每日瀏覽者趨勢</h2><span class="chart-legend"><i aria-hidden="true"></i>不重複瀏覽器</span></div>
+        <div id="trend"></div>
+        <p class="chart-note">無紀錄期間保留缺口；月份首尾依選定日期統計。</p>
+        <details class="daily-details"><summary>查看數量明細</summary><div class="daily-scroll"><table><thead><tr><th scope="col">日期</th><th scope="col">不重複瀏覽器</th></tr></thead><tbody id="daily"></tbody></table></div></details>
+      </section>
+      <section class="panel visitors-panel" aria-labelledby="visitors-heading">
+        <div class="section-heading"><h2 id="visitors-heading">造訪明細</h2><span class="scroll-hint">左右滑動查看完整明細</span></div>
+        <div class="scroll" role="region" aria-label="造訪明細表格，可左右捲動" tabindex="0"><table class="visitor-table"><thead><tr><th scope="col">日期</th><th scope="col">匿名識別碼</th><th scope="col">國籍（自填）</th><th scope="col">IP</th><th scope="col">連線國家／地區</th><th scope="col">首次造訪</th><th scope="col">最近造訪</th></tr></thead><tbody id="visitors"></tbody></table></div>
+        <div class="pagination"><p id="pagination"></p><div><button class="quiet-button" id="previous" type="button">上一頁</button><button class="quiet-button" id="next" type="button">下一頁</button></div></div>
+      </section>
+      <details class="data-notes"><summary>統計方式與資料說明</summary><p>每日與每月人數分別去除重複瀏覽器。每日最多查詢 366 天，每月最多 10 年；全部歷史按月呈現。每頁最多顯示 100 筆造訪紀錄。</p><p>歷史資料自此功能啟用後保留，舊紀錄可能沒有造訪時間。國籍由訪客自行填寫；連線國家／地區由 IP 推估，可能受 VPN 或代理影響，不代表國籍。匿名瀏覽器計數不等於真實人數。</p></details>
+    </div>
+    <footer class="page-footer">株研 <span>STOCK RESEARCH</span></footer>
+  </main>
+  <script type="module" src="/admin-visitors.js"></script>
+</body>
+</html>

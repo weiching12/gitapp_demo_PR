@@ -16,7 +16,8 @@ test('administrator session views daily, monthly and full history trends and can
     } });
   });
   await page.goto('/admin-visitors.html');
-  await expect(page.locator('#today')).toHaveText('今日 2026-10-29：2 位瀏覽者');
+  await expect(page.locator('#today')).toContainText('2');
+  await expect(page.locator('body')).toContainText('2026-10-29');
   await expect(page.locator('#visitors')).toContainText('台灣'); await expect(page.locator('#visitors')).toContainText('203.0.113.7');
   await expect(page.locator('#trend svg circle')).toHaveCount(2);
   await page.locator('#view').selectOption('month');
@@ -31,6 +32,165 @@ test('administrator session views daily, monthly and full history trends and can
   await expect(page).toHaveURL(/\/login(?:\.html)?$/);
   await expect(page.locator('#login-form')).toBeVisible();
   await expect(page.locator('#visitors')).toHaveCount(0);
+});
+
+function report(params = new URLSearchParams(), overrides = {}) {
+  const period = params.get('period') || 'day';
+  const start = params.get('scope') === 'history' ? '2026-10-01' : params.get('start') || '2026-10-01';
+  const end = params.get('scope') === 'history' ? '2026-10-30' : params.get('end') || '2026-10-30';
+  const offset = Number(params.get('offset') || 0);
+  return {
+    today: { today: 12, asOf: '2026-10-30' }, start, end, period, unique: 12, total: 101, limit: 100, offset,
+    daily: period === 'month' ? [{ day: '2026-10', visitors: 12 }] : [{ day: '2026-10-29', visitors: 8 }, { day: '2026-10-30', visitors: 12 }],
+    visitors: [{ day: '2026-10-30', id: offset ? 'second-page-browser' : 'ffffffff-ffff-4fff-8fff-ffffffffffff', nationality: '台灣',
+      ip: '2001:0db8:85a3:0000:0000:8a2e:0370:7334', country: 'TW', first_seen: 1793318400000, last_seen: 1793322000000 }],
+    ...overrides,
+  };
+}
+
+async function reportRoute(page, handle = params => report(params)) {
+  await page.route('**/api/v1/presence?**', async route => route.fulfill({ json: await handle(new URL(route.request().url()).searchParams) }));
+}
+
+for (const width of [320, 390, 550, 1440]) {
+  test(`visitor analytics keeps horizontal scrolling inside its table at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 956 });
+    await reportRoute(page);
+    await page.goto('/admin-visitors.html');
+    await expect(page.locator('#visitors')).toContainText('台灣');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await expect(page.locator('#trend')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    const dailyDetails = page.locator('details').filter({ has: page.locator('#daily') });
+    await expect(dailyDetails).toHaveCount(1);
+    await expect(dailyDetails).not.toHaveAttribute('open', '');
+    await dailyDetails.locator('summary').click();
+    await expect(page.locator('#daily tr').first()).toBeVisible();
+    if (width <= 550) {
+      expect(await page.locator('#visitors').evaluate(tbody => {
+        for (let node = tbody.parentElement; node; node = node.parentElement) {
+          if (['auto', 'scroll'].includes(getComputedStyle(node).overflowX) && node.scrollWidth > node.clientWidth)
+            return node.scrollWidth > node.clientWidth && node.clientWidth <= innerWidth;
+        }
+        return false;
+      })).toBe(true);
+    }
+    if (width === 390 || width === 1440) {
+      await dailyDetails.locator('summary').click();
+      await page.screenshot({ path: `.wrangler/visitors-redesign-${width}.png`, fullPage: true });
+    }
+  });
+}
+
+test('visitor filters submit the selected dates and period and paginate without losing the range', async ({ page }) => {
+  const queries = [];
+  await reportRoute(page, params => { queries.push(Object.fromEntries(params)); return report(params); });
+  await page.goto('/admin-visitors.html');
+  await expect(page.locator('#visitors')).toContainText('台灣');
+  await page.locator('#start').fill('2026-10-01');
+  await page.locator('#end').fill('2026-10-30');
+  await page.locator('#filters').getByRole('button', { name: '查詢', exact: true }).click();
+  await expect.poll(() => queries.at(-1)).toMatchObject({ start: '2026-10-01', end: '2026-10-30', period: 'day', scope: 'range', offset: '0' });
+  await page.locator('#view').selectOption('month');
+  await expect(page.locator('#trend-title')).toContainText('每月');
+  await expect.poll(() => queries.at(-1)).toMatchObject({ start: '2026-10-01', end: '2026-10-30', period: 'month', scope: 'range' });
+  await page.locator('#next').click();
+  await expect(page.locator('#visitors')).toContainText('second-page-browser');
+  expect(queries.at(-1)).toMatchObject({ start: '2026-10-01', end: '2026-10-30', period: 'month', offset: '100' });
+  await expect(page.locator('#next')).toBeDisabled();
+  await page.locator('#previous').click();
+  await expect(page.locator('#visitors')).toContainText('ffffffff');
+  await expect(page.locator('#previous')).toBeDisabled();
+  await page.locator('#view').selectOption('history');
+  await expect(page.locator('#trend-title')).toContainText('全部歷史');
+  expect(queries.at(-1)).toMatchObject({ period: 'month', scope: 'history', offset: '0' });
+  await expect(page.locator('#start')).toBeDisabled();
+  await expect(page.locator('#end')).toBeDisabled();
+});
+
+test('empty visitor history explains the empty chart and details without inventing points', async ({ page }) => {
+  await reportRoute(page, params => report(params, { today: { today: 0, asOf: '2026-10-30' }, unique: 0, total: 0, daily: [], visitors: [] }));
+  await page.goto('/admin-visitors.html');
+  await expect(page.locator('#report')).toBeVisible();
+  await expect(page.locator('#today')).toContainText('0');
+  await expect(page.locator('#trend svg circle')).toHaveCount(0);
+  await expect(page.locator('#trend')).toContainText(/無.*紀錄|尚無|沒有.*紀錄/);
+  await expect(page.locator('#visitors')).toContainText(/無.*紀錄|尚無|沒有.*紀錄/);
+  await expect(page.locator('#previous')).toBeDisabled();
+  await expect(page.locator('#next')).toBeDisabled();
+});
+
+for (const failure of ['empty-json', 'html-server-error', 'empty-server-error']) {
+  test(`visitor analytics reports ${failure} with a useful Chinese message`, async ({ page }) => {
+    await page.route('**/api/v1/presence?**', route => route.fulfill({
+      status: failure === 'empty-json' ? 200 : 500, contentType: failure === 'html-server-error' ? 'text/html' : 'application/json',
+      body: failure === 'html-server-error' ? '<html><h1>Internal Server Error</h1></html>' : '',
+    }));
+    await page.goto('/admin-visitors.html');
+    await expect(page.locator('#status')).toContainText(/[\u4e00-\u9fff]/);
+    await expect(page.locator('#status')).not.toContainText(/載入中|Unexpected|JSON|SyntaxError|<html|<h1/i);
+    await expect(page.locator('#visitors')).toBeEmpty();
+    await expect(page.locator('#trend svg circle')).toHaveCount(0);
+  });
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('repeated submits while the same range is pending do not duplicate requests', async ({ page }) => {
+  const release = deferred(), started = deferred();
+  let pendingRequests = 0;
+  await page.route('**/api/v1/presence?**', async route => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get('start') === '2026-09-01') { pendingRequests++; started.resolve(); await release.promise; }
+    await route.fulfill({ json: report(params) });
+  });
+  try {
+    await page.goto('/admin-visitors.html');
+    await expect(page.locator('#visitors')).toContainText('台灣');
+    await page.locator('#start').fill('2026-09-01');
+    await page.locator('#filters').getByRole('button', { name: '查詢', exact: true }).click();
+    await started.promise;
+    await page.locator('#filters').dispatchEvent('submit');
+    await page.locator('#filters').dispatchEvent('submit');
+    release.resolve();
+    await expect(page.locator('#range-summary')).toContainText('2026-09-01');
+    expect(pendingRequests).toBe(1);
+  } finally { release.resolve(); }
+});
+
+test('rapid period changes keep the newest result when an earlier request finishes late', async ({ page }) => {
+  const release = deferred(), started = deferred(), finished = deferred();
+  await page.route('**/api/v1/presence?**', async route => {
+    const params = new URL(route.request().url()).searchParams;
+    const slow = params.get('period') === 'month' && params.get('scope') === 'range';
+    if (slow) { started.resolve(); await release.promise; }
+    const latest = params.get('scope') === 'history';
+    try {
+      await route.fulfill({ json: report(params, {
+        unique: latest ? 77 : 12,
+        visitors: [{ ...report(params).visitors[0], id: latest ? 'latest-history-result' : slow ? 'outdated-month-result' : 'initial-day-result' }],
+      }) });
+    } catch (error) { if (!slow) throw error; }
+    finally { if (slow) finished.resolve(); }
+  });
+  try {
+    await page.goto('/admin-visitors.html');
+    await expect(page.locator('#visitors')).toContainText('initial-day-result');
+    await page.locator('#view').selectOption('month');
+    await started.promise;
+    await page.locator('#view').selectOption('history');
+    await expect(page.locator('#visitors')).toContainText('latest-history-result');
+    release.resolve();
+    await finished.promise;
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(page.locator('#trend-title')).toContainText('全部歷史');
+    await expect(page.locator('#range-summary')).toContainText('77');
+    await expect(page.locator('#visitors')).toContainText('latest-history-result');
+    await expect(page.locator('#visitors')).not.toContainText('outdated-month-result');
+  } finally { release.resolve(); }
 });
 
 test('anonymous visitor access redirects to account login', async ({ page }) => {
