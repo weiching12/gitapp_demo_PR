@@ -1,6 +1,7 @@
 import { currentUser } from "./auth/session.js";
 import { PresenceRepository } from "./repositories/presence-repository.js";
-import { PresenceService, InvalidPresenceIdentifier } from "./services/presence-service.js";
+import { PresenceService, InvalidPresenceIdentifier, normalizeCountry } from "./services/presence-service.js";
+const requestCountry = request => normalizeCountry(request.cf?.country) ?? normalizeCountry(request.headers.get("CF-IPCountry"));
 const reply = (body, status = 200) => Response.json(body, {
   status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
 });
@@ -44,11 +45,13 @@ export class OnlinePresence {
       const selectedDay = url.searchParams.get("selectedDay");
       if (url.searchParams.has("selectedDay") && (!validDay(selectedDay) || selectedDay < start || selectedDay > end || selectedDay > today))
         return reply({ error: "Invalid selected day" }, 400);
-      return reply({ ...this.repository.analytics(start, end, 100, offset, period, selectedDay),
+      const analytics = this.repository.analytics(start, end, 100, offset, period, selectedDay);
+      analytics.visitors = analytics.visitors.map(row => ({ ...row, country: normalizeCountry(row.country) }));
+      return reply({ ...analytics,
         overall: this.repository.overall(), months: this.repository.months(today),
         today: this.service.count(), month, start, end, period, scope, timezone: "Asia/Taipei" });
     }
-    let id, visitId, metadataOnly = false, nationality = null;
+    let id, visitId, metadataOnly = false;
     if (request.method === "POST") {
       if (Number(request.headers.get("Content-Length")) > 512) return reply({ error: "Invalid heartbeat" }, 413);
       // Bound streamed bodies too: Content-Length is optional and untrusted.
@@ -68,11 +71,11 @@ export class OnlinePresence {
       try { const body = JSON.parse(raw); id = body.id; visitId = body.visitId;
         if (body.metadataOnly !== undefined && typeof body.metadataOnly !== "boolean") return reply({ error: "Invalid visit metadata option" }, 400);
         metadataOnly = body.metadataOnly ?? false;
-        if (body.nationality != null && (typeof body.nationality !== "string" || body.nationality.length > 80)) return reply({ error: "Invalid nationality" }, 400);
-        nationality = body.nationality?.trim() || null; } catch { return reply({ error: "Invalid heartbeat" }, 400); }
+        // Ignore retired nationality fields from older PWAs; geography is edge-derived only.
+      } catch { return reply({ error: "Invalid heartbeat" }, 400); }
     }
     try {
-      if (request.method === "POST") { this.service.heartbeat(id, { visitId, metadataOnly, nationality, ip: request.headers.get("CF-Connecting-IP"), country: request.headers.get("CF-IPCountry") }); return reply({ recorded: true }); }
+      if (request.method === "POST") { this.service.heartbeat(id, { visitId, metadataOnly, ip: request.headers.get("CF-Connecting-IP"), country: requestCountry(request) }); return reply({ recorded: true }); }
       return reply(this.service.count());
     } catch (error) {
       if (error instanceof InvalidPresenceIdentifier) return reply({ error: error.message }, 400);
@@ -99,7 +102,10 @@ export async function presenceResponse(request, env) {
   try {
     const forwarded = new URL(request.url);
     if (request.method === "GET") forwarded.pathname = "/internal/analytics";
-    return await env.ONLINE_PRESENCE.getByName("stock-insight-online").fetch(new Request(forwarded, request));
+    const forwardedRequest = new Request(forwarded, request);
+    // Resolve the original edge metadata before cloning/forwarding can lose Request.cf.
+    forwardedRequest.headers.set("CF-IPCountry", requestCountry(request) ?? "XX");
+    return await env.ONLINE_PRESENCE.getByName("stock-insight-online").fetch(forwardedRequest);
   }
   catch { return reply({ error: "Daily visitor count unavailable" }, 503); }
 }

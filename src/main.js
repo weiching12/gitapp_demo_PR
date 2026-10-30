@@ -344,7 +344,6 @@ function shell() {
   presence?.stop();
   if (nativeMode) {
     document.querySelector("#online-count").hidden = true;
-    document.querySelector(".visitor-info").hidden = true;
     document.querySelector("#account-menu").hidden = true;
   }
   else {

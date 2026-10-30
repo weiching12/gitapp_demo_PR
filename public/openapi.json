@@ -1171,12 +1171,6 @@
                           "id": {
                             "type": "string"
                           },
-                          "nationality": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
                           "ip": {
                             "type": [
                               "string",
@@ -1187,7 +1181,8 @@
                             "type": [
                               "string",
                               "null"
-                            ]
+                            ],
+                            "description": "IP-derived country, displayed as nationality (IP estimate). Trusted Cloudflare request.cf.country first, CF-IPCountry fallback; uppercase ISO alpha-2 or null when unknown. Client geography is ignored."
                           },
                           "first_seen": {
                             "type": [
@@ -1346,7 +1341,7 @@
       },
       "post": {
         "operationId": "heartbeat",
-        "description": "Same-origin page-entry registration, max 512 UTF-8 bytes. Use one fresh UUID visitId for each page entry/reload and reuse it for retries. Repeat browsers count again with a new key. metadataOnly=true requires visitId and only updates an existing event owned by id, without increasing counts. Legacy requests with only id create a new event on every POST. Source IP and connection country come from Cloudflare. Returns only a receipt.",
+        "description": "Same-origin page-entry registration, max 512 UTF-8 bytes. Use one fresh UUID visitId for each page entry/reload and reuse it for retries. Repeat browsers count again with a new key. Compatibility metadataOnly=true requires visitId and only updates an existing event owned by id, without increasing counts. Legacy requests with only id create a new event on every POST. IP geography comes only from trusted Cloudflare request.cf.country or the CF-IPCountry fallback. Client geography fields are ignored. Returns only a receipt.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1362,11 +1357,7 @@
                     "format": "uuid"
                   },
                   "visitId": { "type": "string", "format": "uuid", "description": "Page-entry UUID v4; retry with the same value to avoid duplicate delivery counts." },
-                  "metadataOnly": { "type": "boolean", "default": false, "description": "Requires visitId; updates existing metadata without adding a page entry." },
-                  "nationality": {
-                    "type": "string",
-                    "maxLength": 80
-                  }
+                  "metadataOnly": { "type": "boolean", "default": false, "description": "Compatibility option; requires visitId and updates existing edge metadata without adding a page entry." }
                 }
               }
             }

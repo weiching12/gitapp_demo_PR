@@ -7,6 +7,14 @@ const count = value => value.toLocaleString('zh-TW');
 const monthLabel = value => `${value.slice(0, 4)}年${Number(value.slice(5))}月`;
 const time = value => value == null || !Number.isFinite(new Date(value).getTime()) ? '未記錄'
   : new Date(value).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
+let countryNames;
+try { countryNames = new Intl.DisplayNames(['zh-Hant'], { type: 'region' }); } catch { /* Keep ISO labels usable on older browsers. */ }
+function countryName(value) {
+  const code = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  if (!/^[A-Z]{2}$/.test(code) || ['XX', 'ZZ'].includes(code)) return '未知';
+  const name = countryNames?.of(code);
+  return name && name !== code ? name : countryNames ? '未知' : code;
+}
 
 function fillMonths(months) {
   const values = [...new Set([month, ...months])].sort().reverse();
@@ -19,8 +27,8 @@ fillMonths([month]);
 
 function clearData() {
   currentData = null; renderedMonth = null;
-  for (const id of ['visitors', 'trend', 'today-date', 'overall-start', 'month-range', 'selected-day-text', 'pagination']) node(id).replaceChildren();
-  for (const id of ['today', 'cumulative', 'month-total']) node(id).textContent = '—';
+  for (const id of ['visitors', 'trend', 'today-date', 'overall-start', 'selected-day-text', 'pagination']) node(id).replaceChildren();
+  for (const id of ['today', 'cumulative']) node(id).textContent = '—';
   node('show-month').hidden = true;
 }
 function clearReport() {
@@ -31,14 +39,14 @@ function clearReport() {
 function renderVisitors(data) {
   const rows = data.visitors.map(visit => {
     const row = document.createElement('tr');
-    for (const value of [visit.day, visit.id, visit.nationality || '未填寫', visit.ip || '未記錄', visit.country || '未知', time(visit.first_seen), time(visit.last_seen)]) {
+    for (const value of [visit.day, visit.id, countryName(visit.country), visit.ip || '未記錄', time(visit.first_seen), time(visit.last_seen)]) {
       const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
     }
     return row;
   });
   if (!rows.length) {
     const row = document.createElement('tr'), cell = document.createElement('td');
-    cell.colSpan = 7; cell.className = 'empty-state'; cell.textContent = selectedDay ? '當天尚無造訪紀錄' : '此月份尚無造訪紀錄';
+    cell.colSpan = 6; cell.className = 'empty-state'; cell.textContent = selectedDay ? '當天尚無造訪紀錄' : '此月份尚無造訪紀錄';
     row.append(cell); rows.push(row);
   }
   node('visitors').replaceChildren(...rows);
@@ -88,7 +96,6 @@ async function load() {
     node('today').textContent = count(data.today.today); node('today-date').textContent = data.today.asOf;
     node('cumulative').textContent = count(data.overall.total);
     node('overall-start').textContent = data.overall.firstDay ? `自 ${data.overall.firstDay.replaceAll('-', '/')}` : '—';
-    node('month-total').textContent = count(data.total); node('month-range').textContent = monthLabel(month);
     node('report').hidden = false; node('logout').hidden = false; node('status').textContent = '';
     renderTrend(data); renderVisitors(data);
   } catch (error) {

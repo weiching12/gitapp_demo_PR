@@ -5,21 +5,21 @@ import { PresenceApiClient } from '../src/api/presence-client.js';
 
 const dayStart = Date.UTC(2026, 9, 29, 15, 59, 50);
 const node = () => ({ textContent: '', dataset: {} });
-const documentWith = (form = null) => ({ getElementById: id => id === 'visitor-nationality-form' ? form : null });
+const documentWith = () => ({ getElementById() { throw Error('Visit reporting must not query visitor forms'); } });
 
 async function browserWorld(run, { blockedStorage = false } = {}) {
-  const keys = ['document', 'localStorage', 'FormData', 'window'];
+  const keys = ['document', 'localStorage', 'window'];
   const previous = new Map(keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-  const values = new Map();
+  const values = new Map(), reads = [], writes = [];
   Object.defineProperty(globalThis, 'window', { configurable: true, value: new EventTarget() });
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
-    getItem(key) { if (blockedStorage) throw Error('Storage disabled'); return values.get(key) ?? null; },
-    setItem(key, value) { if (blockedStorage) throw Error('Storage disabled'); values.set(key, value); },
-    removeItem(key) { if (blockedStorage) throw Error('Storage disabled'); values.delete(key); },
+    getItem(key) { reads.push(key); if (blockedStorage) throw Error('Storage disabled'); return values.get(key) ?? null; },
+    setItem(key, value) { writes.push(key); if (blockedStorage) throw Error('Storage disabled'); values.set(key, value); },
+    removeItem(key) { writes.push(key); if (blockedStorage) throw Error('Storage disabled'); values.delete(key); },
   } });
-  const newDocument = (form = null) => Object.defineProperty(globalThis, 'document', { configurable: true, value: documentWith(form) });
+  const newDocument = () => Object.defineProperty(globalThis, 'document', { configurable: true, value: documentWith() });
   newDocument();
-  try { await run({ newDocument, values }); }
+  try { await run({ newDocument, values, reads, writes }); }
   finally { for (const key of keys) {
     if (previous.get(key)) Object.defineProperty(globalThis, key, previous.get(key));
     else delete globalThis[key];
@@ -150,32 +150,19 @@ test('a pre-midnight in-flight completion cannot mark the new day as already rec
   });
 });
 
-test('nationality submissions update metadata for the existing visit instead of adding a visit', async () => {
-  await browserWorld(async ({ newDocument, values }) => {
-    const listeners = new Set(), status = {}, button = {};
-    const form = { elements: { nationality: { value: '台灣' } },
-      querySelector: selector => selector === 'button' ? button : status,
-      addEventListener: (_type, listener) => listeners.add(listener),
-      removeEventListener: (_type, listener) => listeners.delete(listener),
-    };
-    newDocument(form);
-    Object.defineProperty(globalThis, 'FormData', { configurable: true, value: class {
-      constructor(form) { this.form = form; }
-      get() { return this.form.elements.nationality.value; }
-    } });
+test('legacy nationality storage is neither read nor sent, and visits need no visitor form', async () => {
+  await browserWorld(async ({ values, reads, writes }) => {
+    values.set('stock-insight-nationality', '台灣');
     const { calls, client } = clientRecorder();
     const presence = startPresence(node(), { client, now: () => dayStart });
     await presence.refresh();
-    await [...listeners][0]({ preventDefault() {} });
-    assert.equal(calls.length, 2);
-    assert.equal(calls[1].visitId, calls[0].visitId);
-    assert.equal(calls[1].metadataOnly, true);
-    assert.equal(calls[1].nationality, '台灣');
-    assert.equal(calls.filter(call => !call.metadataOnly).length, 1);
+    assert.equal(calls.length, 1);
+    assert.equal(Object.hasOwn(calls[0], 'nationality'), false);
+    assert.equal(Object.hasOwn(calls[0], 'metadataOnly'), false);
+    assert.deepEqual(reads, ['stock-insight-browser-id']);
+    assert.deepEqual(writes, ['stock-insight-browser-id']);
     assert.equal(values.get('stock-insight-nationality'), '台灣');
-    assert.equal(status.textContent, '國籍已送出');
-    assert.equal(button.disabled, false);
-    presence.stop(); assert.equal(listeners.size, 0);
+    presence.stop();
   });
 });
 
@@ -198,7 +185,7 @@ test('demo pages never send page visits or metadata', async () => {
   });
 });
 
-test('presence API posts page event and metadata keys without exposing private analytics', async () => {
+test('presence API posts page keys without forwarding retired nationality options', async () => {
   const calls = [], signal = new AbortController().signal;
   const api = new PresenceApiClient(async (url, options) => {
     calls.push({ url, ...options });
@@ -208,7 +195,7 @@ test('presence API posts page event and metadata keys without exposing private a
   await api.recordVisit(id, { visitId, signal });
   await api.recordVisit(id, { visitId, nationality: '台灣', metadataOnly: true, signal });
   assert.deepEqual(JSON.parse(calls[0].body), { id, visitId });
-  assert.deepEqual(JSON.parse(calls[1].body), { id, visitId, nationality: '台灣', metadataOnly: true });
+  assert.deepEqual(JSON.parse(calls[1].body), { id, visitId, metadataOnly: true });
   for (const call of calls) {
     assert.equal(call.url, '/api/v1/presence'); assert.equal(call.method, 'POST');
     assert.equal(call.cache, 'no-store'); assert.equal(call.signal, signal);

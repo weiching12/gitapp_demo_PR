@@ -22,16 +22,16 @@ export class PresenceRepository {
     }
   }
 
-  recordVisit({ id, visitId, metadataOnly = false, now, nationality = null, ip = null, country = null }) {
+  recordVisit({ id, visitId, metadataOnly = false, now, ip = null, country = null }) {
     const day = new Date(now + 8 * 3600000).toISOString().slice(0, 10);
     if (metadataOnly) {
-      this.sql.exec(`UPDATE visit_events SET last_seen = ?, nationality = COALESCE(?, nationality),
-        ip = COALESCE(?, ip), country = COALESCE(?, country) WHERE event_id = ? AND id = ?`, now, nationality, ip, country, visitId, id);
+      this.sql.exec(`UPDATE visit_events SET last_seen = ?, ip = COALESCE(?, ip), country = COALESCE(?, country)
+        WHERE event_id = ? AND id = ?`, now, ip, country, visitId, id);
     } else {
-      this.sql.exec(`INSERT INTO visit_events(event_id, day, id, first_seen, last_seen, nationality, ip, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      this.sql.exec(`INSERT INTO visit_events(event_id, day, id, first_seen, last_seen, ip, country) VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(event_id) DO UPDATE SET last_seen=excluded.last_seen,
-        nationality=COALESCE(excluded.nationality, visit_events.nationality), ip=COALESCE(excluded.ip, visit_events.ip), country=COALESCE(excluded.country, visit_events.country)
-        WHERE visit_events.id = excluded.id`, visitId, day, id, now, now, nationality, ip, country);
+        ip=COALESCE(excluded.ip, visit_events.ip), country=COALESCE(excluded.country, visit_events.country)
+        WHERE visit_events.id = excluded.id`, visitId, day, id, now, now, ip, country);
     }
     return this.countVisits(day);
   }
@@ -51,7 +51,7 @@ export class PresenceRepository {
     const unique = this.sql.exec(`SELECT count(DISTINCT id) AS count FROM visit_events
       WHERE day BETWEEN ? AND ?`, start, end).one().count;
     const detailStart = selectedDay || start, detailEnd = selectedDay || end;
-    const visitors = [...this.sql.exec(`SELECT event_id, day, id, first_seen, last_seen, nationality, ip, country FROM visit_events
+    const visitors = [...this.sql.exec(`SELECT event_id, day, id, first_seen, last_seen, ip, country FROM visit_events
       WHERE day BETWEEN ? AND ? ORDER BY day DESC, first_seen DESC, event_id LIMIT ? OFFSET ?`, detailStart, detailEnd, limit, offset)];
     const total = this.sql.exec(`SELECT count(*) AS count FROM visit_events
       WHERE day BETWEEN ? AND ?`, start, end).one().count;

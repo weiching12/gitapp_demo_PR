@@ -54,9 +54,13 @@ page-entry count. `unique` is retained solely for compatibility and is not displ
 the browsing metric. `selectedDay` filters only `visitors[]` detail rows
 and `detailTotal`; `total` and the daily trend retain the whole month. `overall.total` always
 covers all retained events and `months[]` lists recorded months plus the current month.
-POST `{id, visitId?, nationality?, metadataOnly?}` requires UUID v4 IDs: new page entries use
+POST `{id, visitId?, metadataOnly?}` requires UUID v4 IDs: new page entries use
 new `visitId`; only delivery retries reuse that entry's key to prevent counting the same
-delivery twice. Metadata-only writes require an existing owned event and never add a count.
+delivery twice. Compatibility metadata-only writes require an existing owned event and never add a count.
+The administrator's country column is derived from trusted Cloudflare IP geography:
+`request.cf.country` takes priority, with `CF-IPCountry` as fallback. Codes normalize to
+uppercase ISO alpha-2; unknown/special values are `null`. Client-submitted geography is
+ignored; no self-reported nationality field is stored or returned by current event APIs.
 Legacy id-only POSTs create a new event per request. Legacy date-range/history query parameters
 remain supported. See [visitor analytics](visitor-analytics.md) for migration and count limits.
 

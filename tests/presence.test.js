@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { OnlinePresence } from '../cloudflare/presence.js';
-import { PresenceService, InvalidPresenceIdentifier, taipeiVisitDay } from '../cloudflare/services/presence-service.js';
+import { PresenceService, InvalidPresenceIdentifier, taipeiVisitDay, normalizeCountry } from '../cloudflare/services/presence-service.js';
 const sqlFor = db => ({ exec(query, ...values) {
   const statement = db.prepare(query);
   const rows = statement.all(...values);
@@ -12,7 +12,7 @@ test('invalid browser identifiers and malformed or oversized stream bodies are r
   const db = new DatabaseSync(':memory:');
   try {
     const presence = new OnlinePresence({ storage: { sql: sqlFor(db) } });
-    for (const body of ['{', 'null', '{}', JSON.stringify({ id: 'bad' }), JSON.stringify({ id: crypto.randomUUID(), nationality: 123 }),
+    for (const body of ['{', 'null', '{}', JSON.stringify({ id: 'bad' }),
       JSON.stringify({ id: crypto.randomUUID(), visitId: 'bad' }), JSON.stringify({ id: crypto.randomUUID(), metadataOnly: true }),
       JSON.stringify({ id: crypto.randomUUID(), metadataOnly: 'true' })]) {
       assert.equal((await presence.fetch(new Request('https://stock.test/api/presence', { method: 'POST', body }))).status, 400);
@@ -21,6 +21,12 @@ test('invalid browser identifiers and malformed or oversized stream bodies are r
     assert.equal((await presence.fetch(new Request('https://stock.test/api/presence', { method: 'POST', duplex: 'half', body: stream }))).status, 413);
     assert.equal(db.prepare('SELECT count(*) n FROM visit_events').get().n, 0);
   } finally { db.close(); }
+});
+
+test('edge country codes normalize to supported ISO alpha-2 values, excluding unknown and special values', () => {
+  for (const [value, expected] of [['tw', 'TW'], [' US ', 'US'], ['gb', 'GB'], ['JP', 'JP'], ['AX', 'AX'],
+    ['T1', null], ['XX', null], ['ZZ', null], ['unknown', null], ['EU', null], ['USA', null], ['', null], [null, null], [123, null]])
+    assert.equal(normalizeCountry(value), expected);
 });
 test('legacy daily records are imported once with unknown timestamps', async () => {
   const db = new DatabaseSync(':memory:');

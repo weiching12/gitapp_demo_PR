@@ -14,7 +14,7 @@ function report(params = new URLSearchParams(), overrides = {}) {
   const visitDay = selectedDay || `${month}-24`;
   const visit = (hour, id = browserId) => {
     const at = Date.parse(`${visitDay}T${hour}:00:00Z`);
-    return { day: visitDay, id, nationality: '台灣', ip: '2001:0db8:85a3:0000:0000:8a2e:0370:7334', country: 'TW',
+    return { day: visitDay, id, ip: '2001:0db8:85a3:0000:0000:8a2e:0370:7334', country: 'TW',
       first_seen: at, last_seen: at, visited_at: at };
   };
   const visitors = offset ? [visit('02', 'second-page-browser')] : [visit('00'), visit('01')];
@@ -40,7 +40,7 @@ const dayButton = (page, date = 24, count = 102) => page.locator('#trend').getBy
 async function expectTotals(page) {
   await expect(page.locator('#today')).toHaveText('2');
   await expect(page.locator('#cumulative')).toHaveText('405');
-  await expect(page.locator('#month-total')).toHaveText('107');
+  await expect(page.locator('#month-summary, #month-total, #month-range')).toHaveCount(0);
 }
 
 test('administrator sees visit totals and repeated visits from the same browser and can log out', async ({ page }) => {
@@ -52,7 +52,8 @@ test('administrator sees visit totals and repeated visits from the same browser 
   await reportRoute(page);
   await page.goto('/admin-visitors.html');
   await expectTotals(page);
-  await expect(page.locator('#month-range')).toContainText('2026年10月');
+  await expect(page.locator('#month')).toHaveValue('2026-10');
+  await expect(page.locator('#selected-day-text')).toContainText('107');
   await expect(page.locator('#trend').getByRole('button')).toHaveCount(31);
   await expect(dayButton(page)).toBeVisible();
   await expect(page.locator('#visitors tr')).toHaveCount(2);
@@ -65,6 +66,26 @@ test('administrator sees visit totals and repeated visits from the same browser 
   await expect(page).toHaveURL(/\/login(?:\.html)?$/);
   await expect(page.locator('#login-form')).toBeVisible();
   await expect(page.locator('#visitors')).toHaveCount(0);
+});
+
+test('visitor nationality is derived from IP country and never from a legacy self-reported value', async ({ page }) => {
+  const countries = ['TW', 'US', null, 'XX', 'T1'];
+  const labels = ['台灣', '美國', '未知', '未知', '未知'];
+  await reportRoute(page, params => report(params, { visitors: countries.map((country, index) => ({
+    ...report(params).visitors[0], id: `country-fixture-${index}`, country, nationality: '舊版自行填寫值不應出現',
+  })) }));
+  await page.goto('/admin-visitors.html');
+  const header = page.getByRole('columnheader', { name: '國籍', exact: true });
+  await expect(header).toHaveCount(1);
+  await expect(header).toHaveAttribute('title', /IP/);
+  await expect(page.locator('#visitors tr')).toHaveCount(countries.length);
+  for (let index = 0; index < labels.length; index++) {
+    const cells = page.locator('#visitors tr').nth(index).locator('td');
+    await expect(cells).toHaveCount(6);
+    await expect(cells.nth(2)).toHaveText(labels[index]);
+  }
+  await expect(page.locator('body')).not.toContainText('舊版自行填寫值不應出現');
+  await expect(page.getByRole('columnheader', { name: /自填|自行填寫|自述/ })).toHaveCount(0);
 });
 
 for (const width of [320, 390, 550, 1440]) {
@@ -83,9 +104,7 @@ for (const width of [320, 390, 550, 1440]) {
       expect(recordedDay.x + recordedDay.width).toBeLessThanOrEqual(chart.x + chart.width);
       const today = await page.locator('#today').boundingBox();
       const cumulative = await page.locator('#cumulative').boundingBox();
-      const monthTotal = await page.locator('#month-total').boundingBox();
       expect(Math.abs(today.y - cumulative.y)).toBeLessThan(2);
-      expect(monthTotal.y).toBeGreaterThan(today.y);
       expect(await page.locator('#visitors').evaluate(tbody => {
         for (let node = tbody.parentElement; node; node = node.parentElement) {
           if (['auto', 'scroll'].includes(getComputedStyle(node).overflowX) && node.scrollWidth > node.clientWidth)
@@ -135,7 +154,7 @@ test('month selection loads automatically and clears the selected day and detail
   await page.locator('#next').click();
   await expect(page.locator('#visitors')).toContainText('second-page-browser');
   await page.locator('#month').selectOption('2026-09');
-  await expect(page.locator('#month-range')).toContainText('2026年9月');
+  await expect(page.locator('#month')).toHaveValue('2026-09');
   expect(queries.at(-1)).toMatchObject({ month: '2026-09', offset: '0' });
   expect(queries.at(-1).selectedDay || '').toBe('');
   await expect(page.locator('#trend').getByRole('button')).toHaveCount(30);
@@ -162,7 +181,8 @@ test('empty monthly history shows zero totals and an explicit empty detail state
     overall: { total: 0, firstDay: null, lastDay: null }, total: 0, detailTotal: 0, daily: [], visitors: [] }));
   await page.goto('/admin-visitors.html');
   await expect(page.locator('#report')).toBeVisible();
-  for (const id of ['today', 'cumulative', 'month-total']) await expect(page.locator(`#${id}`)).toHaveText('0');
+  for (const id of ['today', 'cumulative']) await expect(page.locator(`#${id}`)).toHaveText('0');
+  await expect(page.locator('#month-summary, #month-total, #month-range')).toHaveCount(0);
   await expect(page.locator('#visitors')).toContainText(/無.*紀錄|尚無|沒有.*紀錄/);
   await expect(page.locator('#trend').getByRole('button', { name: /[，,]\s*[1-9]\d*\s*次造訪/ })).toHaveCount(0);
   await expect(page.locator('#previous')).toBeDisabled();
@@ -206,7 +226,8 @@ test('repeated selection while the same month request is pending is deduplicated
     await page.locator('#month').dispatchEvent('change');
     await page.locator('#month').dispatchEvent('change');
     release.resolve();
-    await expect(page.locator('#month-range')).toContainText('2026年9月');
+    await expect(page.locator('#month')).toHaveValue('2026-09');
+    await expect(page.locator('#selected-day-text')).toContainText('107');
     expect(pendingRequests).toBe(1);
   } finally { release.resolve(); }
 });
@@ -230,7 +251,7 @@ for (const selection of ['month', 'day']) {
       await started.promise;
       if (selection === 'month') await page.locator('#month').selectOption('2026-10');
       else await dayButton(page, 25, 3).click();
-      if (selection === 'month') await expect(page.locator('#month-range')).toContainText('2026年10月');
+      if (selection === 'month') await expect(page.locator('#month')).toHaveValue('2026-10');
       else await expect(page.locator('#selected-day-text')).toContainText(/2026[-/]10[-/]25/);
       await expect(page.locator('#visitors')).toContainText('latest-result');
       release.resolve();

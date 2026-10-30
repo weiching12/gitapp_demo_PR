@@ -14,9 +14,7 @@ function currentPageState() {
     if (/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(stored ?? "")) id = stored;
     else localStorage.setItem(STORAGE_KEY, id);
   } catch { /* Storage-disabled browsers use a document-local identifier. */ }
-  let nationality;
-  try { nationality = localStorage.getItem("stock-insight-nationality") || undefined; } catch {}
-  page = { id, nationality, visit: null };
+  page = { id, visit: null };
   pageStates.set(document, page);
   return page;
 }
@@ -39,7 +37,7 @@ export function startPresence(node, { demo = false, client = new PresenceApiClie
     if (visit.recorded) return visit;
     if (visit.pending) return visit.pending;
     visit.pending = Promise.resolve().then(async () => { try {
-      await client.recordVisit(page.id, { visitId: visit.visitId, nationality: page.nationality, signal: AbortSignal.timeout(8000) });
+      await client.recordVisit(page.id, { visitId: visit.visitId, signal: AbortSignal.timeout(8000) });
       // A shell may have been rebuilt while this shared document request ran.
       visit.recorded = true;
       if (!stopped) delete node.dataset.state;
@@ -50,30 +48,8 @@ export function startPresence(node, { demo = false, client = new PresenceApiClie
     } finally { visit.pending = null; } });
     return visit.pending;
   };
-  const form = globalThis.document?.getElementById("visitor-nationality-form");
-  if (form && page.nationality) form.elements.nationality.value = page.nationality;
-  const submitNationality = async event => {
-    event.preventDefault();
-    const status = form.querySelector('[role="status"]');
-    const button = form.querySelector('button');
-    button.disabled = true;
-    try {
-      const submitted = String(new FormData(form).get("nationality") || "").trim();
-      const visit = await update();
-      if (!visit) throw new Error("Visit unavailable");
-      await client.recordVisit(page.id, { visitId: visit.visitId, nationality: submitted, metadataOnly: true, signal: AbortSignal.timeout(8000) });
-      page.nationality = submitted || undefined;
-      try {
-        if (page.nationality) localStorage.setItem("stock-insight-nationality", page.nationality);
-        else localStorage.removeItem("stock-insight-nationality");
-      } catch {}
-      status.textContent = "國籍已送出";
-    } catch { status.textContent = "送出失敗，請稍後再試"; }
-    finally { button.disabled = false; }
-  };
-  form?.addEventListener("submit", submitNationality);
   const handle = { refresh: update, stop: () => {
-    stopped = true; form?.removeEventListener("submit", submitNationality);
+    stopped = true;
     if (page.active === handle) {
       page.active = null;
       globalThis.window?.removeEventListener("pageshow", page.onPageShow);
