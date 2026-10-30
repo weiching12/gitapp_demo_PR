@@ -39,7 +39,7 @@ test('failed conditions display zero, recalculate gated deltas, and keep missing
   const render = () => researchComparisonContent({ addedSnapshot: before }, { latest: after }, after.asOf, esc);
   const category = html => html.split('data-category="trend"')[1].split('data-category="momentum"')[0];
   const failed = category(render());
-  assert.match(failed, /-92\.00 分/);
+  assert.match(failed, /-23\.00 分/);
   assert.match(failed, /<strong>0\.00<\/strong>/);
   assert.match(failed, /data-state="fail"/);
   assert.match(failed, /class="selected" style="width:0%"/);
@@ -48,12 +48,35 @@ test('failed conditions display zero, recalculate gated deltas, and keep missing
   before.conditions.trend.status = 'FAIL';
   assert.match(category(render()), /0\.00 分/);
   after.conditions.trend.status = 'PASS';
-  assert.match(category(render()), /\+52\.00 分/);
+  assert.match(category(render()), /\+13\.00 分/);
   after.conditions.trend.status = 'UNKNOWN';
   const unknown = category(render());
   assert.match(unknown, /<strong>—<\/strong>/);
   assert.match(unknown, /資料不足/);
   assert.doesNotMatch(unknown, /neutral">0\.00 分/);
+});
+
+test('weighted contributions reconcile to the total and use stored credited values when available', () => {
+  const before = snapshot('2026-10-27', 90.65), after = snapshot('2026-10-30', 36.25);
+  const weights = [25, 15, 15, 20, 25];
+  const beforeScores = [92, 100, 100, 63.25, 100], afterScores = [52, 20, 15, 85, 68];
+  for (let i = 0; i < keys.length; i++) {
+    before.categories[keys[i]] = { score: beforeScores[i], weight: weights[i] };
+    after.categories[keys[i]] = { score: afterScores[i], weight: weights[i] };
+  }
+  after.conditions.trend.status = after.conditions.momentum.status = 'FAIL';
+  const html = researchComparisonContent({ addedSnapshot: before }, { latest: after }, after.asOf, esc);
+  assert.match(html, /<dt>加權總分<\/dt>/);
+  assert.match(html, /各條件加權貢獻/);
+  const contributions = [...html.matchAll(/data-contribution="([^"]*)"/g)].map(match => Number(match[1]));
+  assert.equal(contributions.length, 10);
+  const sum = parity => contributions.filter((_, index) => index % 2 === parity).reduce((a, b) => a + b, 0);
+  assert.equal(sum(0).toFixed(2), '90.65');
+  assert.equal(sum(1).toFixed(2), '36.25');
+  assert.equal((sum(1) - sum(0)).toFixed(2), '-54.40');
+  assert.deepEqual(contributions.slice(0, 4), [23, 0, 15, 0]);
+  before.categories.trend.creditedContribution = 22.75;
+  assert.match(researchComparisonContent({ addedSnapshot: before }, { latest: after }, after.asOf, esc), /data-contribution="22\.75"/);
 });
 
 test('a missing or invalid selected session never borrows the latest score or invents a change', () => {
@@ -68,7 +91,7 @@ test('a missing or invalid selected session never borrows the latest score or in
 test('incompatible models and dates before the baseline do not calculate deltas', () => {
   const incompatible = researchComparisonContent(period, { latest: { ...latest, configId: 'b' } }, latest.asOf, esc);
   assert.match(incompatible, /無法直接比較/);
-  assert.doesNotMatch(incompatible, / · 變化|分<\/span>/);
+  assert.doesNotMatch(incompatible, / · 變化|class="(?:up|down|neutral)">[+-]?\d+\.\d+ 分/);
   const earlier = snapshot('2026-10-21', 90);
   const before = researchComparisonContent(period, { history: [earlier] }, earlier.asOf, esc);
   assert.match(before, /早於評分基準日/);

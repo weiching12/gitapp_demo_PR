@@ -8,7 +8,7 @@ test('chart selection compares that session to joining and keeps the selected da
       modelVersion: 'entry-score-v1.2', strategy: 'swing-trend',
       configId: 'swing-trend:kd-9-3-3:weights-25-15-15-20-25', priceBasis: 'unadjusted',
       finalScore: 89.25, baseScore: 89.25, passedCount: 5, totalConditions: 5,
-      categories: Object.fromEntries(keys.map(key => [key, { score: 90 }])),
+      categories: Object.fromEntries(keys.map((key, index) => [key, { score: [100, 85, 100, 95, 70][index] }])),
       conditions: Object.fromEntries(keys.map(key => [key, { status: 'PASS' }])), cap: { enabled: false } };
     localStorage.setItem('stock-insight-v1', JSON.stringify({ favorites: ['3026'], theme: 'light', catalogVersion: 2 }));
     localStorage.setItem('stock-insight-research-v2', JSON.stringify({ version: 3, periods: [{
@@ -59,11 +59,18 @@ test('chart selection compares that session to joining and keeps the selected da
   await expect(comparison.locator('.research-comparison-bar')).toHaveCount(10);
   await expect(comparison.locator('.research-comparison-summary')).toContainText('89.25 → 64.25 · 變化 -25.00');
   const trend = comparison.locator('[data-category="trend"]');
-  await expect(trend.locator('.research-comparison-category-heading')).toContainText('-90.00 分');
+  await expect(comparison.locator('.research-comparison-summary dt').first()).toHaveText('加權總分');
+  await expect(comparison.locator('.research-contribution-heading')).toContainText('各條件加權貢獻');
+  await expect(trend.locator('.research-comparison-category-heading')).toContainText('權重 25%');
+  await expect(trend.locator('.research-comparison-category-heading')).toContainText('-25.00 分');
   await expect(trend.locator('.research-comparison-bar').last().locator('strong')).toHaveText('0.00');
   await expect(trend.locator('.research-comparison-bar').last().locator('.research-comparison-status')).toHaveText('未通過');
   await expect(trend.locator('.research-comparison-bar').last().locator('.selected')).toHaveCSS('width', '0px');
   await expect(comparison.locator('.research-comparison-state')).toHaveCount(0);
+  const totals = await comparison.locator('.research-comparison-bar').evaluateAll(bars => bars.reduce((sums, bar, index) => {
+    sums[index % 2] += Number(bar.dataset.contribution); return sums;
+  }, [0, 0]));
+  expect(totals.map(value => value.toFixed(2))).toEqual(['89.25', '64.25']);
   await plot.scrollIntoViewIfNeeded();
   const marker = await plot.locator('.research-selected-date text').boundingBox();
   const plotBounds = await plot.boundingBox();

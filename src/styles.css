@@ -2872,6 +2872,8 @@ dialog.sector-dialog {
 .research-initial-comparison { margin-top: 8px; }
 .research-initial-comparison > h5 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
 .research-comparison-dates { margin: 0 0 10px; }
+.research-contribution-heading { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; font-size: 13px; }
+.research-contribution-heading > span { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .research-comparison-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 16px 0; color: var(--muted); font-size: 12px; }
 .research-comparison-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .research-comparison-legend i { width: 16px; height: 6px; border-radius: 3px; }
@@ -2880,8 +2882,10 @@ dialog.sector-dialog {
 .research-comparison-category { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .research-comparison-category-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 9px; font-size: 13px; }
 .research-comparison-category-heading > span { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.research-comparison-bar { display: grid; grid-template-columns: 4em minmax(0, 1fr) 6ch 4.5em; align-items: center; gap: 6px; min-height: 30px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.research-comparison-bar > strong { color: var(--ink); text-align: right; font-size: 12px; font-weight: 600; }
+.research-comparison-category-heading > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
+.research-comparison-category-heading small { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.research-comparison-bar { display: grid; grid-template-columns: 4em minmax(0, 1fr) 46px 4.5em; align-items: center; gap: 6px; min-height: 30px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.research-comparison-bar > strong { color: var(--ink); text-align: right; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .research-comparison-status { padding: 2px 4px; border-radius: 4px; text-align: center; font-size: 10px; white-space: nowrap; }
 .research-comparison-status.fail { color: var(--up); background: color-mix(in srgb, var(--up) 8%, transparent); }
 .research-comparison-status.pass, .research-comparison-status.missing { background: var(--border); }
