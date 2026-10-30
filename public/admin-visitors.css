@@ -67,6 +67,7 @@ tbody tr:hover { background: #f8fbff; }
 .visitor-table th:first-child { background: #f8fafc; }
 .visitor-table td { white-space: nowrap; vertical-align: top; }
 .visitor-table td:nth-child(2) { max-width: 240px; white-space: normal; overflow-wrap: anywhere; color: var(--muted); font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.visitor-table :is(th, td):nth-child(4) { width: 150px; max-width: 150px; white-space: normal; overflow-wrap: anywhere; }
 .visitor-table td:nth-child(5), .visitor-table td:nth-child(6) { color: #475569; font-size: 12px; }
 .pagination { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border); }
 .pagination p { margin: 0; color: var(--muted); font-size: 12px; }
