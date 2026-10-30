@@ -23,11 +23,16 @@ button { min-height: 44px; padding: 10px 16px; border: 1px solid transparent; bo
 .quiet-button { color: #475569; background: #fff; border-color: var(--border); }
 .quiet-button:hover { color: var(--blue); background: #f8fafc; border-color: #cbd5e1; }
 button:disabled { color: #94a3b8; background: #f1f5f9; border-color: #e2e8f0; cursor: default; }
-a:focus-visible, button:focus-visible, summary:focus-visible, .scroll:focus-visible { outline: 3px solid #93b4fd; outline-offset: 3px; }
+a:focus-visible, button:focus-visible, .scroll:focus-visible { outline: 3px solid #93b4fd; outline-offset: 3px; }
 .feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; padding: 16px 20px; color: #475569; background: #eef4ff; border: 1px solid #dbe7fd; border-radius: 12px; }
 .feedback:has(#status:empty) { display: none; }
 .feedback p { margin: 0; }
 .feedback:has([data-state="error"]) { color: #a3293b; background: #fff5f6; border-color: #f1d5da; }
+.initial-loading { display: grid; place-items: center; min-height: 80px; }
+.loading-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #dbe7fd; border-top-color: var(--blue); border-radius: 50%; animation: loading-spin .8s linear infinite; vertical-align: middle; }
+#details-loading { margin-left: 6px; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-spinner { animation: none; } }
 .overview { display: block; }
 .summary-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .summary-metrics > div { min-width: 0; }
@@ -67,10 +72,6 @@ tbody tr:hover { background: #f8fbff; }
 .pagination p { margin: 0; color: var(--muted); font-size: 12px; }
 .pagination > div { display: flex; gap: 8px; }
 .empty-state { margin: 0; padding: 40px 20px; text-align: center; color: var(--muted); font-size: 14px; }
-summary { cursor: pointer; color: #475569; font-weight: 500; }
-.data-notes { padding: 0 4px; color: var(--muted); font-size: 12px; line-height: 1.9; }
-.data-notes summary { font-size: 13px; }
-.data-notes p { margin: 12px 0 0; }
 .page-footer { display: flex; align-items: center; gap: 12px; margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 14px; }
 .page-footer span { font-size: 10px; letter-spacing: .1em; }
 @media (max-width: 760px) {

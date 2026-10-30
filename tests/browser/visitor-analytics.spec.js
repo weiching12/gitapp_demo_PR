@@ -57,6 +57,10 @@ test('administrator sees visit totals and repeated visits from the same browser 
   await expect(page.locator('#trend').getByRole('button')).toHaveCount(31);
   await expect(dayButton(page)).toBeVisible();
   await expect(page.locator('#visitors tr')).toHaveCount(2);
+  await expect(page.locator('#visitors tr').first().locator('td').first()).toHaveText('10 24');
+  await expect(page.locator('#visitors tr').first().locator('td').first()).toHaveAttribute('title', '2026-10-24');
+  await expect(page.locator('.data-notes')).toHaveCount(0);
+  await expect(page.getByText('資料說明', { exact: true })).toHaveCount(0);
   for (const row of await page.locator('#visitors tr').all()) await expect(row).toContainText(browserId);
   await expect(page.locator('#visitors tr').nth(0)).toContainText('08:00:00');
   await expect(page.locator('#visitors tr').nth(1)).toContainText('09:00:00');
@@ -210,6 +214,44 @@ function deferred() {
   return { promise, resolve };
 }
 
+test('initial and day requests use loading icons without loading text and clear them on success or failure', async ({ page }) => {
+  const initial = deferred(), selected = deferred(), failed = deferred();
+  await reportRoute(page, async params => {
+    if (params.get('selectedDay') === '2026-10-24') await selected.promise;
+    else if (params.get('selectedDay') === '2026-10-25') { await failed.promise; return {}; }
+    else await initial.promise;
+    return report(params);
+  });
+  try {
+    await page.goto('/admin-visitors.html');
+    await expect(page.locator('#initial-loading .loading-spinner')).toBeVisible();
+    await expect(page.locator('.feedback')).toBeHidden();
+    await expect(page.locator('body')).not.toContainText(/正在載入|載入中/);
+    initial.resolve();
+    await expectTotals(page);
+    await expect(page.locator('#initial-loading')).toBeHidden();
+    await dayButton(page).click();
+    await expect(page.locator('#details-loading')).toBeVisible();
+    await expect(page.locator('#visitor-details')).toHaveAttribute('aria-busy', 'true');
+    await expect(page.locator('.feedback')).toBeHidden();
+    await expect(page.locator('#selected-day-text')).toHaveText('2026/10/24');
+    await expect(page.locator('body')).not.toContainText(/正在載入|載入中/);
+    await page.screenshot({ path: '.wrangler/visitor-day-loading.png', fullPage: true });
+    selected.resolve();
+    await expect(page.locator('#selected-day-text')).toContainText('102');
+    await expect(page.locator('#details-loading')).toBeHidden();
+    await expect(page.locator('#visitor-details')).toHaveAttribute('aria-busy', 'false');
+    await dayButton(page, 25, 3).click();
+    await expect(page.locator('#details-loading')).toBeVisible();
+    failed.resolve();
+    await expect(page.locator('#status')).toContainText('統計資料回應異常');
+    await expect(page.locator('#details-loading')).toBeHidden();
+    await expect(page.locator('#initial-loading')).toBeHidden();
+    await expect(page.locator('#visitor-details')).toHaveAttribute('aria-busy', 'false');
+    await expect(page.locator('#retry')).toBeVisible();
+  } finally { initial.resolve(); selected.resolve(); failed.resolve(); }
+});
+
 test('repeated selection while the same month request is pending is deduplicated', async ({ page }) => {
   const release = deferred(), started = deferred();
   let pendingRequests = 0;
@@ -246,6 +288,7 @@ for (const selection of ['month', 'day']) {
     try {
       await page.goto('/admin-visitors.html');
       await expect(page.locator('#visitors')).toContainText('latest-result');
+      await expect(page.locator('#details-loading')).toBeHidden();
       if (selection === 'month') await page.locator('#month').selectOption('2026-09');
       else await dayButton(page).click();
       await started.promise;
@@ -259,6 +302,7 @@ for (const selection of ['month', 'day']) {
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await expect(page.locator('#visitors')).toContainText('latest-result');
       await expect(page.locator('#visitors')).not.toContainText('outdated-result');
+      await expect(page.locator('#details-loading')).toBeHidden();
       await expectTotals(page);
     } finally { release.resolve(); }
   });

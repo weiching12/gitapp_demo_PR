@@ -25,6 +25,13 @@ function fillMonths(months) {
 }
 fillMonths([month]);
 
+function setLoading(loading) {
+  const reportVisible = !node('report').hidden;
+  node('initial-loading').hidden = !loading || reportVisible;
+  node('details-loading').hidden = !loading || !reportVisible;
+  node('visitor-details').setAttribute('aria-busy', String(loading));
+}
+
 function clearData() {
   currentData = null; renderedMonth = null;
   for (const id of ['visitors', 'trend', 'today-date', 'overall-start', 'selected-day-text', 'pagination']) node(id).replaceChildren();
@@ -34,14 +41,16 @@ function clearData() {
 function clearReport() {
   generation++; controller?.abort(); pendingKey = null; clearData();
   node('report').hidden = true; node('logout').hidden = true;
+  setLoading(false);
   node('login').hidden = true; node('retry').hidden = true; node('status').textContent = '';
 }
 function renderVisitors(data) {
   const rows = data.visitors.map(visit => {
     const row = document.createElement('tr');
-    for (const value of [visit.day, visit.id, countryName(visit.country), visit.ip || '未記錄', time(visit.first_seen), time(visit.last_seen)]) {
+    for (const value of [visit.day.slice(5).replace('-', ' '), visit.id, countryName(visit.country), visit.ip || '未記錄', time(visit.first_seen), time(visit.last_seen)]) {
       const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
     }
+    row.firstElementChild.title = visit.day;
     return row;
   });
   if (!rows.length) {
@@ -63,13 +72,14 @@ async function load() {
   if (pendingKey === key) return;
   controller?.abort(); controller = new AbortController(); pendingKey = key;
   const requestGeneration = ++generation, requestedMonth = month;
-  node('status').dataset.state = 'pending'; node('status').textContent = '正在載入造訪紀錄…';
+  node('status').dataset.state = 'pending'; node('status').textContent = '';
+  setLoading(true);
   node('retry').hidden = true; node('login').hidden = true;
   node('visitors').replaceChildren(); node('pagination').textContent = '';
   node('previous').disabled = true; node('next').disabled = true;
   if (currentData?.month !== month) clearData();
   else renderTrend(currentData);
-  node('selected-day-text').textContent = `${selectedDay ? selectedDay.replaceAll('-', '/') : monthLabel(month) + ' · 全月'} · 載入中…`;
+  node('selected-day-text').textContent = selectedDay ? selectedDay.replaceAll('-', '/') : monthLabel(month) + ' · 全月';
   node('show-month').hidden = !selectedDay;
   try {
     const response = await fetch(`/api/v1/presence?${params}`, {
@@ -104,7 +114,7 @@ async function load() {
     node('status').textContent = error instanceof TypeError || ['TimeoutError', 'AbortError'].includes(error.name)
       ? '無法取得訪客統計，請確認連線後重試。' : error.message;
     node('retry').hidden = false;
-  } finally { if (requestGeneration === generation) pendingKey = null; }
+  } finally { if (requestGeneration === generation) { pendingKey = null; setLoading(false); } }
 }
 
 function chooseDay(day) {

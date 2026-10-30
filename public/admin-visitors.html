@@ -17,6 +17,7 @@
   <main>
     <header class="page-heading"><div><p class="eyebrow">VISITOR ANALYTICS</p><h1>訪客統計</h1></div><span class="timezone">台灣時間 UTC+8</span></header>
     <div class="feedback" role="status" aria-live="polite"><p id="status"></p><button class="quiet-button" id="retry" type="button" hidden>重新載入</button><p id="login" hidden><a href="/login.html">使用其他帳號登入</a></p></div>
+    <div id="initial-loading" class="initial-loading" hidden><span class="loading-spinner" role="status" aria-label="資料載入中"></span></div>
     <div id="report" hidden>
       <section class="panel overview" aria-label="造訪摘要">
         <div class="summary-metrics"><div><p class="section-label">今日瀏覽數</p><div class="metric-number"><strong id="today">—</strong><span>次</span></div><p id="today-date" class="metric-date"></p></div><div><p class="section-label">累積瀏覽數</p><div class="metric-number"><strong id="cumulative">—</strong><span>次</span></div><p id="overall-start" class="metric-date"></p></div></div>
@@ -24,13 +25,12 @@
       <section class="panel trend-panel" aria-labelledby="trend-title">
         <div class="section-heading"><h2 id="trend-title">每日瀏覽數</h2><label class="month-control" for="month"><span>月份</span><select id="month" aria-label="月份"></select></label></div>
         <div id="trend"></div>
-        <div class="visitor-details" aria-labelledby="visitors-heading">
-        <div class="section-heading detail-heading"><div><h2 id="visitors-heading">造訪明細</h2><p id="selected-day-text"></p></div><button class="quiet-button" id="show-month" type="button" hidden>查看全月</button></div>
+        <div id="visitor-details" class="visitor-details" aria-labelledby="visitors-heading" aria-busy="false">
+        <div class="section-heading detail-heading"><div><h2 id="visitors-heading">造訪明細 <span id="details-loading" class="loading-spinner" role="status" aria-label="資料載入中" hidden></span></h2><p id="selected-day-text"></p></div><button class="quiet-button" id="show-month" type="button" hidden>查看全月</button></div>
         <div class="scroll" role="region" aria-label="造訪明細表格，可左右捲動" tabindex="0"><table class="visitor-table"><thead><tr><th scope="col">日期</th><th scope="col">匿名識別碼</th><th scope="col" title="依 IP 自動判斷">國籍</th><th scope="col">IP</th><th scope="col">首次造訪</th><th scope="col">最近造訪</th></tr></thead><tbody id="visitors"></tbody></table></div>
         <div class="pagination"><p id="pagination"></p><div><button class="quiet-button" id="previous" type="button">上一頁</button><button class="quiet-button" id="next" type="button">下一頁</button></div></div>
         </div>
       </section>
-      <details class="data-notes"><summary>資料說明</summary><p>同一瀏覽器重複進入網頁會分別計次。舊版紀錄只保留當時已儲存的造訪，無法回補過去未記錄的重複次數。</p><p>國籍依 IP 自動判斷。每頁最多顯示 100 筆紀錄。</p></details>
     </div>
     <footer class="page-footer">株研 <span>STOCK RESEARCH</span></footer>
   </main>
