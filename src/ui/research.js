@@ -166,6 +166,6 @@ export function researchDetailMarkup({ symbol, row, store, esc }) {
   const base = researchDetailMarkupV2({ symbol, row, store, esc });
   const period = activeResearchPeriod(store, symbol);
   if (!base || !period) return base;
-  const review = `<section class="research-review-detail">${researchPriceChart(period, row, esc)}</section>${researchComparisonMarkup(period, row, esc)}`;
+  const review = `<section class="research-review-detail">${researchPriceChart(period, row, esc)}${researchComparisonMarkup(period, row, esc)}</section>`;
   return base.replace(/<\/section>$/, `${review}</section>`);
 }

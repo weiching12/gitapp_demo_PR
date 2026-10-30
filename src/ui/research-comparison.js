@@ -38,7 +38,7 @@ export function researchComparisonContent(period, row, date, esc) {
 
 export function researchComparisonMarkup(period, row, esc) {
   const date = row?.review?.dates?.at(-1) ?? row?.latest?.asOf;
-  return `<details class="research-breakdown research-initial-comparison" data-selected-date="${esc(date ?? "")}" open><summary>加入時與所選日研究差異</summary><div class="research-comparison-content">${researchComparisonContent(period, row, date, esc)}</div></details>`;
+  return `<section class="research-initial-comparison" data-selected-date="${esc(date ?? "")}" aria-label="加入時與所選日研究差異"><h5>加入時與所選日研究差異</h5><div class="research-comparison-content">${researchComparisonContent(period, row, date, esc)}</div></section>`;
 }
 
 export function updateResearchComparison(panel, period, row, date, esc) {

@@ -65,9 +65,9 @@ test('an invalid latest revision cannot leave an older valid same-day score on t
   assert.match(researchComparisonContent(chartPeriod, chartRow, latest.asOf, esc), /所選日資料不足/);
 });
 
-test('selected chart range includes dates before joining while price changes keep the join baseline', () => {
+test('chart starts on the actual Taipei join date and keeps the saved price baseline for changes', () => {
   const dates = ['2026-10-21', '2026-10-22', '2026-10-23', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30'];
-  const chartPeriod = { addedSnapshot: snapshot('2026-10-27', 90.65),
+  const chartPeriod = { addedAt: '2026-10-26T18:00:00Z', addedSnapshot: snapshot('2026-10-27', 90.65),
     baseline: { asOf: '2026-10-27', close: 104, priceBasis: 'unadjusted' } };
   const chartRow = { latest, history: [initial, middle, latest], review: { dates,
     bars: dates.map((date, index) => ({ date, close: 100 + index })), priceBasis: 'unadjusted',
@@ -75,8 +75,8 @@ test('selected chart range includes dates before joining while price changes kee
   const points = range => JSON.parse(researchPriceChart(chartPeriod, chartRow, esc, range)
     .match(/data-points="([^"]*)"/)[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&'));
   const full = points(120);
-  assert.deepEqual(full.map(point => point.date), dates);
-  assert.equal(full.find(point => point.date === '2026-10-22').priceChange, '加入前');
+  assert.deepEqual(full.map(point => point.date), dates.slice(4));
+  assert.equal(full.some(point => point.date === '2026-10-22'), false);
   assert.equal(full.find(point => point.date === '2026-10-27').priceChange, '0.00%');
   assert.equal(full.at(-1).priceChange, '+2.88%');
   assert.deepEqual(points(3).map(point => point.date), dates.slice(-3));
@@ -85,4 +85,17 @@ test('selected chart range includes dates before joining while price changes kee
   const outside = researchPriceChart({ ...chartPeriod, baseline: { ...chartPeriod.baseline, asOf: '2026-09-01' } }, chartRow, esc, 120);
   assert.match(outside, /research-chart-plot/);
   assert.match(outside, /歷史資料未涵蓋/);
+  assert.match(outside, /以加入收藏日期為起始/);
+  assert.doesNotMatch(outside, /公司行動版本|為加入時價格基準/);
+  const staleBaseline = { ...chartPeriod, baseline: { asOf: '2026-10-22', close: 101, priceBasis: 'unadjusted' } };
+  const stalePoints = JSON.parse(researchPriceChart(staleBaseline, chartRow, esc, 120)
+    .match(/data-points="([^"]*)"/)[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&'));
+  assert.equal(stalePoints[0].date, '2026-10-27');
+  assert.equal(stalePoints[0].priceChange, '+2.97%');
+  const weekend = researchPriceChart({ ...chartPeriod, addedAt: '2026-10-24T04:00:00Z' }, chartRow, esc, 120);
+  const weekendPoints = JSON.parse(weekend.match(/data-points="([^"]*)"/)[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&'));
+  assert.equal(weekendPoints[0].date, '2026-10-26');
+  const pending = researchPriceChart({ ...chartPeriod, addedAt: '2026-10-31T04:00:00Z' }, chartRow, esc);
+  assert.doesNotMatch(pending, /research-chart-plot/);
+  assert.match(pending, /收藏後尚無/);
 });

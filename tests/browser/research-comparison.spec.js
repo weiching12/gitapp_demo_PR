@@ -12,7 +12,7 @@ test('chart selection compares that session to joining and keeps the selected da
       conditions: Object.fromEntries(keys.map(key => [key, { status: 'PASS' }])), cap: { enabled: false } };
     localStorage.setItem('stock-insight-v1', JSON.stringify({ favorites: ['3026'], theme: 'light', catalogVersion: 2 }));
     localStorage.setItem('stock-insight-research-v2', JSON.stringify({ version: 3, periods: [{
-      id: 'join-fixture', symbol: '3026', removedAt: null, startedAt: '2026-10-14T08:00:00Z',
+      id: 'join-fixture', symbol: '3026', removedAt: null, addedAt: '2026-10-14T08:00:00Z', startedAt: '2026-10-14T08:00:00Z',
       addedSnapshot: initial, firstValidSnapshot: initial,
       baseline: { asOf: '2026-10-14', close: 100, priceBasis: 'unadjusted' },
     }] }));
@@ -23,18 +23,25 @@ test('chart selection compares that session to joining and keeps the selected da
   const plot = page.locator('.research-chart-plot');
   const comparison = page.locator('.research-initial-comparison');
   await expect(plot).toBeVisible();
+  await expect(plot).toHaveCSS('user-select', 'none');
+  await expect(plot).toHaveCSS('touch-action', 'pan-y');
+  await expect(page.locator('.research-review-detail > .research-initial-comparison')).toBeVisible();
+  await expect(comparison.locator('summary')).toHaveCount(0);
+  await expect(comparison).not.toHaveJSProperty('tagName', 'DETAILS');
+  const gap = await comparison.evaluate(n => n.getBoundingClientRect().top - n.previousElementSibling.getBoundingClientRect().bottom);
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThanOrEqual(10);
   await expect(comparison).toHaveAttribute('data-selected-date', '2026-10-16');
   const points = await plot.evaluate(n => JSON.parse(n.dataset.points));
+  expect(points[0].date).toBe('2026-10-14');
   const joinedIndex = points.findIndex(point => point.date === '2026-10-14');
   await plot.scrollIntoViewIfNeeded();
   const svg = await plot.locator('svg').boundingBox();
   await page.mouse.click(svg.x + (12 + joinedIndex * 296 / (points.length - 1)) / 320 * svg.width, svg.y + svg.height / 2);
   await expect(comparison).toHaveAttribute('data-selected-date', '2026-10-14');
   await plot.focus(); await plot.press('Home');
-  await expect(comparison.locator('.research-comparison-notice')).toContainText('早於評分基準日');
-  await expect(page.locator('.research-chart-readout')).toContainText('加入前');
-  await plot.press('End'); await plot.press('ArrowLeft'); await plot.press('ArrowLeft');
   await expect(comparison).toHaveAttribute('data-selected-date', '2026-10-14');
+  await expect(page.locator('.research-price-chart > .research-muted')).toHaveText('以加入收藏日期為起始');
   await expect(page.locator('.research-chart-readout strong').last()).toHaveText('89.25 分');
   await expect(comparison.locator('.research-comparison-summary')).toContainText('89.25 → 89.25 · 變化 0.00');
   await plot.press('ArrowRight');
@@ -51,6 +58,16 @@ test('chart selection compares that session to joining and keeps the selected da
   await expect(comparison.locator('.research-comparison-category')).toHaveCount(5);
   await expect(comparison.locator('.research-comparison-bar')).toHaveCount(10);
   await expect(comparison.locator('.research-comparison-summary')).toContainText('89.25 → 64.25 · 變化 -25.00');
+  await plot.scrollIntoViewIfNeeded();
+  const marker = await plot.locator('.research-selected-date text').boundingBox();
+  const plotBounds = await plot.boundingBox();
+  await page.evaluate(() => getSelection().removeAllRanges());
+  await page.mouse.move(marker.x + marker.width / 2, marker.y + marker.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(plotBounds.x + 18, marker.y + marker.height / 2, { steps: 12 });
+  await page.mouse.up();
+  expect(await page.evaluate(() => getSelection().toString())).toBe('');
+  await expect(comparison).toHaveAttribute('data-selected-date', '2026-10-14');
   for (const width of [320, 516]) {
     await page.setViewportSize({ width, height: 956 });
     expect(await comparison.evaluate(n => n.scrollWidth - n.clientWidth)).toBeLessThanOrEqual(1);
