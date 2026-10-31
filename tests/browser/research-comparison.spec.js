@@ -90,9 +90,13 @@ test('chart selection compares that session to joining and keeps the selected da
   expect(await page.evaluate(() => getSelection().toString())).toBe('');
   await expect(comparison).toHaveAttribute('data-selected-date', '2026-10-14');
   await plot.focus(); await plot.press('End');
-  for (const width of [320, 516]) {
+  for (const width of [320, 375, 400, 516]) {
     await page.setViewportSize({ width, height: 956 });
     expect(await comparison.evaluate(n => n.scrollWidth - n.clientWidth)).toBeLessThanOrEqual(1);
+    const priceMetric = await comparison.locator('[data-metric="price"]').boundingBox();
+    const scoreMetric = await comparison.locator('[data-metric="score"]').boundingBox();
+    expect(Math.abs(priceMetric.y - scoreMetric.y)).toBeLessThanOrEqual(1);
+    expect(scoreMetric.x).toBeGreaterThanOrEqual(priceMetric.x + priceMetric.width);
   }
   for (const theme of ['light', 'dark']) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);

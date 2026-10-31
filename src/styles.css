@@ -2878,7 +2878,6 @@ dialog.sector-dialog {
 .research-metric-change.up { color: var(--up); }
 .research-metric-change.down { color: var(--down); }
 .research-metric-baseline { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-@media (max-width: 400px) { .research-comparison-summary { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
 .research-comparison-summary > div:last-child { display: flex; align-items: baseline; gap: 8px; grid-column: 1 / -1; }
 .research-comparison-summary > div:last-child dd { margin: 0; }
 .research-contribution-heading { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; font-size: 13px; }
