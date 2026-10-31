@@ -19,26 +19,36 @@ const scoreChange = (period, snapshot) => {
   return `${initial.finalDelta > 0 ? "+" : ""}${fmt(initial.finalDelta)} 分`;
 };
 const pointReadout = (point) => `${point.date}${point.milestone ? ` · 第 ${point.milestone} 個交易日` : ""} · 收盤 ${fmt(point.close)}（${point.priceChange}） · 評分 ${fmt(point.score)} 分（${point.scoreChange}）`;
-const escapeText = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const shortDate = (date) => date.slice(5).replace("-", "/");
-const readoutMarkup = (point) => `<span class="research-readout-metric"><span>收盤價</span><strong>${fmt(point.close)}</strong><small>（${escapeText(point.priceChange)}）</small></span><span class="research-readout-metric"><span>評分</span><strong>${fmt(point.score)} 分</strong><small>（${escapeText(point.scoreChange)}）</small></span>${point.milestone ? `<small>第 ${point.milestone} 個交易日</small>` : ""}`;
+
+export function researchPriceChange(period, review, date) {
+  const baseline = period?.baseline ?? period?.firstValidPriceBaseline;
+  const price = reviewPriceStatus(baseline, date, review);
+  return date < baseline?.asOf ? "尚未到價格基準日"
+    : price.status === "comparable" ? signed(price.change) : stateText[price.status] ?? "資料不足";
+}
 
 export function researchPriceChart(period, row, esc, range = 60) {
   const review = row?.review;
   const baseline = period?.baseline ?? period?.firstValidPriceBaseline;
   if (!review || !baseline) return '<p class="research-muted">缺少可靠價格基準或價格資料，無法繪製追蹤價格走勢。</p>';
   const base = review.dates.indexOf(baseline.asOf);
-  if (base < 0) return '<p class="research-muted">基準日期已超出可查詢的歷史範圍，無法繪製連續走勢。</p>';
-  const dates = review.dates.slice(Math.max(base, review.dates.length - range));
+  const addedAt = Date.parse(period.addedAt ?? (period.legacy ? "" : period.startedAt) ?? "");
+  const startDate = Number.isFinite(addedAt)
+    ? new Date(addedAt + 8 * 3600000).toISOString().slice(0, 10) : baseline.asOf;
+  const dates = review.dates.slice(-range).filter(date => date >= startDate);
+  if (!dates.length) return '<p class="research-muted">收藏後尚無可顯示的交易日資料。</p>';
   const byDate = new Map(review.bars.map((bar) => [bar.date, bar.close]));
-  const scores = new Map((row.history ?? []).filter((snap) => snap.valid && Number.isFinite(snap.finalScore))
-    .map((snap) => [snap.asOf, snap]));
+  const snapshots = [...(row.history ?? []), row.latest].filter(Boolean);
+  const initial = period.addedSnapshot?.valid ? period.addedSnapshot : period.firstValidSnapshot;
+  if (initial && !snapshots.some(snapshot => snapshot.asOf === initial.asOf)) snapshots.push(initial);
+  const scores = new Map(snapshots.map((snap) => [snap.asOf, snap]));
   const points = dates.map((date) => {
-    const snapshot = scores.get(date);
-    const price = reviewPriceStatus(baseline, date, review);
-    const day = review.dates.indexOf(date) - base;
+    const recorded = scores.get(date);
+    const snapshot = recorded?.valid && Number.isFinite(recorded.finalScore) ? recorded : null;
+    const day = base < 0 ? null : review.dates.indexOf(date) - base;
     return { date, close: byDate.get(date) ?? null, score: snapshot?.finalScore ?? null,
-      priceChange: price.status === "comparable" ? signed(price.change) : stateText[price.status] ?? "資料不足",
+      priceChange: researchPriceChange(period, review, date),
       scoreChange: scoreChange(period, snapshot), milestone: [5, 10, 20].includes(day) ? day : null };
   });
   const values = points.map((point) => point.close).filter((value) => Number.isFinite(value) && value > 0);
@@ -66,8 +76,7 @@ export function researchPriceChart(period, row, esc, range = 60) {
     ? `<circle cx="${x(index).toFixed(1)}" cy="${scoreY(point.score).toFixed(1)}" r="2.5" class="score-marker"><title>${esc(point.date)} 評分 ${fmt(point.score)}</title></circle>` : "").join("");
   const last = points.at(-1);
   return `<div class="research-price-chart" data-range="${range}" data-review-symbol="${esc(period.symbol)}"><div class="research-chart-heading"><details class="research-chart-info"><summary aria-label="追蹤價格與評分說明"><span aria-hidden="true">ⓘ</span></summary><p>價格顯示變化率，評分顯示變化點數；點選日期查看。資料不足時不比較，價格變化不代表實際投資報酬。</p></details><h5>追蹤價格與評分</h5></div><div class="research-chart-controls"><span class="research-series-key"><i class="price-key"></i>收盤價</span><span class="research-series-key"><i class="score-key"></i>株研評分</span><span></span>${[20, 60, 120].map((days) => `<button type="button" data-review-range="${days}" aria-pressed="${range === days}">${days} 日</button>`).join("")}</div>
-    <p class="research-chart-readout" aria-live="polite">${readoutMarkup(last)}</p>
-    <div class="research-chart-axis"><span>價格 ${fmt(hi)}<br>${fmt(lo)}</span><span>評分 100<br>0</span></div><div class="research-chart-plot" role="slider" tabindex="0" aria-label="追蹤價格與評分；點選或水平拖曳查看交易日" aria-valuemin="1" aria-valuemax="${points.length}" aria-valuenow="${points.length}" aria-valuetext="${esc(pointReadout(last))}" data-points="${esc(JSON.stringify(points))}"><svg viewBox="0 0 320 124" preserveAspectRatio="none" aria-hidden="true"><path d="M12 18H308M12 63H308M12 108H308" class="grid"/>${segments("close", priceY)}${segments("score", scoreY)}${markers}${scoreMarkers}<line class="cursor" x1="${x(points.length - 1)}" x2="${x(points.length - 1)}" y1="18" y2="108"/><g class="research-selected-date" transform="translate(${Math.max(21, Math.min(299, x(points.length - 1)))},0)"><rect x="-20" y="1" width="40" height="14" rx="4"/><text x="0" y="11" text-anchor="middle">${esc(shortDate(last.date))}</text></g></svg></div><div class="research-chart-dates"><span>${esc(shortDate(points[0].date))}</span><span>${esc(shortDate(points.at(-1).date))}</span></div><p class="research-muted">${esc(baseline.asOf)} 為${period.baseline ? "加入時" : "首次有效"}價格基準 · 收盤價未還原，未計入股息 · 公司行動版本 ${esc(review.corporateActions?.revisionId ?? "待查核")}</p></div>`;
+    <div class="research-chart-axis"><span>價格 ${fmt(hi)}<br>${fmt(lo)}</span><span>評分 100<br>0</span></div><div class="research-chart-plot" role="slider" tabindex="0" aria-label="追蹤價格與評分；點選或水平拖曳查看交易日" aria-valuemin="1" aria-valuemax="${points.length}" aria-valuenow="${points.length}" aria-valuetext="${esc(pointReadout(last))}" data-points="${esc(JSON.stringify(points))}"><svg viewBox="0 0 320 124" preserveAspectRatio="none" aria-hidden="true"><path d="M12 18H308M12 63H308M12 108H308" class="grid"/>${segments("close", priceY)}${segments("score", scoreY)}${markers}${scoreMarkers}<line class="cursor" x1="${x(points.length - 1)}" x2="${x(points.length - 1)}" y1="18" y2="108"/><g class="research-selected-date" transform="translate(${Math.max(21, Math.min(299, x(points.length - 1)))},0)"><rect x="-20" y="1" width="40" height="14" rx="4"/><text x="0" y="11" text-anchor="middle">${esc(shortDate(last.date))}</text></g></svg></div><div class="research-chart-dates"><span>${esc(shortDate(points[0].date))}</span><span>${esc(shortDate(points.at(-1).date))}</span></div><p class="research-muted">以加入收藏日期為起始</p></div>`;
 }
 
 export function selectResearchPricePoint(plot, index) {
@@ -81,5 +90,5 @@ export function selectResearchPricePoint(plot, index) {
   const date = plot.querySelector(".research-selected-date");
   date?.setAttribute("transform", `translate(${Math.max(21, Math.min(299, 12 + selected * 296 / Math.max(1, points.length - 1)))},0)`);
   if (date) date.querySelector("text").textContent = shortDate(point.date);
-  plot.closest(".research-price-chart").querySelector(".research-chart-readout").innerHTML = readoutMarkup(point);
+  return point;
 }

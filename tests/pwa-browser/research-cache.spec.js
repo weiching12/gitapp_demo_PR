@@ -5,7 +5,7 @@ import { extname, resolve, sep } from "node:path";
 
 const researchPath = "/api/v1/favorites/research?symbols=2330&asOf=2026-10-28&period=9&kSmooth=3&dSmooth=3";
 const summaryPath = "/api/v1/market/summary?asOf=2026-10-28&period=9&kSmooth=3&dSmooth=3";
-let server, origin, currentWorker, legacyWorker, legacyCache, useLegacy, revision, requests, dataCacheControl;
+let server, origin, currentWorker, legacyWorker, legacyCache, useLegacy, revision, requests, dataCacheControl, authUser, authRequests;
 
 test.beforeAll(async () => {
   currentWorker = await readFile(resolve("dist/sw.js"), "utf8");
@@ -30,6 +30,12 @@ self.addEventListener("fetch", event => {
   server = createServer(async (request, response) => {
     const path = new URL(request.url, "http://localhost").pathname;
     response.setHeader("Cache-Control", "no-store");
+    if (path === "/api/v1/auth/me") {
+      authRequests++;
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ user: authUser }));
+      return;
+    }
     if (path === "/api/v1/favorites/research" || path === "/api/v1/market/summary") {
       requests++;
       response.setHeader("Content-Type", "application/json");
@@ -63,6 +69,7 @@ self.addEventListener("fetch", event => {
 test.afterAll(() => new Promise(resolve => server.close(resolve)));
 test.beforeEach(() => {
   useLegacy = false; revision = 1; requests = 0;
+  authUser = null; authRequests = 0;
   dataCacheControl = "public, max-age=0, must-revalidate";
 });
 
@@ -81,6 +88,39 @@ async function readData(page, cache = "default", path = researchPath) {
     return { body: await response.json(), fallback: response.headers.get("X-PWA-Cache") };
   }, { path, cache });
 }
+
+test("authentication reflects session changes and is unavailable offline instead of reusing a cached user", async ({ page, context }) => {
+  await openControlledPage(page);
+  const path = "/api/v1/auth/me";
+  authUser = { username: "pwa-test-admin", role: "admin", mustChangePassword: true };
+  expect((await readData(page, "no-store", path)).body).toEqual({ user: authUser });
+  authUser = { username: "pwa-test-user", role: "user", mustChangePassword: false };
+  expect((await readData(page, "no-store", path)).body).toEqual({ user: authUser });
+  authUser = null;
+  expect((await readData(page, "no-store", path)).body).toEqual({ user: null });
+  expect(authRequests).toBe(3);
+  expect(await page.evaluate(async path => {
+    const names = await caches.keys();
+    return Promise.all(names.map(async name => Boolean(await (await caches.open(name)).match(path))));
+  }, path)).not.toContain(true);
+  await context.setOffline(true);
+  expect(await readData(page, "no-store", path).then(() => false, () => true)).toBe(true);
+});
+
+test("built login and password-change pages retain session guards under the active service worker", async ({ page }) => {
+  await openControlledPage(page);
+  await page.goto(`${origin}/login.html`);
+  await expect(page.locator('#login-form')).toBeVisible();
+  authUser = { username: "pwa-test-admin", role: "admin", mustChangePassword: true };
+  await page.reload();
+  await expect(page).toHaveURL(`${origin}/change-password.html`);
+  await expect(page.locator('#change-password-form')).toBeVisible();
+  await expect(page.locator('#password')).toBeEnabled();
+  authUser = null;
+  await page.reload();
+  await expect(page).toHaveURL(`${origin}/login.html`);
+  await expect(page.locator('#login-form')).toBeVisible();
+});
 
 test("research uses fresh revisions for the same URL and marks its offline data fallback", async ({ page, context }) => {
   await openControlledPage(page);

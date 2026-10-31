@@ -1,3 +1,4 @@
+import { startAccountMenu } from "./account.js";
 import { renderMarketView } from "./ui/market.js";
 import "./styles.css";
 import "./typography.css";
@@ -30,6 +31,7 @@ import { compareResearchSnapshots, researchSnapshot } from "../shared/research-t
 import { activeResearchPeriod, addResearchPeriod, loadResearchStore, persistResearchStore, recordFirstValidSnapshot, recordFirstValidPriceBaseline, removeResearchPeriod } from "./ui/research-store.js";
 import { renderResearchCenter, researchDetailMarkup, selectResearchScorePoint } from "./ui/research.js";
 import { researchPriceChart, selectResearchPricePoint } from "./ui/research-review.js";
+import { updateResearchComparison } from "./ui/research-comparison.js";
 import { dailyCloseSeries } from "../shared/price-history.js";
 import { priceBaseline } from "../shared/research-review.js";
 import { entryScoreDialogMarkup, selectEntryChartPoint, restoreEntryChartTitle } from "./ui/entry-score.js";
@@ -130,7 +132,7 @@ const tableState = { visibleLimit: TABLE_BATCH_SIZE, viewKey: "", observer: unde
 const tableBatches = createTableBatchController({ state: tableState, batchSize: TABLE_BATCH_SIZE, render: () => renderTable() });
 let toastTimer;
 let isDemo;
-let presence, stopUpdateCountdown, usingCachedData = false;
+let presence, accountMenu, settingsAccountMenu, stopUpdateCountdown, usingCachedData = false;
 let nativeStorage, nativePush;
 let checkPwaUpdate = async () => false;
 let startupVersionCheck = Promise.resolve(false);
@@ -199,7 +201,7 @@ async function loadResearchReview(symbol, { force = false } = {}) {
         const nextPlot = dialog.querySelector(".research-chart-plot");
         if (nextPlot && selectedDate) {
           const index = JSON.parse(nextPlot.dataset.points).findIndex(point => point.date === selectedDate);
-          if (index >= 0) selectResearchPricePoint(nextPlot, index);
+          if (index >= 0) selectResearchReviewPoint(nextPlot, index);
         }
         dialog.scrollTop = scrollTop;
       }
@@ -338,10 +340,17 @@ async function finishAppSplashBeforeLoading() {
 }
 
 function shell() {
+  accountMenu?.stop(); settingsAccountMenu?.stop();
   document.querySelector("#app").innerHTML = shellMarkup({ dataset, state, isDemo, icon, loadingIcon, esc });
   presence?.stop();
-  if (nativeMode) document.querySelector("#online-count").hidden = true;
-  else presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
+  if (nativeMode) {
+    document.querySelector("#online-count").hidden = true;
+    document.querySelector("#account-menu").hidden = true;
+  }
+  else {
+    presence = startPresence(document.querySelector("#online-count"), { demo: isDemo });
+    accountMenu = startAccountMenu(document.querySelector("#account-menu"));
+  }
 }
 
 function refreshData() {
@@ -655,6 +664,7 @@ function animateEntryScore(dialog) {
 }
 
 function openDialog(type, focusClose = true, showResearch = false) {
+  settingsAccountMenu?.stop(); settingsAccountMenu = null;
   const infoDialog = document.querySelector("#info-dialog");
   if (!type.startsWith("entry:") || infoDialog.dataset.entrySymbol !== type.slice(6)) delete infoDialog.dataset.mobileSheet;
   infoDialog.dataset.entrySymbol = type.startsWith("entry:") ? type.slice(6) : "";
@@ -667,6 +677,11 @@ function openDialog(type, focusClose = true, showResearch = false) {
     updateStatus.hidden = true;
     updateStatus.textContent = "";
     content.innerHTML = `<h2 id="dialog-heading">設定</h2><p class="dialog-intro">色彩主題選擇後立即套用；KD 指標需按「指標儲存」。</p><section class="settings-theme" aria-labelledby="settings-theme-heading"><h3 id="settings-theme-heading">顯示 <span>選擇後立即套用</span></h3><div class="form-field"><label for="theme">色彩主題</label><select id="theme" name="theme"><option value="light"${state.theme === "light" ? " selected" : ""}>淺色</option><option value="dark"${state.theme === "dark" ? " selected" : ""}>深色</option></select></div></section><form id="settings-form"><fieldset class="settings-group"><legend>KD 指標</legend><div class="form-field"><label for="period">RSV 回溯週期</label><div><input id="period" name="period" type="number" min="1" max="60" value="${state.settings.period}" required/><span>個交易日</span></div></div><div class="form-field"><label for="kSmooth">K 平滑係數</label><input id="kSmooth" name="kSmooth" type="number" min="1" max="20" value="${state.settings.kSmooth}" required/></div><div class="form-field"><label for="dSmooth">D 平滑係數</label><input id="dSmooth" name="dSmooth" type="number" min="1" max="20" value="${state.settings.dSmooth}" required/></div></fieldset><p class="helper-text">預設 KD (9, 3, 3)。季線固定為 60 個交易日的收盤價平均。</p><div class="dialog-buttons"><button class="outline-button" type="button" id="default-settings">恢復預設</button><button class="primary-button" type="submit">${icon("check")} 指標儲存</button></div></form>`;
+    if (!nativeMode) {
+      content.querySelector(".dialog-intro").insertAdjacentHTML("afterend",
+        `<section class="settings-account" aria-labelledby="settings-account-heading"><h3 id="settings-account-heading">帳號</h3><div id="settings-account-menu" class="account-menu"></div></section>`);
+      settingsAccountMenu = startAccountMenu(content.querySelector("#settings-account-menu"), { settings: true });
+    }
   } else if (type.startsWith("entry:")) {
     const symbol = type.slice(6);
     const stock = snapshots.find((item) => item.symbol === symbol);
@@ -798,6 +813,13 @@ function syncTableFavorite(symbol) {
   if (cached) cached.favorite = favorite;
 }
 
+function selectResearchReviewPoint(plot, index) {
+  const point = selectResearchPricePoint(plot, index);
+  const symbol = plot.closest(".research-price-chart").dataset.reviewSymbol;
+  updateResearchComparison(plot.closest(".research-detail")?.querySelector(".research-initial-comparison"),
+    activeResearchPeriod(researchStore, symbol), researchRows.get(symbol), point.date, esc);
+}
+
 function bindEvents() {
   document.addEventListener("click", (event) => {
     document.querySelectorAll(".research-chart-info[open]").forEach((hint) => {
@@ -807,6 +829,11 @@ function bindEvents() {
   const chartIndexAt = (plot, clientX) => {
     const rect = plot.querySelector("svg").getBoundingClientRect();
     const position = ((clientX - rect.left) / rect.width * 600 - 8) / 584;
+    return Math.round(Math.max(0, Math.min(1, position)) * (Number(plot.getAttribute("aria-valuemax")) - 1));
+  };
+  const reviewIndexAt = (plot, clientX) => {
+    const rect = plot.querySelector("svg").getBoundingClientRect();
+    const position = ((clientX - rect.left) / rect.width * 320 - 12) / 296;
     return Math.round(Math.max(0, Math.min(1, position)) * (Number(plot.getAttribute("aria-valuemax")) - 1));
   };
   document.addEventListener("pointerdown", (event) => {
@@ -823,9 +850,7 @@ function bindEvents() {
     if (reviewPlot) {
       reviewPlot.focus({ preventScroll: true });
       reviewPlot.setPointerCapture(event.pointerId);
-      const rect = reviewPlot.querySelector("svg").getBoundingClientRect();
-      selectResearchPricePoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
-        (event.clientX - rect.left) / rect.width)) * (Number(reviewPlot.getAttribute("aria-valuemax")) - 1)));
+      selectResearchReviewPoint(reviewPlot, reviewIndexAt(reviewPlot, event.clientX));
       return;
     }
     const plot = event.target.closest(".entry-chart-plot");
@@ -844,9 +869,7 @@ function bindEvents() {
     }
     const reviewPlot = event.target.closest(".research-chart-plot");
     if (reviewPlot?.hasPointerCapture(event.pointerId)) {
-      const rect = reviewPlot.querySelector("svg").getBoundingClientRect();
-      selectResearchPricePoint(reviewPlot, Math.round(Math.max(0, Math.min(1,
-        (event.clientX - rect.left) / rect.width)) * (Number(reviewPlot.getAttribute("aria-valuemax")) - 1)));
+      selectResearchReviewPoint(reviewPlot, reviewIndexAt(reviewPlot, event.clientX));
       return;
     }
     const plot = event.target.closest(".entry-chart-plot");
@@ -877,7 +900,7 @@ function bindEvents() {
       event.preventDefault();
       const current = Number(reviewPlot.getAttribute("aria-valuenow")) - 1;
       const last = Number(reviewPlot.getAttribute("aria-valuemax")) - 1;
-      selectResearchPricePoint(reviewPlot, event.key === "Home" ? 0 : event.key === "End" ? last :
+      selectResearchReviewPoint(reviewPlot, event.key === "Home" ? 0 : event.key === "End" ? last :
         Math.max(0, Math.min(last, current + (event.key === "ArrowLeft" ? -1 : 1))));
       return;
     }
@@ -944,8 +967,16 @@ function bindEvents() {
       const chart = button.closest(".research-price-chart");
       const symbol = chart?.dataset.reviewSymbol;
       const period = activeResearchPeriod(researchStore, symbol);
-      if (chart && period) chart.outerHTML = researchPriceChart(period, researchRows.get(symbol), esc,
-        Number(button.dataset.reviewRange));
+      if (chart && period) {
+        const plot = chart.querySelector(".research-chart-plot"), detail = chart.closest(".research-detail");
+        const selectedDate = JSON.parse(plot.dataset.points)[Number(plot.getAttribute("aria-valuenow")) - 1]?.date;
+        chart.outerHTML = researchPriceChart(period, researchRows.get(symbol), esc, Number(button.dataset.reviewRange));
+        const nextPlot = detail.querySelector(".research-chart-plot");
+        if (nextPlot) {
+          const points = JSON.parse(nextPlot.dataset.points), index = points.findIndex(point => point.date === selectedDate);
+          selectResearchReviewPoint(nextPlot, index < 0 ? points.length - 1 : index);
+        }
+      }
       return;
     }
     if (button.dataset.chartSeries) {

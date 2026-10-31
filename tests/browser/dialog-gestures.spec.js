@@ -106,7 +106,7 @@ test('a three-day research price chart has an unfilled price line and unbroken l
   });
   await expect(page.locator('#chart-preview .price-line')).toHaveCSS('fill', 'none');
   await expect(page.locator('#chart-preview .price-line')).toHaveCSS('stroke', 'rgb(225, 153, 113)');
-  await expect(page.locator('#chart-preview .research-chart-readout')).not.toContainText('公司行動待查核');
+  expect(await page.locator('#chart-preview .research-chart-plot').getAttribute('aria-valuetext')).not.toContain('公司行動待查核');
   const wraps = await page.locator('#chart-preview .research-series-key').evaluateAll(elements => elements.map(element => {
     const range = document.createRange(); range.selectNodeContents(element); return new Set([...range.getClientRects()].map(rect => rect.top)).size;
   }));

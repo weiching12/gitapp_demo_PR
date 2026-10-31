@@ -870,6 +870,262 @@
         }
       }
     },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "loginAccount",
+        "description": "Same-origin account/password login. Sets a 12-hour HttpOnly, Secure, SameSite=Strict session cookie. Client-supplied roles are ignored. No caching. Accounts provisioned with a temporary password return mustChangePassword:true and must complete the password-change flow.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "password": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated; session cookie set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "username",
+                        "role",
+                        "mustChangePassword"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "admin"
+                          ]
+                        },
+                        "mustChangePassword": {
+                          "type": "boolean",
+                          "description": "Must establish a new password before accessing administrator statistics."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Incorrect username or password"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          },
+          "429": {
+            "description": "Login throttled for up to 15 minutes"
+          },
+          "503": {
+            "description": "Account database unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "getCurrentAccount",
+        "description": "Current account, or user:null when unauthenticated; no caching.",
+        "responses": {
+          "200": {
+            "description": "Current session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "username",
+                            "role",
+                            "mustChangePassword"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "type": "string",
+                              "enum": [
+                                "user",
+                                "admin"
+                              ]
+                            },
+                            "mustChangePassword": {
+                              "type": "boolean",
+                              "description": "Must establish a new password before accessing administrator statistics."
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Account database unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logoutAccount",
+        "description": "Same-origin only. Revokes the server session and clears the cookie.",
+        "responses": {
+          "200": {
+            "description": "Logged out"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          },
+          "503": {
+            "description": "Account database unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "operationId": "changeTemporaryPassword",
+        "description": "Same-origin temporary-password completion. Requires a valid session whose current account mustChangePassword is true. Passwords must match, be 12–128 characters and differ from the current temporary password. Stores a salted password hash, clears the flag, revokes old sessions and sets a fresh 12-hour session. No caching.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "password",
+                  "confirmPassword"
+                ],
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 128
+                  },
+                  "confirmPassword": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed; current account returned and fresh session cookie set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "username",
+                        "role",
+                        "mustChangePassword"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "admin"
+                          ]
+                        },
+                        "mustChangePassword": {
+                          "type": "boolean",
+                          "description": "Must establish a new password before accessing administrator statistics."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, mismatched or reused password, or no password change required"
+          },
+          "401": {
+            "description": "Valid account session required"
+          },
+          "403": {
+            "description": "Cross-origin request"
+          },
+          "409": {
+            "description": "Account or session changed during password update; sign in again"
+          },
+          "503": {
+            "description": "Account database unavailable"
+          }
+        }
+      }
+    },
     "/api/v1/presence": {
       "get": {
         "operationId": "getPresence",
@@ -879,13 +1135,119 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Presence"
+                  "type": "object",
+                  "properties": {
+                    "today": {
+                      "$ref": "#/components/schemas/Presence"
+                    },
+                    "daily": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string"
+                          },
+                          "visitors": {
+                            "type": "integer",
+                            "description": "Page-entry count, including repeat entries by the same browser."
+                          },
+                          "visits": {
+                            "type": "integer",
+                            "description": "Alias of visitors for page-entry terminology."
+                          }
+                        }
+                      }
+                    },
+                    "visitors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "event_id": { "type": "string", "description": "Unique page-entry key; migrated legacy events have a legacy: prefix." },
+                          "day": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "ip": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "country": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "IP-derived country, displayed as nationality (IP estimate). Trusted Cloudflare request.cf.country first, CF-IPCountry fallback; uppercase ISO alpha-2 or null when unknown. Client geography is ignored."
+                          },
+                          "first_seen": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "last_seen": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "unique": {
+                      "type": "integer",
+                      "description": "Distinct-browser compatibility field; not the page-entry metric displayed by the administrator UI."
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "All page entries in the selected month/range; selectedDay and pagination do not change this count."
+                    },
+                    "detailTotal": { "type": "integer", "description": "Number of event rows matching selectedDay, or the full range when no day is selected." },
+                    "selectedDay": { "type": ["string", "null"], "description": "Applied day filter for detail rows only." },
+                    "month": { "type": ["string", "null"], "description": "Selected YYYY-MM; null for legacy date-range/history requests." },
+                    "overall": {
+                      "type": "object",
+                      "required": ["total", "firstDay", "lastDay"],
+                      "properties": {
+                        "total": { "type": "integer", "description": "Lifetime retained page-entry count, independent of the selected month/day and pagination." },
+                        "firstDay": { "type": ["string", "null"] },
+                        "lastDay": { "type": ["string", "null"] }
+                      }
+                    },
+                    "months": { "type": "array", "items": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$" }, "description": "Recorded months plus the current Taipei month, newest first. Empty historical months may still be queried explicitly." },
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "start": {
+                      "type": "string"
+                    },
+                    "end": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "timezone": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
-            "description": "Cross-origin request",
+            "description": "Cross-origin request, account lacks administrator role, or temporary password requires replacement (PASSWORD_CHANGE_REQUIRED)",
             "content": {
               "application/json": {
                 "schema": {
@@ -903,12 +1265,83 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Account login required"
+          },
+          "400": {
+            "description": "Invalid/future month, selected day outside the selected month/range or in the future, invalid date range, period or offset"
           }
-        }
+        },
+        "description": "Administrator-only page-entry analytics. Select month=YYYY-MM for its daily trend; selectedDay filters detail rows only. Counts include repeat entries and reloads in the same browser. overall.total always covers all retained events, independent of filters. Without query parameters, the current month is used. Legacy start/end/period/scope remain supported. Requires a server-checked admin session with mustChangePassword=false. All dates use Asia/Taipei. No public counts.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "month", "in": "query", "description": "Taipei calendar month; defaults to the current month when no legacy range parameters are supplied. Future months are rejected. Empty historical months are allowed.",
+            "schema": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$" }
+          },
+          {
+            "name": "selectedDay", "in": "query", "description": "Valid day within the selected month/range and not later than today; filters detail rows, not monthly/lifetime totals or the trend.",
+            "schema": { "type": "string", "format": "date" }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "month"
+              ],
+              "default": "day"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "range",
+                "history"
+              ],
+              "default": "range"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       },
       "post": {
         "operationId": "heartbeat",
-        "description": "Same-origin only. The id is a random browser UUID, not an account or IP.",
+        "description": "Same-origin page-entry registration, max 512 UTF-8 bytes. Use one fresh UUID visitId for each page entry/reload and reuse it for retries. Repeat browsers count again with a new key. Compatibility metadataOnly=true requires visitId and only updates an existing event owned by id, without increasing counts. Legacy requests with only id create a new event on every POST. IP geography comes only from trusted Cloudflare request.cf.country or the CF-IPCountry fallback. Client geography fields are ignored. Returns only a receipt.",
         "requestBody": {
           "required": true,
           "content": {
@@ -922,7 +1355,9 @@
                   "id": {
                     "type": "string",
                     "format": "uuid"
-                  }
+                  },
+                  "visitId": { "type": "string", "format": "uuid", "description": "Page-entry UUID v4; retry with the same value to avoid duplicate delivery counts." },
+                  "metadataOnly": { "type": "boolean", "default": false, "description": "Compatibility option; requires visitId and updates existing edge metadata without adding a page entry." }
                 }
               }
             }
@@ -934,7 +1369,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Presence"
+                  "type": "object",
+                  "required": [
+                    "recorded"
+                  ],
+                  "properties": {
+                    "recorded": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  }
                 }
               }
             }
@@ -960,7 +1404,7 @@
             }
           },
           "413": {
-            "description": "Body exceeds 128 bytes",
+            "description": "Body exceeds 512 bytes",
             "content": {
               "application/json": {
                 "schema": {
@@ -1083,6 +1527,7 @@
     }
   },
   "components": {
+    "securitySchemes": { "AccountSession": { "type": "apiKey", "in": "cookie", "name": "__Host-stock_session" } },
     "schemas": {
       "Error": {
         "type": "object",

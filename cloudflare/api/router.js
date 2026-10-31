@@ -1,3 +1,4 @@
+import { authController } from "../auth/controller.js";
 import { createApplicationServices } from "../composition.js";
 import { AnalysisService } from "../services/analysis-service.js";
 import { HistoryService } from "../services/history-service.js";
@@ -15,6 +16,7 @@ export async function routeApi(request, env, injected) {
   if (!route.methods.includes(request.method)) return error(request, route.versioned,
     "METHOD_NOT_ALLOWED", "Method not allowed", 405, { Allow: route.methods.join(", ") });
   try {
+    if (route.name === "auth") return await authController(request, env, route.params.action);
     if (route.name === "presence") return await presenceController(request, env, route.versioned);
     if (!injected && env.MARKET_SUMMARY && ["marketSummary", "favoriteSummary", "sectorDetail"].includes(route.name))
       return await env.MARKET_SUMMARY.getByName("stock-insight-market-summary").fetch(request);
